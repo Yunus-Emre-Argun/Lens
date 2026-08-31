@@ -1,0 +1,1035 @@
+{
+  "summary": {
+    "model_key": "clip",
+    "hf_id": "openai/clip-vit-base-patch16",
+    "model_load_time_seconds": 3.430527299999085,
+    "total_queries": 55,
+    "accuracy": {
+      "top1": 0.9818181818181818,
+      "top3": 1.0,
+      "top5": 1.0
+    },
+    "accuracy_by_variation_type": {
+      "brightness": {
+        "top1": 1.0,
+        "top3": 1.0,
+        "top5": 1.0
+      },
+      "contrast": {
+        "top1": 1.0,
+        "top3": 1.0,
+        "top5": 1.0
+      },
+      "crop": {
+        "top1": 1.0,
+        "top3": 1.0,
+        "top5": 1.0
+      },
+      "downscale_upscale": {
+        "top1": 0.9090909090909091,
+        "top3": 1.0,
+        "top5": 1.0
+      },
+      "jpeg_quality": {
+        "top1": 1.0,
+        "top3": 1.0,
+        "top5": 1.0
+      }
+    },
+    "mean_embed_time_seconds": 0.09058159636439417,
+    "mean_similarity_sort_time_seconds": 7.01818128370426e-06,
+    "mean_total_query_time_seconds": 0.09058861454567788
+  },
+  "per_query": [
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.46 PM__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.08456180000212044,
+      "similarity_sort_time_seconds": 7.699999696342275e-05,
+      "total_query_time_seconds": 0.08463879999908386,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.46 PM__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.09028450000187149,
+      "similarity_sort_time_seconds": 1.2600001355167478e-05,
+      "total_query_time_seconds": 0.09029710000322666,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.46 PM__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg"
+      ],
+      "embed_time_seconds": 0.08805950000532903,
+      "similarity_sort_time_seconds": 8.299997716676444e-06,
+      "total_query_time_seconds": 0.0880678000030457,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.46 PM__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.08905740000045625,
+      "similarity_sort_time_seconds": 6.70000008540228e-06,
+      "total_query_time_seconds": 0.08906410000054166,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.46 PM__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg"
+      ],
+      "embed_time_seconds": 0.08841910000046482,
+      "similarity_sort_time_seconds": 6.299997039604932e-06,
+      "total_query_time_seconds": 0.08842539999750443,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.09598550000373507,
+      "similarity_sort_time_seconds": 1.0399999155197293e-05,
+      "total_query_time_seconds": 0.09599590000289027,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.09963679999782471,
+      "similarity_sort_time_seconds": 6.499998562503606e-06,
+      "total_query_time_seconds": 0.09964329999638721,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.08838749999995343,
+      "similarity_sort_time_seconds": 6.099995516706258e-06,
+      "total_query_time_seconds": 0.08839359999547014,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.08206369999970775,
+      "similarity_sort_time_seconds": 6.299997039604932e-06,
+      "total_query_time_seconds": 0.08206999999674736,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.08674619999510469,
+      "similarity_sort_time_seconds": 6.199996278155595e-06,
+      "total_query_time_seconds": 0.08675239999138284,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg"
+      ],
+      "embed_time_seconds": 0.09672829999908572,
+      "similarity_sort_time_seconds": 6.199996278155595e-06,
+      "total_query_time_seconds": 0.09673449999536388,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg"
+      ],
+      "embed_time_seconds": 0.08486710000579478,
+      "similarity_sort_time_seconds": 6.399997801054269e-06,
+      "total_query_time_seconds": 0.08487350000359584,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.09044970000104513,
+      "similarity_sort_time_seconds": 6.100002792663872e-06,
+      "total_query_time_seconds": 0.0904558000038378,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg"
+      ],
+      "embed_time_seconds": 0.09204309999768157,
+      "similarity_sort_time_seconds": 6.100002792663872e-06,
+      "total_query_time_seconds": 0.09204920000047423,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (2).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.46 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.10243410000111908,
+      "similarity_sort_time_seconds": 6.100002792663872e-06,
+      "total_query_time_seconds": 0.10244020000391174,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg"
+      ],
+      "embed_time_seconds": 0.08775410000089323,
+      "similarity_sort_time_seconds": 6.200003554113209e-06,
+      "total_query_time_seconds": 0.08776030000444734,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg"
+      ],
+      "embed_time_seconds": 0.10065559999929974,
+      "similarity_sort_time_seconds": 5.900001269765198e-06,
+      "total_query_time_seconds": 0.1006615000005695,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg"
+      ],
+      "embed_time_seconds": 0.09129709999979241,
+      "similarity_sort_time_seconds": 4.999994416721165e-06,
+      "total_query_time_seconds": 0.09130209999420913,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg"
+      ],
+      "embed_time_seconds": 0.09006030000455212,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.0900653000062448,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg"
+      ],
+      "embed_time_seconds": 0.09217999999964377,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.09218500000133645,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.08420289999776287,
+      "similarity_sort_time_seconds": 5.100002454128116e-06,
+      "total_query_time_seconds": 0.084208000000217,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.09274790000199573,
+      "similarity_sort_time_seconds": 4.999994416721165e-06,
+      "total_query_time_seconds": 0.09275289999641245,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.08752800000365824,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.08753300000535091,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.08958609999535838,
+      "similarity_sort_time_seconds": 4.800000169780105e-06,
+      "total_query_time_seconds": 0.08959089999552816,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.09589010000490816,
+      "similarity_sort_time_seconds": 5.299996701069176e-06,
+      "total_query_time_seconds": 0.09589540000160923,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.09091590000025462,
+      "similarity_sort_time_seconds": 5.099995178170502e-06,
+      "total_query_time_seconds": 0.0909209999954328,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.08779859999776818,
+      "similarity_sort_time_seconds": 4.999994416721165e-06,
+      "total_query_time_seconds": 0.0878035999921849,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg"
+      ],
+      "embed_time_seconds": 0.07448880000447389,
+      "similarity_sort_time_seconds": 5.200003215577453e-06,
+      "total_query_time_seconds": 0.07449400000768946,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.08698949999961769,
+      "similarity_sort_time_seconds": 6.299997039604932e-06,
+      "total_query_time_seconds": 0.0869957999966573,
+      "top1_hit": false,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (1).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.08556700000190176,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.08557200000359444,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.10936029999720631,
+      "similarity_sort_time_seconds": 4.899993655271828e-06,
+      "total_query_time_seconds": 0.10936519999086158,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.09935789999872213,
+      "similarity_sort_time_seconds": 4.800000169780105e-06,
+      "total_query_time_seconds": 0.09936269999889191,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.09673389999807114,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.09673879999900237,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.10037800000282004,
+      "similarity_sort_time_seconds": 4.999994416721165e-06,
+      "total_query_time_seconds": 0.10038299999723677,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.09599510000407463,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.09600010000576731,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg"
+      ],
+      "embed_time_seconds": 0.0938285000011092,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.09383340000204043,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg"
+      ],
+      "embed_time_seconds": 0.09496460000082152,
+      "similarity_sort_time_seconds": 4.899993655271828e-06,
+      "total_query_time_seconds": 0.09496949999447679,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.07678300000407035,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.07678790000500157,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg"
+      ],
+      "embed_time_seconds": 0.07938010000361828,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.07938500000454951,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg"
+      ],
+      "embed_time_seconds": 0.08768240000063088,
+      "similarity_sort_time_seconds": 6.000002031214535e-06,
+      "total_query_time_seconds": 0.08768840000266209,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg"
+      ],
+      "embed_time_seconds": 0.09721469999931287,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.0972196000002441,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg"
+      ],
+      "embed_time_seconds": 0.10027660000196192,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.10028150000289315,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg"
+      ],
+      "embed_time_seconds": 0.09109770000213757,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.09110270000383025,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg"
+      ],
+      "embed_time_seconds": 0.09876329999679001,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.09876829999848269,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (8).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (4).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg"
+      ],
+      "embed_time_seconds": 0.09031949999916833,
+      "similarity_sort_time_seconds": 4.899993655271828e-06,
+      "total_query_time_seconds": 0.0903243999928236,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9)__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.08370779999677325,
+      "similarity_sort_time_seconds": 5.100002454128116e-06,
+      "total_query_time_seconds": 0.08371289999922737,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9)__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.0850773999991361,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.08508240000082878,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9)__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg"
+      ],
+      "embed_time_seconds": 0.08657460000540596,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.08657950000633718,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9)__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.08596899999974994,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.08597390000068117,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9)__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (5).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg"
+      ],
+      "embed_time_seconds": 0.08818980000069132,
+      "similarity_sort_time_seconds": 9.2999980552122e-06,
+      "total_query_time_seconds": 0.08819909999874653,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM__brightness.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+      "variation_type": "brightness",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.08886360000178684,
+      "similarity_sort_time_seconds": 5.599998985417187e-06,
+      "total_query_time_seconds": 0.08886920000077225,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM__contrast.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+      "variation_type": "contrast",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.07905659999960335,
+      "similarity_sort_time_seconds": 4.900000931229442e-06,
+      "total_query_time_seconds": 0.07906150000053458,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM__crop.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+      "variation_type": "crop",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.08719950000522658,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.08720450000691926,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM__downscale_upscale.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+      "variation_type": "downscale_upscale",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.10024390000035055,
+      "similarity_sort_time_seconds": 5.200003215577453e-06,
+      "total_query_time_seconds": 0.10024910000356613,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    },
+    {
+      "query": "WhatsApp Image 2026-08-31 at 3.06.47 PM__jpeg_quality.jpg",
+      "ground_truth": "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+      "variation_type": "jpeg_quality",
+      "ranked_top5": [
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM.jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (7).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (3).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (6).jpeg",
+        "WhatsApp Image 2026-08-31 at 3.06.47 PM (9).jpeg"
+      ],
+      "embed_time_seconds": 0.08758379999926547,
+      "similarity_sort_time_seconds": 5.000001692678779e-06,
+      "total_query_time_seconds": 0.08758880000095814,
+      "top1_hit": true,
+      "top3_hit": true,
+      "top5_hit": true
+    }
+  ]
+}

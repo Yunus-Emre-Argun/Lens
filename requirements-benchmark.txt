@@ -11,3 +11,7 @@ torch==2.13.0+cpu
 transformers==5.16.1
 pillow==12.3.0
 numpy==2.2.6
+
+# SiglipProcessor'in tokenizer'i icin transitive olarak gerekli (CLIP icin gerekmiyor).
+sentencepiece==0.2.2
+protobuf==7.36.0

@@ -63,7 +63,11 @@ def embed_image(loaded: LoadedModel, image_path: Path) -> tuple[np.ndarray, floa
     with Timer() as t:
         inputs = loaded.processor(images=image, return_tensors="pt")
         with torch.no_grad():
-            features = loaded.model.get_image_features(**inputs)
+            outputs = loaded.model.get_image_features(**inputs)
 
-    vector = features[0].numpy().astype(np.float32)
+    # Bu transformers surumunde get_image_features() pooled vektor yerine
+    # BaseModelOutputWithPooling dondurur; asil (projeksiyonlu) goruntu
+    # embedding'i pooler_output alanindadir (CLIP icin visual_projection
+    # uygulanmis, SigLIP icin vision tower'in pooled ciktisi).
+    vector = outputs.pooler_output[0].numpy().astype(np.float32)
     return l2_normalize(vector), t.elapsed
