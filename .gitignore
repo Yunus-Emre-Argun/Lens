@@ -1,0 +1,19 @@
+# OS
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Temp
+*.tmp
+*.log
+
+# Secrets / local config
+.env
+.env.*
+*.local
