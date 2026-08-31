@@ -1,0 +1,13 @@
+# Faz 2 (CLIP vs SigLIP benchmark) icin gereken minimum bagimliliklar.
+# Kurulum (CPU-only PyTorch icin ozel index sarttir, yoksa CUDA'li ~2GB+ wheel iner):
+#   python -m venv .venv
+#   .venv\Scripts\activate   (Windows)  /  source .venv/Scripts/activate (bu ortamda)
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements-benchmark.txt
+#
+# Asagidaki surumler, bu ortamda kurulan ve test edilen tam surumlerdir (pip freeze).
+
+torch==2.13.0+cpu
+transformers==5.16.1
+pillow==12.3.0
+numpy==2.2.6

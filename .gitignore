@@ -17,3 +17,18 @@ $RECYCLE.BIN/
 .env
 .env.*
 *.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Faz 2 benchmark - proprietary urun gorselleri ve regenerable/buyuk ciktilar.
+# repo'nun GitHub gorunurlugu (public/private) netlesmeden urun gorselleri
+# push edilmiyor; sonuc ozetleri (results/*.json, report.md) izlenmeye devam eder.
+benchmark/data/raw/*
+!benchmark/data/raw/.gitkeep
+benchmark/data/variations/
+benchmark/data/variations_manifest.json
+benchmark/results/embeddings/
+nevresim/

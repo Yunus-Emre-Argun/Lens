@@ -92,7 +92,8 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 **Confirmed**
 - Arama sonucu tercihen 5 saniyeden uzun sürmemeli.
 - Uygulama normal bir ofis bilgisayarında çalışacak; güçlü GPU garanti değil.
-- Local-first yaklaşımı şu an tercih edilen aday, ama kesin mimari karar değil.
+- **[Faz 1]** Local-first mimari onaylandı (PoC kapsamında dış AI servisi kullanılmayacak).
+- **[Faz 1]** CPU performansı ayrıca ölçülecek (henüz ölçülmedi).
 
 **Open Question**
 - Dış AI servislerinin (cloud API vb.) kullanımına izin verilip verilmeyeceği
@@ -107,6 +108,16 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 - Hiçbir model henüz seçilmedi.
 - "Daha yeni olduğu için SigLIP" gibi varsayımlar yapılmayacak; modeller
   gerçek veri üzerinde test edilerek karşılaştırılacak.
+- **[Faz 1]** Benchmark'ın asıl amacı, iki modelden hangisinin **desen**
+  benzerliğini daha iyi yakaladığını görmek (renk ikincil öncelik).
+- **[Faz 1]** ~1.000 görsel ölçeğinde vector database kullanılmayacak;
+  brute-force cosine similarity ile Top-5 sonuç dönülecek.
+
+**Open Question**
+- Aynı desen, farklı renk varyasyonu "aynı ürün" mü sayılmalı, yoksa farklı
+  ürün mü? Bu netleşmediği için Faz 2 benchmark testlerinde **agresif
+  renk/hue değişimi yapılmayacak** (yalnızca hafif/kontrollü fotometrik
+  varyasyonlar kullanılacak).
 
 ---
 
