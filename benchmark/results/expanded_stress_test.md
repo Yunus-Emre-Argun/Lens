@@ -1,6 +1,6 @@
 # Lens Faz 3C - Genisletilmis Veri Seti Stres Testi
 
-Mevcut C#/.NET Lens.Core + CLIP ONNX pipeline'i (WPF MVP'de kullanilan ayni kod), 11 gercek urun + kullanicinin manuel olarak son haline getirdigi distractor seti ile test edildi. Model/algoritma degisikligi yapilmadi - bu turun amaci mevcut sistemin buyuyen veri setinde gercek davranisini olcmekti.
+Mevcut C#/.NET Lens.Core + CLIP ONNX pipeline'i (WPF MVP'de kullanilan ayni kod), 11 gercek urun + kullanicinin manuel olarak son haline getirdigi distractor seti ile test edildi. Model/algoritma degisikligi yapilmadi - amac mevcut sistemin buyuyen veri setinde gercek davranisini olcmekti.
 
 Distractor kaynagi: Openverse (acik lisansli), kullanicinin manuel son duzenlemesiyle **177** gorsel. Toplam aday havuzu: **188**.
 

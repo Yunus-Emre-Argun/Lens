@@ -186,14 +186,14 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 
 ## 8. Geliştirme Ortamı (Bu Makine — Gözlem)
 
-**Confirmed (bu turda read-only olarak tespit edildi)**
+**Confirmed (read-only tespit)**
 - İşletim sistemi: Windows 11 Pro (Build 26200), x64.
 - Git: 2.55.0 kurulu, proje klasörü artık bir git repo (`git init` yapıldı).
 - Python: 3.10.9 kurulu (`C:\Users\win11\AppData\Local\Programs\Python\Python310`).
   `pip` 26.2.1 mevcut.
 - Bu geliştirme makinesinde bir NVIDIA GPU (RTX 5060 Ti, ~16 GB VRAM,
   driver 610.74) tespit edildi.
-- **[Faz 3A, 2026-09-01]** Bu turda kontrol edildi: makinede hiç .NET SDK
+- **[Faz 3A, 2026-09-01]** Kontrol edildi: makinede hiç .NET SDK
   kurulu değildi. Faz 3A önkoşulu olarak `winget` ile **.NET 8 SDK**
   (`Microsoft.DotNet.SDK.8`, sürüm 8.0.424) kuruldu. Gereksiz/ekstra SDK
   sürümü kurulmadı.

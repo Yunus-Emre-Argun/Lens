@@ -5,7 +5,7 @@ gereksinimleri kaydeder. Bu görüşmeyle proje demo/PoC hedefinden, fabrikada
 gerçekten kullanılacak bir masaüstü ürün hedefine geçmiştir.
 
 Notasyon: **Confirmed** = yönetici tarafından açıkça belirtildi.
-**Recommended** = Tech Lead (bu oturum) analizi, mimari olarak öneriliyor
+**Recommended** = Tech Lead mühendislik analizi, mimari olarak öneriliyor
 ama henüz kullanıcı/CTO onayı almadı. **Open Question** = kod/mimari kararını
 etkileyen, henüz cevaplanmamış soru. **Out of Scope** = bu faz setinde
 yapılmayacak.
@@ -13,8 +13,7 @@ yapılmayacak.
 Bu doküman `docs/DECISIONS.md`'deki karar tarihçesini tekrar etmez; ilgili
 karar numaralarına referans verir. Detaylı mimari tartışma ve gerekçeler
 için bkz. `docs/ARCHITECTURE_PROPOSAL.md` (Faz 1, hâlâ geçerli genel
-ilkeler) ve bu oturumun mimari görüşü (konuşma geçmişinde / gerekirse ayrı
-not).
+ilkeler) ve ilgili `docs/DECISIONS.md` / `docs/ROADMAP.md` maddeleri.
 
 ---
 
@@ -147,6 +146,13 @@ Gelecekte TIFF/BMP/WEBP desteği eklenmesi kolay olmalı (yalnızca
 sınıflandırma/mesaj için "bilinen ama desteklenmeyen" listesi tutulur,
 bugün gerçek decode desteği eklenmez).
 
+**Implemented (FAZ 4B, 2026-09-01):** `FileClassification` enum'u ile
+`SupportedImage` / `UnsupportedImageFormat` / `NonImage` olarak
+sınıflandırılıyor; "SUPPORTED IMAGE BUT FAILED" durumu ayrı bir kategori
+değil, `SupportedImage` dosyalarının işlenme aşamasında (embed edilirken)
+oluşan bir sonuç olarak `IndexFileIssue.Kind` üzerinden izleniyor. Kavramsal
+4'lü model korunuyor.
+
 ---
 
 ## 8. Logging
@@ -162,12 +168,14 @@ bugün gerçek decode desteği eklenmez).
     log görüntüleyiciye dönüşmemeli, basit bir "İndeksleme Detayları /
     Hatalar" alanı yeterli.
 
-**Open Question**
-- Log formatı: plain text mi, structured (JSON) mi? Üretimde
-  okunabilirlik/support kolaylığı önceliği düz metne işaret ediyor, ama
-  kesin biçim FAZ 4C'de netleşecek.
-- Logging altyapısı: minimal kendi implementasyonumuz mu, hafif bir
-  kütüphane mi? Henüz karar değil.
+**Implemented (FAZ 4C, 2026-09-01):** Düz UTF-8 metin log formatı
+seçildi. Kendi minimal implementasyonumuz (`ILensLogger`/`FileLogger`, ek
+NuGet yok) kullanıldı. Dosya: `%LocalAppData%\Lens\logs\lens-yyyyMMdd.log`,
+INFO/WARNING/ERROR seviyeleri, 30 günlük retention (açılışta eski dosyalar
+temizlenir). Ana UI'daki indeksleme özeti sade tutuldu (yalnızca
+yeni/güncellenen/silinen/sorun sayısı gibi kullanıcıya anlamlı bilgi);
+ayrıntılı sayaçlar ve dosya bazlı hata listesi log dosyasında ve "Sorunlu
+Dosyalar" penceresinde bulunur. Detay: `docs/DECISIONS.md` #50-51.
 
 ---
 
@@ -228,13 +236,15 @@ bugün gerçek decode desteği eklenmez).
 
 | # | Soru | Neden Önemli |
 |---|------|---------------|
-| 1 | Log formatı (plain text / structured) ve logging altyapısı (kendi kod / kütüphane) | FAZ 4C implementasyonunu belirler |
-| 2 | ~5000 gerçek görsel setine ne zaman erişilebilecek (FAZ 4E'nin bağımlılığı) | Gerçek ölçek doğrulaması bu veriye bağlı |
-| 3 | Yönetici bilgisayarında/factory workstation'larında Smart App Control veya benzeri Application Control politikası aktif mi? | FAZ 4F rollout riski (bkz. DEMO_DEPLOYMENT_GUIDE.md §6) |
+| 1 | ~5000 gerçek görsel setine ne zaman erişilebilecek (FAZ 4E'nin bağımlılığı) | Gerçek ölçek doğrulaması bu veriye bağlı |
+| 2 | Yönetici bilgisayarında/factory workstation'larında Smart App Control veya benzeri Application Control politikası aktif mi? | FAZ 4F rollout riski (bkz. DEMO_DEPLOYMENT_GUIDE.md §6) |
 
 **Çözüldü (FAZ 4A kickoff, 2026-09-01):** Override restart sonrası
 hatırlanmıyor (session-only, bkz. DECISIONS.md #43); ayarlar dosyası
 ayrımı ve konumu netleşti (bkz. DECISIONS.md #41-42, §4 yukarıda).
+
+**Çözüldü (FAZ 4C, 2026-09-01):** Log formatı ve logging altyapısı netleşti
+(bkz. DECISIONS.md #50, §8 yukarıda).
 
 **Not:** Gerçek UNC path'in şu an bilinmemesi **blocker değildir** —
 configurable olacağı için sonradan girilebilir. Mapped drive vs UNC

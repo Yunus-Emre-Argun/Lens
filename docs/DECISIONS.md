@@ -10,7 +10,7 @@ içinde tartışılır.
 
 | # | Karar | Not |
 |---|-------|-----|
-| 1 | Proje klasörü git ile versiyonlanacak | `git init` bu turda yapıldı |
+| 1 | Proje klasörü git ile versiyonlanacak | `git init` proje başlangıcında yapıldı |
 | 2 | İlk PoC kapsamı yalnızca görselle arama | Text search, login vb. dahil değil |
 | 3 | İlk demo, klasördeki mevcut görsellerle çalışabilir | Gerçek DB entegrasyonu ilk demo için zorunlu değil |
 | 4 | Hedef platform Windows masaüstü | Fabrika içi kullanım |
@@ -55,8 +55,12 @@ içinde tartışılır.
 | 43 | **[Faz 4A]** Kullanıcının seçtiği alternatif klasör **varsayılan olarak geçici**dir (session-only, restart'ta admin default'a döner); kullanıcı açıkça "Bu klasörü varsayılan olarak kullan" derse `UseUserOverride=true` yazılıp kalıcı olur | Yönetici onayı (2026-09-01) |
 | 44 | **[Faz 4A]** Cache anahtarı: ürün dizini path'inden türetilen deterministic bir tanımlayıcı (hash); farklı ürün dizinleri farklı cache klasörü kullanır, aynı dizine dönülünce eski cache tekrar kullanılır | Yönetici onayı (2026-09-01) |
 | 45 | **[Faz 4A]** `%LocalAppData%\Lens\` altında `config/`, `cache/`, `logs/` alt klasör yapısı; `logs/` bu fazda oluşturulur ama kullanılmaz (logging implementasyonu FAZ 4C) | Yönetici onayı (2026-09-01) |
-| 46 | **[Faz 4B]** Search-before-refresh: "Ara" öncesi ürün dizini freshness kontrolü yapılır; yeni/değişmiş/silinmiş dosya varsa arama öncesi incremental update tetiklenir; kısa süre önce güncellenmişse tekrar taranmaz | Yönetici onayı (2026-09-01). **Bu fazda implement edilmedi**, FAZ 4B'de yapılacak. Detay: `docs/ROADMAP.md` FAZ 4B |
+| 46 | **[Faz 4B]** Search-before-refresh: "Ara" öncesi ürün dizini freshness kontrolü yapılır; yeni/değişmiş/silinmiş dosya varsa arama öncesi incremental update tetiklenir; kısa süre önce güncellenmişse tekrar taranmaz | Yönetici onayı (2026-09-01). **Implement edildi ve kabul edildi** (FAZ 4B, 2026-09-01). Freshness TTL = **30 saniye** (yönetici düzeltmesi). Detay: `docs/ROADMAP.md` FAZ 4B |
+| 49 | **[Faz 4B]** Dosya sınıflandırması `SupportedImage` / `UnsupportedImageFormat` / `NonImage` olarak 3 kategoride uygulandı; `IndexUpdateStats`/`IndexFileIssue`/`ChangeSummary` veri modeli eklendi; toplam tarama hatasında önceki geçerli index korunur | Yönetici onayı (2026-09-01, FAZ 4B kabul). Detay: `docs/ROADMAP.md` FAZ 4B |
+| 50 | **[Faz 4C]** Logging: kendi kodu ile `ILensLogger`/`FileLogger` (ek NuGet yok); düşük coupling gereği `ImageIndex` loglamadan habersiz bırakıldı, log satırları çağıran katmanın (WPF) döndürdüğü istatistiklerden üretiliyor. Format: `%LocalAppData%\Lens\logs\lens-yyyyMMdd.log`, düz UTF-8, `[INFO/WARNING/ERROR]`, 30 günlük retention, loglama hatası uygulamayı çökertmez | Yönetici onayı (2026-09-01, FAZ 4C kabul). **Resolves Not Yet Decided #7.** Detay: `docs/ROADMAP.md` FAZ 4C |
+| 51 | **[Faz 4C]** Ana ekrandaki indeksleme özeti sadeleştirildi: yalnızca kullanıcıya anlamlı bilgi gösterilir (sıfır olan sayaçlar/"değişmeyen" ana özette gösterilmez); ayrıntılı sayaçlar yalnızca log dosyasında ve "Sorunlu Dosyalar" penceresinde kalır | Yönetici onayı (2026-09-01, FAZ 4C sırasında). Veri modeli (IndexUpdateStats) değişmedi, yalnızca UI metni sadeleştirildi |
 | 47 | **[Faz 4D]** Query görseli için WPF native drag & drop desteği (mevcut "Sorgu Görseli Seç" butonuna ek, yeni dependency yok) | Yönetici onayı (2026-09-01). **Bu fazda implement edilmedi**, FAZ 4D'de yapılacak. Detay: `docs/ROADMAP.md` FAZ 4D |
+| 48 | **[Faz 4D]** Sonuç ekranı: query görseli üstte büyük/sürekli görünür; Top-10 altta sürekli görünür grid; Top-10'dan tıklanan sonuç ayrı bir "karşılaştırma" alanında büyük gösterilir + similarity score (query değişmez, sadece karşılaştırma alanı güncellenir) | Yönetici onayı (2026-09-01). **Bu fazda implement edilmedi**, FAZ 4D'de yapılacak. Detay: `docs/ROADMAP.md` FAZ 4D |
 
 ---
 
@@ -72,7 +76,7 @@ Bu konularda **kesin hüküm verilmemiştir**.
 | 4 | Çoklu kullanıcı / eşzamanlılık gereksinimleri | İleri faz, detay netleşmedi. Not: dosya erişimi tarafında kısmi cevap var (bkz. karar #39 — Recommended, local cache) |
 | 5 | Test/benchmark metodolojisi (sentetik varyasyonların temsil gücü) | Gerçek ikinci fotoğraf verisi yok |
 | 6 | **[Faz 1]** Aynı desen farklı renk aynı ürün mü sayılmalı? (production için) | MVP'de geçici olarak "aynı ürün" kabul edildi (karar #25); production için kesin değil — benchmark bu konuyu kanıtlamadı |
-| 7 | **[Faz 4]** Log formatı (plain text / structured) ve logging altyapısı (kendi kod / kütüphane) | FAZ 4C'de netleşecek. Detay: `docs/PRODUCTION_REQUIREMENTS.md` §8 |
+| ~~7~~ | ~~**[Faz 4]** Log formatı ve logging altyapısı~~ | **Çözüldü** — bkz. karar #50 (FAZ 4C, 2026-09-01) |
 
 Not: Arayüz teknolojisi (#15/#21), embedding depolama biçimi (#23), local
 cache konumu/atomic write/config ayrımı (#39-45) artık **Confirmed**.

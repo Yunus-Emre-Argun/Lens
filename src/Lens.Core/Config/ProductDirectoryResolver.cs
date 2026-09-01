@@ -1,3 +1,5 @@
+using Lens.Core.Logging;
+
 namespace Lens.Core.Config;
 
 public enum ProductDirectorySource
@@ -19,16 +21,16 @@ public sealed record ProductDirectoryResolution(
 /// </summary>
 public static class ProductDirectoryResolver
 {
-    public static ProductDirectoryResolution ResolveDefault()
+    public static ProductDirectoryResolution ResolveDefault(ILensLogger? logger = null)
     {
-        var userSettings = UserSettings.Load();
+        var userSettings = UserSettings.Load(logger);
         if (userSettings.UseUserOverride && !string.IsNullOrWhiteSpace(userSettings.UserOverrideProductDirectory))
         {
             var dir = userSettings.UserOverrideProductDirectory!;
             return new ProductDirectoryResolution(dir, ProductDirectorySource.UserOverride, IsAccessible(dir));
         }
 
-        var adminConfig = AdminConfig.Load(AppPaths.AdminConfigFilePath);
+        var adminConfig = AdminConfig.Load(AppPaths.AdminConfigFilePath, logger);
         if (!string.IsNullOrWhiteSpace(adminConfig.AdminDefaultProductDirectory))
         {
             var dir = adminConfig.AdminDefaultProductDirectory!;
@@ -39,20 +41,20 @@ public static class ProductDirectoryResolver
     }
 
     /// <summary>Kullanicinin sectigi klasoru kalici varsayilan yapar.</summary>
-    public static void SetUserOverride(string productDirectory)
+    public static void SetUserOverride(string productDirectory, ILensLogger? logger = null)
     {
-        var settings = UserSettings.Load();
+        var settings = UserSettings.Load(logger);
         settings.UserOverrideProductDirectory = productDirectory;
         settings.UseUserOverride = true;
-        settings.Save();
+        settings.Save(logger);
     }
 
     /// <summary>Kullanici override'ini temizler; sonraki acilista admin default'a donulur.</summary>
-    public static void ClearUserOverride()
+    public static void ClearUserOverride(ILensLogger? logger = null)
     {
-        var settings = UserSettings.Load();
+        var settings = UserSettings.Load(logger);
         settings.UseUserOverride = false;
-        settings.Save();
+        settings.Save(logger);
     }
 
     public static bool IsAccessible(string directory)

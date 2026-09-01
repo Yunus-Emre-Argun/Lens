@@ -35,6 +35,8 @@
             <Button x:Name="UpdateIndexButton" Content="İndeksi Güncelle / Klasörü Tara" Padding="10,4"
                     Margin="0,0,8,0" Click="UpdateIndexButton_Click" />
             <TextBlock x:Name="IndexStatusText" Text="—" VerticalAlignment="Center" TextWrapping="Wrap" />
+            <Button x:Name="ProblemFilesButton" Content="Sorunlu Dosyalar (0)" Padding="6,2"
+                    Margin="12,0,0,0" Click="ProblemFilesButton_Click" Visibility="Collapsed" />
         </StackPanel>
 
         <!-- Query secimi -->

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lens.Core.Logging;
 
 namespace Lens.Core.Config;
 
@@ -12,7 +13,7 @@ public sealed class AdminConfig
 {
     public string? AdminDefaultProductDirectory { get; set; }
 
-    public static AdminConfig Load(string filePath)
+    public static AdminConfig Load(string filePath, ILensLogger? logger = null)
     {
         try
         {
@@ -24,10 +25,12 @@ public sealed class AdminConfig
             var json = File.ReadAllText(filePath);
             return JsonSerializer.Deserialize<AdminConfig>(json) ?? new AdminConfig();
         }
-        catch
+        catch (Exception ex)
         {
             // Bozuk/okunamayan config, uygulamayi crash ettirmemeli -
-            // varsayilan yoksa kullanici manuel klasor secer.
+            // varsayilan yoksa kullanici manuel klasor secer. Yine de
+            // (varsa) logger'a bildirilir ki destek ekibi fark edebilsin.
+            logger?.Warning("AdminConfigLoad", file: filePath, reason: ex.Message);
             return new AdminConfig();
         }
     }

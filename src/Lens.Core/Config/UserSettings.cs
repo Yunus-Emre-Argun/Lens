@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Lens.Core.IO;
+using Lens.Core.Logging;
 
 namespace Lens.Core.Config;
 
@@ -14,7 +15,7 @@ public sealed class UserSettings
     public string? UserOverrideProductDirectory { get; set; }
     public bool UseUserOverride { get; set; }
 
-    public static UserSettings Load()
+    public static UserSettings Load(ILensLogger? logger = null)
     {
         try
         {
@@ -27,16 +28,28 @@ public sealed class UserSettings
             var json = File.ReadAllText(path);
             return JsonSerializer.Deserialize<UserSettings>(json) ?? new UserSettings();
         }
-        catch
+        catch (Exception ex)
         {
+            logger?.Warning("UserSettingsLoad", file: AppPaths.UserSettingsFilePath, reason: ex.Message);
             return new UserSettings();
         }
     }
 
-    public void Save()
+    public void Save(ILensLogger? logger = null)
     {
-        AppPaths.EnsureLocalDirectoriesExist();
-        var json = JsonSerializer.Serialize(this);
-        AtomicFileWriter.WriteAllText(AppPaths.UserSettingsFilePath, json);
+        try
+        {
+            AppPaths.EnsureLocalDirectoriesExist();
+            var json = JsonSerializer.Serialize(this);
+            AtomicFileWriter.WriteAllText(AppPaths.UserSettingsFilePath, json);
+        }
+        catch (Exception ex)
+        {
+            // [Faz 4C] Onceden bu metod hata firlatiyordu (try/catch yoktu).
+            // Diger config islemleriyle tutarli olsun ve tek basina bir
+            // ayar-kaydetme sorunu tum uygulamayi cokertmesin diye
+            // yakalanip loglaniyor.
+            logger?.Error("UserSettingsSave", file: AppPaths.UserSettingsFilePath, reason: ex.Message);
+        }
     }
 }

@@ -19,6 +19,17 @@ if (args.Length > 0 && args[0] == "stresstest")
     return;
 }
 
+if (args.Length > 1 && args[0] == "detectchanges")
+{
+    var sw = Stopwatch.StartNew();
+    var summary = ImageIndex.DetectChanges(args[1]);
+    sw.Stop();
+    Console.WriteLine($"DetectChanges({args[1]}) -> new={summary.NewCount} changed={summary.ChangedCount} "
+        + $"removed={summary.RemovedCount} unchanged={summary.UnchangedCount} hasChanges={summary.HasChanges} "
+        + $"scanError={(summary.ScanError ?? "yok")} ({sw.Elapsed.TotalMilliseconds:F1} ms)");
+    return;
+}
+
 string repoRoot = FindRepoRoot();
 string productFolder = args.Length > 0 ? args[0] : Path.Combine(repoRoot, "nevresim");
 string onnxModelPath = args.Length > 1 ? args[1] : Path.Combine(repoRoot, "models", "clip-vision-b16-openai.onnx");
@@ -43,6 +54,17 @@ Console.WriteLine(
     $"[2] Ilk indeksleme: {entries1.Count} gorsel, "
     + $"added={stats1.Added} updated={stats1.Updated} unchanged={stats1.Unchanged} removed={stats1.Removed} "
     + $"({buildStopwatch.Elapsed.TotalSeconds:F2} sn)");
+Console.WriteLine(
+    $"    [Faz 4B] total_scanned={stats1.TotalFilesScanned} supported_images={stats1.SupportedImagesSeen} "
+    + $"unsupported_format={stats1.UnsupportedFormatCount} skipped_non_image={stats1.SkippedNonImageCount} "
+    + $"failed={stats1.FailedCount} scan_error={(stats1.ScanError ?? "yok")}");
+if (stats1.Issues.Count > 0)
+{
+    foreach (var issue in stats1.Issues)
+    {
+        Console.WriteLine($"        [{issue.Kind}] {issue.FileName} ({issue.Extension}): {issue.Reason}");
+    }
+}
 if (entries1.Count > 0)
 {
     Console.WriteLine($"    Ort. embedding suresi: {buildStopwatch.Elapsed.TotalMilliseconds / entries1.Count:F1} ms/gorsel");
@@ -153,7 +175,7 @@ static void RunStressTest()
         : 0;
     Console.WriteLine($"[3] Distractor index - 1. calistirma: {distractEntries1.Count} gorsel, "
         + $"yeni={distractStats1.Added}, degismeyen={distractStats1.Unchanged}, "
-        + $"okunamayan={distractStats1.Errors.Count} ({distractSw1.Elapsed.TotalSeconds:F2} sn, "
+        + $"okunamayan={distractStats1.FailedCount} ({distractSw1.Elapsed.TotalSeconds:F2} sn, "
         + $"ort={avgMsFirst:F0} ms/yeni-gorsel)\n");
 
     var distractSw2 = Stopwatch.StartNew();
@@ -251,7 +273,7 @@ static void WriteReport(
     sb.AppendLine();
     sb.AppendLine("Mevcut C#/.NET Lens.Core + CLIP ONNX pipeline'i (WPF MVP'de kullanilan ayni kod), "
         + "11 gercek urun + kullanicinin manuel olarak son haline getirdigi distractor seti ile test edildi. "
-        + "Model/algoritma degisikligi yapilmadi - bu turun amaci mevcut sistemin buyuyen veri setinde "
+        + "Model/algoritma degisikligi yapilmadi - amac mevcut sistemin buyuyen veri setinde "
         + "gercek davranisini olcmekti.");
     sb.AppendLine();
     sb.AppendLine($"Distractor kaynagi: Openverse (acik lisansli), kullanicinin manuel son "
@@ -286,9 +308,9 @@ static void WriteReport(
     sb.AppendLine($"- Distractor 2. calistirma (cache-hit dogrulamasi): "
         + $"yeni={distractStats2.Added}, degismeyen={distractStats2.Unchanged}, "
         + $"{distractSw2.Elapsed.TotalSeconds:F2} sn (persistent cache calisiyor)");
-    if (distractStats1.Errors.Count > 0)
+    if (distractStats1.FailedCount > 0)
     {
-        sb.AppendLine($"- Okunamayan/embed edilemeyen distractor: {distractStats1.Errors.Count}");
+        sb.AppendLine($"- Okunamayan/embed edilemeyen distractor: {distractStats1.FailedCount}");
     }
     sb.AppendLine();
 

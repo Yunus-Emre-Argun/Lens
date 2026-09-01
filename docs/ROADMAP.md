@@ -63,6 +63,8 @@ fazların temeli.
 
 ## FAZ 4B — Robust File Discovery & Indexing
 
+**Durum: Tamamlandı ve kabul edildi (2026-09-01).**
+
 **Amaç:** ~5000 dosyalık gerçek bir klasörde format sınıflandırmasını ve
 hata toleransını sağlamlaştırmak.
 
@@ -106,9 +108,21 @@ hata toleransını sağlamlaştırmak.
 
 **Bağımlılık:** FAZ 4A (local index konumu ve atomic write üzerine inşa edilir).
 
+**Gerçekleşen sonuç (2026-09-01):** Dosyalar `SupportedImage` /
+`UnsupportedImageFormat` / `NonImage` olarak sınıflandırılıyor;
+`IndexUpdateStats` toplam/yeni/güncellenen/değişmeyen/silinen/desteklenmeyen
+format/atlanan sayaçlarını ve `Issues` (dosya, format, sebep) listesini
+taşıyor. Freshness TTL **30 saniye** olarak onaylandı: "Ara" öncesi metadata
+tabanlı `DetectChanges` kontrolü yapılır; son başarılı taramadan/kontrolden
+30 saniye geçmemişse tekrar taranmaz. Manuel "İndeksi Güncelle / Klasörü
+Tara" her zaman force scan yapar ve TTL'i sıfırlar. Toplam tarama hatasında
+(örn. dizin erişilemez) önceki geçerli index korunur, uygulama çökmez.
+
 ---
 
 ## FAZ 4C — Logging & Indexing Observability
+
+**Durum: Tamamlandı ve kabul edildi (2026-09-01).**
 
 **Amaç:** Persistent log dosyası + bu logun UI'da özetlenmesi için altyapı.
 
@@ -128,6 +142,20 @@ hata toleransını sağlamlaştırmak.
 - Log dosyası büyüklüğü kontrolsüz büyümüyor (en azından günlük rotasyon).
 
 **Bağımlılık:** FAZ 4B (loglanacak veri modelini üretir).
+
+**Gerçekleşen sonuç (2026-09-01):** Kendi kodu ile minimal bir logging
+katmanı eklendi (`ILensLogger` + `FileLogger`, ek NuGet yok). Düşük coupling
+gereği indeksleme çekirdeği (`ImageIndex`) loglamadan habersiz bırakıldı;
+log satırları çağıran katmanın (WPF) döndürülen istatistik/özet nesnelerinden
+üretiliyor. Log dosyası: `%LocalAppData%\Lens\logs\lens-yyyyMMdd.log`,
+düz UTF-8 metin, `yyyy-MM-dd HH:mm:ss [LEVEL] Operation | File: .. | Format:
+.. | Reason: ..` formatında, INFO/WARNING/ERROR seviyeleri, 30 günlük
+retention (uygulama açılışında eski dosyalar temizlenir). Loglama
+başarısız olursa uygulama etkilenmez (tüm yazma işlemleri try/catch ile
+korunur). Ana ekrandaki indeksleme özeti sadeleştirildi: yalnızca kullanıcı
+için anlamlı bilgi (yeni/güncellenen/silinen/sorun sayısı, sıfır olan
+kalemler gösterilmez) gösterilir; ayrıntılı teknik sayaçlar yalnızca log
+dosyasında ve "Sorunlu Dosyalar" penceresinde bulunur.
 
 ---
 
@@ -154,6 +182,27 @@ gösterilmesi + sınırlı görsel iyileştirme.
    klasör drop edilirse kabul edilmez; birden fazla dosya bırakılırsa
    "Lütfen tek bir görsel bırakın" mesajı; başarılı drop sonrası preview
    güncellenir; dosya seçme butonu fallback olarak çalışmaya devam eder.
+6. **[Confirmed, 2026-09-01]** Sonuç ekranı düzeni — query/karşılaştırma
+   alanı: query görseli üstte, mevcut halinden **daha büyük** ve **sürekli
+   görünür**. Top-10 sonuçlar altta grid/list olarak **sürekli görünür**
+   (hiçbir zaman kaybolmaz). Kullanıcı Top-10'dan bir sonuca tıklarsa: ana
+   query görseli değişmez; tıklanan sonuç, query'nin yanındaki ayrı bir
+   "karşılaştırma" alanında büyük gösterilir + similarity score yazılır;
+   başka bir sonuca tıklanırsa yalnızca karşılaştırma alanı güncellenir;
+   seçili Top-10 kartı hafif border/highlight ile işaretlenebilir. Amaç:
+   kullanıcı 10 aday arasında dolaşırken ana sorgu desenini kaybetmeden
+   yan yana karşılaştırabilsin. Örnek düzen:
+   ```
+        Sorgulanan Görsel      Seçilen Sonuç
+        ┌──────────────┐      ┌──────────────┐
+        │    QUERY     │      │    RESULT    │
+        └──────────────┘      └──────────────┘
+                               Similarity %...
+   ------------------------------------------------
+                En Benzer 10 Sonuç
+    [1] [2] [3] [4] [5]
+    [6] [7] [8] [9] [10]
+   ```
 
 **Kabul kriterleri:**
 - Top-10 sonuç ekranda scroll ile rahat görülebiliyor.
@@ -164,10 +213,14 @@ gösterilmesi + sınırlı görsel iyileştirme.
   ve önizleme güncelleniyor.
 - Klasör, birden fazla dosya veya desteklenmeyen format drop edildiğinde
   uygulama çökmüyor, anlaşılır bir mesaj gösteriliyor.
+- Top-10 sonuçlarından birine tıklanınca query görseli sabit kalıyor,
+  yalnızca karşılaştırma alanı (görsel + similarity score) değişiyor;
+  Top-10 listesi hiçbir adımda ekrandan kaybolmuyor.
 
 **Bağımlılık:** Top-10 kısmı bağımsız; indexing summary kısmı FAZ 4B/4C'nin
-veri modeline bağımlı; drag & drop kısmı bağımsız (mevcut query-seçme
-akışına paralel bir giriş noktası ekler).
+veri modeline bağımlı; drag & drop kısmı bağımsız; query/karşılaştırma
+düzeni Top-10'un kendisine bağımlı (aynı fazda, ondan hemen sonra
+yapılması mantıklı).
 
 ---
 
@@ -219,7 +272,7 @@ gerçek workstation) taşımak.
 - Gerçek fabrika workstation'ında uygulama açılıyor, varsayılan dizin
   yükleniyor (veya düzgün fallback gösteriyor), arama uçtan uca çalışıyor.
 - Application Control/güvenlik politikası engeli varsa **tespit edilip
-  raporlandı** (bypass edilmedi — bkz. `CLAUDE.md`, önceki oturum notları).
+  raporlandı** (bypass edilmedi — bkz. `CLAUDE.md`, `DEMO_DEPLOYMENT_GUIDE.md` §6).
 
 **Bağımlılık:** FAZ 4E (gerçek ölçek doğrulaması geçmeden rollout yapılmaz).
 
