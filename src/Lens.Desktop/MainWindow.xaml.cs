@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Lens.Core.Ai;
 using Lens.Core.Config;
@@ -36,6 +39,8 @@ public partial class MainWindow : Window
     private DateTime? _lastFreshnessCheckUtc;
     private readonly ILensLogger _logger = new FileLogger();
     private IReadOnlyList<IndexFileIssue> _lastIssues = Array.Empty<IndexFileIssue>();
+    private SearchResultViewModel? _selectedResult;
+    private ImagePreviewWindow? _openPreview;
 
     public MainWindow()
     {
@@ -43,6 +48,22 @@ public partial class MainWindow : Window
         ResultsItemsControl.ItemsSource = _results;
         _logger.Info("AppStart");
         LoadDefaultProductDirectory();
+    }
+
+    /// <summary>
+    /// [Faz 4D] Ana ekrandaki durum metnini, sonucun niteligine gore hafif bir
+    /// renk vurgusuyla gosterir (success=yesil, warning/hata=kirmizimsi,
+    /// null=notr). Salt UI vurgusu - IndexUpdateStats/log icerigini etkilemez.
+    /// </summary>
+    private void SetIndexStatus(string text, bool? success = null)
+    {
+        IndexStatusText.Text = text;
+        IndexStatusText.Foreground = success switch
+        {
+            true => (Brush)FindResource("SuccessBrush"),
+            false => (Brush)FindResource("WarningBrush"),
+            null => (Brush)FindResource("NeutralTextBrush"),
+        };
     }
 
     /// <summary>
@@ -56,7 +77,7 @@ public partial class MainWindow : Window
 
         if (resolution.Directory is null)
         {
-            IndexStatusText.Text = "Varsayılan ürün dizini yapılandırılmamış. Lütfen bir klasör seçin.";
+            SetIndexStatus("Varsayılan ürün dizini yapılandırılmamış. Lütfen bir klasör seçin.");
             _logger.Info("ProductDirectory", reason: "yapılandırılmamış");
             UpdateDirectoryOriginUi();
             return;
@@ -64,8 +85,9 @@ public partial class MainWindow : Window
 
         if (!resolution.IsAccessible)
         {
-            IndexStatusText.Text =
-                $"Varsayılan ürün dizinine ulaşılamadı: {resolution.Directory}\nLütfen başka bir klasör seçin.";
+            SetIndexStatus(
+                $"Varsayılan ürün dizinine ulaşılamadı: {resolution.Directory}\nLütfen başka bir klasör seçin.",
+                success: false);
             _logger.Warning("ProductDirectory", file: resolution.Directory, reason: "erişilemedi");
             UpdateDirectoryOriginUi();
             return;
@@ -77,9 +99,9 @@ public partial class MainWindow : Window
         _indexEntries = ImageIndex.Load(_productFolder);
         _lastFreshnessCheckUtc = null;
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
-        IndexStatusText.Text = _indexEntries.Count > 0
+        SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
-            : "Varsayılan klasör yüklendi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.";
+            : "Varsayılan klasör yüklendi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
 
         _directoryOrigin = resolution.Source == ProductDirectorySource.UserOverride
             ? DirectoryOrigin.UserOverride
@@ -98,13 +120,14 @@ public partial class MainWindow : Window
         _productFolder = dialog.FolderName;
         FolderPathTextBox.Text = _productFolder;
         _results.Clear();
+        ClearComparison();
         _lastFreshnessCheckUtc = null;
 
         _indexEntries = ImageIndex.Load(_productFolder);
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
-        IndexStatusText.Text = _indexEntries.Count > 0
+        SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
-            : "Klasör seçildi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.";
+            : "Klasör seçildi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
 
         // [Faz 4A] Manuel secim varsayilan olarak GECICIDIR (session-only) -
         // burada hicbir ayar dosyasina yazilmaz. Kalici hale getirmek icin
@@ -124,7 +147,7 @@ public partial class MainWindow : Window
         _logger.Info("UserOverride", file: _productFolder, reason: "set");
         _directoryOrigin = DirectoryOrigin.UserOverride;
         UpdateDirectoryOriginUi();
-        IndexStatusText.Text = "Bu klasör kalıcı varsayılan olarak ayarlandı.";
+        SetIndexStatus("Bu klasör kalıcı varsayılan olarak ayarlandı.", success: true);
     }
 
     private void ClearDefaultButton_Click(object sender, RoutedEventArgs e)
@@ -133,7 +156,7 @@ public partial class MainWindow : Window
         _logger.Info("UserOverride", reason: "cleared");
         _directoryOrigin = _productFolder is null ? DirectoryOrigin.None : DirectoryOrigin.Manual;
         UpdateDirectoryOriginUi();
-        IndexStatusText.Text = "Kullanıcı varsayılanı temizlendi. Sonraki açılışta yönetici varsayılanı kullanılacak.";
+        SetIndexStatus("Kullanıcı varsayılanı temizlendi. Sonraki açılışta yönetici varsayılanı kullanılacak.");
     }
 
     private void UpdateDirectoryOriginUi()
@@ -176,7 +199,7 @@ public partial class MainWindow : Window
         }
 
         SetBusy(true);
-        IndexStatusText.Text = "İndeksleniyor...";
+        SetIndexStatus("İndeksleniyor...");
 
         // Manuel "İndeksi Güncelle" her zaman FORCE SCAN yapar (freshness
         // kontrolünü atlar). Bu, arama öncesi otomatik freshness-check'in
@@ -204,7 +227,7 @@ public partial class MainWindow : Window
             var embedder = _embedder!;
             var wasFirstCreation = _indexEntries.Count == 0;
             var progress = new Progress<(int Done, int Total)>(p =>
-                IndexStatusText.Text = $"İndeksleniyor... {p.Done}/{p.Total}");
+                SetIndexStatus($"İndeksleniyor... {p.Done}/{p.Total}"));
 
             _logger.Info("IndexScan", reason: $"trigger={trigger} başladı");
             var (entries, stats) = await Task.Run(
@@ -212,7 +235,7 @@ public partial class MainWindow : Window
 
             if (stats.ScanError is not null)
             {
-                IndexStatusText.Text = $"Klasör taranamadı: {stats.ScanError}";
+                SetIndexStatus($"Klasör taranamadı: {stats.ScanError}", success: false);
                 _logger.Error("IndexScan", file: folder, reason: $"trigger={trigger}: {stats.ScanError}");
                 MessageBox.Show(this,
                     $"Ürün klasörü şu anda taranamadı (ör. ağ bağlantısı):\n{stats.ScanError}\n"
@@ -228,7 +251,9 @@ public partial class MainWindow : Window
             UpdateProblemFilesUi();
 
             ProductCountText.Text = $"{entries.Count} ürün";
-            IndexStatusText.Text = BuildSummaryText(stats, entries.Count, wasFirstCreation);
+            var summaryText = BuildSummaryText(stats, entries.Count, wasFirstCreation);
+            var hasProblems = stats.FailedCount + stats.UnsupportedFormatCount > 0;
+            SetIndexStatus(summaryText, success: !hasProblems);
 
             _logger.Info("IndexScan",
                 reason: $"trigger={trigger} total={stats.TotalFilesScanned} supported={stats.SupportedImagesSeen} "
@@ -251,7 +276,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            IndexStatusText.Text = "İndeksleme başarısız oldu.";
+            SetIndexStatus("İndeksleme başarısız oldu.", success: false);
             _logger.Error("IndexScan", reason: $"trigger={trigger}: {ex.Message}");
             MessageBox.Show(this, $"İndeksleme sırasında hata oluştu:\n{ex.Message}",
                 "Hata", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -332,6 +357,19 @@ public partial class MainWindow : Window
         window.ShowDialog();
     }
 
+    /// <summary>
+    /// [Faz 4D polish] "Geri" degil, "Yeni Arama": sorgu/karsilastirma/Top-10
+    /// durumunu temizler ama urun klasoru, index ve cache'e dokunmaz -
+    /// kullanici tekrar klasor secmek zorunda kalmaz.
+    /// </summary>
+    private void NewSearchButton_Click(object sender, RoutedEventArgs e)
+    {
+        _queryImagePath = null;
+        QueryPreviewImage.Source = null;
+        _results.Clear();
+        ClearComparison();
+    }
+
     private void SelectQueryButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
@@ -344,10 +382,21 @@ public partial class MainWindow : Window
             return;
         }
 
+        LoadQueryImage(dialog.FileName);
+    }
+
+    /// <summary>
+    /// [Faz 4D] "Sorgu Görseli Seç" butonu ve drag&amp;drop icin ortak yukleme
+    /// yolu - onizlemeyi gunceller, eski arama/karsilastirma sonuclarini
+    /// temizler. Bozuk-ama-dogru-uzantili bir dosya (ornegin gercekte gorsel
+    /// olmayan bir .jpg) burada yakalanir, uygulama cokmez.
+    /// </summary>
+    private void LoadQueryImage(string path)
+    {
         try
         {
-            QueryPreviewImage.Source = LoadPreview(dialog.FileName);
-            _queryImagePath = dialog.FileName;
+            QueryPreviewImage.Source = LoadPreview(path);
+            _queryImagePath = path;
         }
         catch (Exception ex)
         {
@@ -358,6 +407,221 @@ public partial class MainWindow : Window
         }
 
         _results.Clear();
+        ClearComparison();
+    }
+
+    private void QueryDropZone_DragEnter(object sender, DragEventArgs e)
+    {
+        e.Effects = TryGetDroppedImagePath(e.Data, out _, out _) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void QueryDropZone_Drop(object sender, DragEventArgs e)
+    {
+        if (!TryGetDroppedImagePath(e.Data, out var path, out var error))
+        {
+            MessageBox.Show(this, error, "Sürükle-bırak", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        LoadQueryImage(path!);
+    }
+
+    /// <summary>
+    /// [Faz 4D] Tek dosya + desteklenen gorsel formati kontrolu. Faz 4B'nin
+    /// FileClassifier'i yeniden kullanilir - ayrica bir uzanti listesi
+    /// tutulmaz.
+    /// </summary>
+    private static bool TryGetDroppedImagePath(IDataObject data, out string? path, out string error)
+    {
+        path = null;
+        error = string.Empty;
+
+        if (!data.GetDataPresent(DataFormats.FileDrop))
+        {
+            error = "Yalnızca dosya sürükleyip bırakabilirsiniz.";
+            return false;
+        }
+
+        var files = (string[])data.GetData(DataFormats.FileDrop)!;
+        if (files.Length != 1)
+        {
+            error = "Lütfen tek bir görsel dosyası bırakın.";
+            return false;
+        }
+
+        var file = files[0];
+        if (Directory.Exists(file))
+        {
+            error = "Klasör bırakılamaz, lütfen bir görsel dosyası seçin.";
+            return false;
+        }
+
+        if (FileClassifier.Classify(Path.GetExtension(file)) != FileClassification.SupportedImage)
+        {
+            error = "Desteklenmeyen dosya formatı. Lütfen jpg/jpeg/png seçin.";
+            return false;
+        }
+
+        path = file;
+        return true;
+    }
+
+    /// <summary>[Faz 4D] Top-10 kartlarindan birine tiklandiginda karsilastirma panelini gunceller.</summary>
+    private void ResultCard_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is SearchResultViewModel vm)
+        {
+            SelectResult(vm);
+        }
+    }
+
+    /// <summary>[Faz 4D polish] Cift tik: ayni karin tek-tik secimini bozmadan buyuk onizleme acar.</summary>
+    private void ResultCard_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is SearchResultViewModel vm)
+        {
+            TryOpenImagePreview(vm.FullPath);
+        }
+    }
+
+    private void QueryDropZone_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            TryOpenImagePreview(_queryImagePath);
+        }
+    }
+
+    private void ComparisonResultBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            TryOpenImagePreview(_selectedResult?.FullPath);
+        }
+    }
+
+    /// <summary>
+    /// [Faz 4D polish] Buyuk onizleme icin dosyayi TAM cozunurlukte yeniden
+    /// okur (thumbnail'lar 300px'e sinirli - detay incelemeye yetmez).
+    /// Dosya silinmis/erisilemez olabilir (UNC ag klasoru) - basarisizlik
+    /// sadece bir uyari gosterir, MainWindow'u etkilemez.
+    /// </summary>
+    private void TryOpenImagePreview(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(path);
+            bitmap.EndInit();
+            bitmap.Freeze();
+
+            // [Faz 4D polish - kullanici geri bildirimi] Onizlemeler ekranda
+            // birikmesin: yenisi acilmadan once acik olan onceki onizleme kapatilir.
+            _openPreview?.Close();
+
+            var preview = new ImagePreviewWindow(bitmap, Path.GetFileName(path)) { Owner = this };
+            _openPreview = preview;
+            preview.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_openPreview, preview))
+                {
+                    _openPreview = null;
+                }
+            };
+            preview.Show();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Görsel açılamadı (dosya silinmiş veya erişilemez olabilir):\n{ex.Message}",
+                "Önizleme açılamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _logger.Warning("ImagePreview", file: path, reason: ex.Message);
+        }
+    }
+
+    private void MenuButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (MenuButton.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = MenuButton;
+            menu.IsOpen = true;
+        }
+    }
+
+    /// <summary>
+    /// [Faz 4D polish] Ayarlar bilinçli olarak SALT-OKUNUR bir ozet: Faz 4A'nin
+    /// admin-default/user-override mimarisini/UI'ini degistirmiyoruz - klasor
+    /// degistirme/varsayilan yapma islemleri hala ana ekrandaki mevcut
+    /// butonlarla yapiliyor (menude tekrarlanmiyor, state senkronizasyonu
+    /// karmasikligi eklemeye gerek yok).
+    /// </summary>
+    private void SettingsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var folder = _productFolder ?? "(seçilmedi)";
+        var source = string.IsNullOrEmpty(DirectorySourceText.Text) ? "(yok)" : DirectorySourceText.Text;
+        var message =
+            $"Ürün klasörü: {folder}\n" +
+            $"Kaynak: {source}\n\n" +
+            $"Yönetici config dosyası:\n{AppPaths.AdminConfigFilePath}\n\n" +
+            $"Kullanıcı ayarları dosyası:\n{AppPaths.UserSettingsFilePath}\n\n" +
+            "Klasörü değiştirmek veya varsayılan yapmak için ana ekrandaki "
+            + "\"Ürün Klasörü Seç\", \"Bu Klasörü Varsayılan Yap\" ve "
+            + "\"Varsayılanı Temizle\" butonlarını kullanın.";
+        MessageBox.Show(this, message, "Ayarlar", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void OpenLogFolderMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            AppPaths.EnsureLocalDirectoriesExist();
+            Process.Start(new ProcessStartInfo { FileName = AppPaths.LogsDirectory, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Log klasörü açılamadı:\n{ex.Message}",
+                "Klasör açılamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _logger.Warning("OpenLogFolder", reason: ex.Message);
+        }
+    }
+
+    private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        var versionText = version is null ? "MVP" : $"{version.Major}.{version.Minor}.{version.Build}";
+        var message = $"Lens\nGörsel Ürün Arama Sistemi\nSürüm: {versionText}";
+        MessageBox.Show(this, message, "Hakkında", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void SelectResult(SearchResultViewModel result)
+    {
+        foreach (var r in _results)
+        {
+            r.IsSelected = ReferenceEquals(r, result);
+        }
+
+        _selectedResult = result;
+        ComparisonResultImage.Source = result.Thumbnail;
+        ComparisonScoreText.Text = result.ScoreText;
+    }
+
+    private void ClearComparison()
+    {
+        foreach (var r in _results)
+        {
+            r.IsSelected = false;
+        }
+
+        _selectedResult = null;
+        ComparisonResultImage.Source = null;
+        ComparisonScoreText.Text = string.Empty;
     }
 
     private async void SearchButton_Click(object sender, RoutedEventArgs e)
@@ -391,14 +655,15 @@ public partial class MainWindow : Window
         var now = DateTime.UtcNow;
         if (_lastFreshnessCheckUtc is null || now - _lastFreshnessCheckUtc >= FreshnessCheckInterval)
         {
-            IndexStatusText.Text = "Klasör güncelliği kontrol ediliyor...";
+            SetIndexStatus("Klasör güncelliği kontrol ediliyor...");
             var folder = _productFolder;
             var changes = await Task.Run(() => ImageIndex.DetectChanges(folder));
 
             if (changes.ScanError is not null)
             {
-                IndexStatusText.Text =
-                    $"Klasör güncelliği kontrol edilemedi ({changes.ScanError}). Kayıtlı index ile aranıyor...";
+                SetIndexStatus(
+                    $"Klasör güncelliği kontrol edilemedi ({changes.ScanError}). Kayıtlı index ile aranıyor...",
+                    success: false);
                 _logger.Warning("FreshnessCheck", file: folder, reason: changes.ScanError);
                 // Ag gecici olarak erisilemez olabilir - kullaniciyi tamamen
                 // durdurmuyoruz, elimizdeki son bilinen index ile arama
@@ -406,9 +671,9 @@ public partial class MainWindow : Window
             }
             else if (changes.HasChanges)
             {
-                IndexStatusText.Text =
+                SetIndexStatus(
                     $"Değişiklik bulundu (yeni={changes.NewCount}, değişen={changes.ChangedCount}, "
-                    + $"silinen={changes.RemovedCount}). İndeksleniyor...";
+                    + $"silinen={changes.RemovedCount}). İndeksleniyor...");
                 _logger.Info("FreshnessCheck",
                     reason: $"new={changes.NewCount} changed={changes.ChangedCount} removed={changes.RemovedCount}");
                 await RunIndexUpdateAsync(trigger: "AutoFreshness");
@@ -428,7 +693,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        IndexStatusText.Text = "Aranıyor...";
+        SetIndexStatus("Aranıyor...");
 
         var searchStopwatch = Stopwatch.StartNew();
         try
@@ -437,14 +702,14 @@ public partial class MainWindow : Window
             var entries = _indexEntries;
             var embedder = _embedder!;
 
-            var top5 = await Task.Run(() =>
+            var top10 = await Task.Run(() =>
             {
                 var embedding = embedder.Embed(queryPath);
-                return SimilaritySearch.TopK(embedding, entries, 5);
+                return SimilaritySearch.TopK(embedding, entries, 10);
             });
 
             _results.Clear();
-            foreach (var r in top5)
+            foreach (var r in top10)
             {
                 var fullPath = Path.Combine(_productFolder, r.RelativePath);
                 _results.Add(new SearchResultViewModel
@@ -452,17 +717,29 @@ public partial class MainWindow : Window
                     FileName = r.RelativePath,
                     ScoreText = $"Benzerlik: {r.Score:P1}",
                     Thumbnail = TryLoadPreview(fullPath),
+                    FullPath = fullPath,
                 });
             }
 
+            // [Faz 4D] Karsilastirma alani hicbir zaman bos kalmasin diye
+            // Top-1 otomatik secilir; kullanici isterse listeden baskasina gecer.
+            if (_results.Count > 0)
+            {
+                SelectResult(_results[0]);
+            }
+            else
+            {
+                ClearComparison();
+            }
+
             searchStopwatch.Stop();
-            IndexStatusText.Text = $"{top5.Count} sonuç bulundu.";
+            SetIndexStatus($"{top10.Count} sonuç bulundu.", success: true);
             _logger.Info("Search", file: Path.GetFileName(queryPath),
-                reason: $"results={top5.Count} duration_ms={searchStopwatch.ElapsedMilliseconds}");
+                reason: $"results={top10.Count} duration_ms={searchStopwatch.ElapsedMilliseconds}");
         }
         catch (Exception ex)
         {
-            IndexStatusText.Text = "Arama başarısız oldu.";
+            SetIndexStatus("Arama başarısız oldu.", success: false);
             _logger.Error("Search", file: _queryImagePath, reason: ex.Message);
             MessageBox.Show(this, $"Arama sırasında hata oluştu:\n{ex.Message}",
                 "Hata", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -569,9 +846,32 @@ public partial class MainWindow : Window
     }
 }
 
-public sealed class SearchResultViewModel
+/// <summary>[Faz 4D] IsSelected, Top-10 kartlarindan hangisinin karsilastirma panelinde gosterildigini XAML'e (accent border) bildirir.</summary>
+public sealed class SearchResultViewModel : INotifyPropertyChanged
 {
+    private bool _isSelected;
+
     public string FileName { get; set; } = string.Empty;
     public string ScoreText { get; set; } = string.Empty;
     public BitmapImage? Thumbnail { get; set; }
+
+    /// <summary>[Faz 4D polish] Buyuk onizleme icin diskten tam cozunurlukte yeniden okunacak dosya yolu.</summary>
+    public string FullPath { get; set; } = string.Empty;
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected == value)
+            {
+                return;
+            }
+
+            _isSelected = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }

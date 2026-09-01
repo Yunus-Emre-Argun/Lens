@@ -161,6 +161,8 @@ dosyasında ve "Sorunlu Dosyalar" penceresinde bulunur.
 
 ## FAZ 4D — Top-10 & UI Polish
 
+**Durum: Tamamlandı ve kabul edildi (2026-09-01).**
+
 **Amaç:** Top-5 → Top-10 değişikliği + indexing summary'nin UI'da
 gösterilmesi + sınırlı görsel iyileştirme.
 
@@ -221,6 +223,28 @@ gösterilmesi + sınırlı görsel iyileştirme.
 veri modeline bağımlı; drag & drop kısmı bağımsız; query/karşılaştırma
 düzeni Top-10'un kendisine bağımlı (aynı fazda, ondan hemen sonra
 yapılması mantıklı).
+
+**Gerçekleşen sonuç (2026-09-01):** Yukarıdaki tüm maddeler uygulandı;
+ayrıca kabul sürecinde şu ek iyileştirmeler eklendi:
+- **"Yeni Arama" butonu**: query/karşılaştırma/Top-10'u temizler, ürün
+  klasörünü/index'i/cache'i değiştirmez ("geri" kavramı yok, tek ekranlı
+  akışa uygun).
+- **Minimal "⋮" menü** (sağ üst köşe): Ayarlar (salt-okunur özet — mevcut
+  klasör/kaynak/config yolları; klasör değiştirme işlemleri hâlâ ana
+  ekrandaki mevcut butonlarla yapılır, Faz 4A mimarisi değişmedi),
+  Log Klasörünü Aç (`%LocalAppData%\Lens\logs\` Explorer'da açılır, log
+  içeriği uygulama içinde gösterilmez), Hakkında (sade sürüm bilgisi).
+- **Büyük görsel önizleme/zoom**: query görseli, karşılaştırmadaki seçilen
+  sonuç ve Top-10'daki tüm sonuçlar çift tıklamayla ayrı bir
+  `ImagePreviewWindow` içinde açılır (fare tekerleği ile zoom, sürükleyerek
+  pan, çift tık ile sığdırmaya sıfırlama, ESC ile kapatma). Aynı anda tek
+  önizleme açık kalır (yenisi açılınca öncekisi kapanır). Pencere gerçek
+  görsel çözünürlüğüne göre değil, ana ekrandaki küçük önizleme kutusundan
+  "biraz daha büyük" bir varsayılan boyutla açılır — ekranı kaplamaz;
+  kullanıcı isterse pencereyi büyütebilir veya zoom yapabilir. Top-10
+  kartlarında tek tık (seçim) ve çift tık (önizleme) birbirini bozmadan
+  birlikte çalışır. Dosya silinmiş/erişilemezse (UNC ağ klasörü) sade bir
+  hata mesajı gösterilir, ana pencere etkilenmez.
 
 ---
 

@@ -5,9 +5,53 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Lens.Desktop"
         mc:Ignorable="d"
-        Title="Lens - Ürün Görsel Arama (MVP)" Height="760" Width="1040" MinHeight="600" MinWidth="820">
+        Title="Lens - Ürün Görsel Arama (MVP)" Height="840" Width="1060" MinHeight="680" MinWidth="860">
+    <Window.Resources>
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF2F6FED" />
+        <SolidColorBrush x:Key="AccentBrushLight" Color="#FFEAF1FE" />
+        <SolidColorBrush x:Key="SuccessBrush" Color="#FF2E7D32" />
+        <SolidColorBrush x:Key="WarningBrush" Color="#FFB00020" />
+        <SolidColorBrush x:Key="NeutralTextBrush" Color="#FF222222" />
+        <SolidColorBrush x:Key="SectionHeaderBrush" Color="#FF333333" />
+
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource SectionHeaderBrush}" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Padding" Value="24,6" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- Top-10 kart border stili: secili karta sade accent vurgusu -->
+        <Style x:Key="ResultCardBorderStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#FFBBBBBB" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="White" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                    <Setter Property="BorderThickness" Value="2" />
+                    <Setter Property="Background" Value="{StaticResource AccentBrushLight}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Buton varsayilan gorunumunu kaldirip sade, tiklanabilir bir kart yapan template -->
+        <ControlTemplate x:Key="ResultCardButtonTemplate" TargetType="Button">
+            <ContentPresenter />
+        </ControlTemplate>
+    </Window.Resources>
     <Grid Margin="12">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -15,69 +59,121 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Urun klasoru -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-            <Button x:Name="SelectFolderButton" Content="Ürün Klasörü Seç" Padding="10,4"
-                    Margin="0,0,8,0" Click="SelectFolderButton_Click" />
-            <TextBox x:Name="FolderPathTextBox" Width="520" IsReadOnly="True"
-                     VerticalContentAlignment="Center" Margin="0,0,8,0" />
-            <TextBlock x:Name="ProductCountText" Text="Klasör seçilmedi" VerticalAlignment="Center" FontWeight="SemiBold" />
-            <TextBlock x:Name="DirectorySourceText" Text="" VerticalAlignment="Center"
-                       Margin="12,0,8,0" FontStyle="Italic" Foreground="#FF777777" />
-            <Button x:Name="SetDefaultButton" Content="Bu Klasörü Varsayılan Yap" Padding="8,2"
-                    Margin="0,0,8,0" Click="SetDefaultButton_Click" IsEnabled="False" />
-            <Button x:Name="ClearDefaultButton" Content="Varsayılanı Temizle" Padding="8,2"
-                    Click="ClearDefaultButton_Click" Visibility="Collapsed" />
-        </StackPanel>
+        <!-- Urun klasoru + genel menu -->
+        <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button x:Name="SelectFolderButton" Content="Ürün Klasörü Seç" Padding="10,4"
+                        Margin="0,0,8,0" Click="SelectFolderButton_Click" />
+                <TextBox x:Name="FolderPathTextBox" Width="520" IsReadOnly="True"
+                         VerticalContentAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock x:Name="ProductCountText" Text="Klasör seçilmedi" VerticalAlignment="Center" FontWeight="SemiBold" />
+                <TextBlock x:Name="DirectorySourceText" Text="" VerticalAlignment="Center"
+                           Margin="12,0,8,0" FontStyle="Italic" Foreground="#FF777777" />
+                <Button x:Name="SetDefaultButton" Content="Bu Klasörü Varsayılan Yap" Padding="8,2"
+                        Margin="0,0,8,0" Click="SetDefaultButton_Click" IsEnabled="False" />
+                <Button x:Name="ClearDefaultButton" Content="Varsayılanı Temizle" Padding="8,2"
+                        Click="ClearDefaultButton_Click" Visibility="Collapsed" />
+            </StackPanel>
+            <Button Grid.Column="1" x:Name="MenuButton" Content="⋮" Padding="10,4" FontWeight="Bold"
+                    Click="MenuButton_Click" ToolTip="Menü">
+                <Button.ContextMenu>
+                    <ContextMenu Placement="Bottom">
+                        <MenuItem Header="Ayarlar" Click="SettingsMenuItem_Click" />
+                        <MenuItem Header="Log Klasörünü Aç" Click="OpenLogFolderMenuItem_Click" />
+                        <Separator />
+                        <MenuItem Header="Hakkında" Click="AboutMenuItem_Click" />
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+        </Grid>
 
         <!-- Index kontrolu -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,14">
             <Button x:Name="UpdateIndexButton" Content="İndeksi Güncelle / Klasörü Tara" Padding="10,4"
                     Margin="0,0,8,0" Click="UpdateIndexButton_Click" />
-            <TextBlock x:Name="IndexStatusText" Text="—" VerticalAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock x:Name="IndexStatusText" Text="—" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource NeutralTextBrush}" />
             <Button x:Name="ProblemFilesButton" Content="Sorunlu Dosyalar (0)" Padding="6,2"
-                    Margin="12,0,0,0" Click="ProblemFilesButton_Click" Visibility="Collapsed" />
+                    Margin="12,0,0,0" Click="ProblemFilesButton_Click" Visibility="Collapsed"
+                    Foreground="{StaticResource WarningBrush}" />
         </StackPanel>
 
-        <!-- Query secimi -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
-            <Button x:Name="SelectQueryButton" Content="Sorgu Görseli Seç" Padding="10,4"
-                    Margin="0,0,8,0" Click="SelectQueryButton_Click" />
-            <Border BorderBrush="Gray" BorderThickness="1" Width="90" Height="90" Margin="0,0,8,0" Background="#FFF5F5F5">
-                <Image x:Name="QueryPreviewImage" Stretch="Uniform" Margin="2" />
-            </Border>
-            <Button x:Name="SearchButton" Content="Ara" Padding="20,4" FontWeight="Bold"
-                    VerticalAlignment="Center" Click="SearchButton_Click" />
+        <!-- Sorgu aksiyon cubugu -->
+        <StackPanel Grid.Row="2" Margin="0,0,0,8">
+            <TextBlock Text="SORGU VE KARŞILAŞTIRMA" Style="{StaticResource SectionHeaderStyle}" />
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="SelectQueryButton" Content="Sorgu Görseli Seç" Padding="10,4"
+                        Margin="0,0,12,0" Click="SelectQueryButton_Click" />
+                <Button x:Name="SearchButton" Content="Ara" Style="{StaticResource PrimaryButtonStyle}"
+                        Margin="0,0,12,0" Click="SearchButton_Click" />
+                <Button x:Name="NewSearchButton" Content="Yeni Arama" Padding="10,4"
+                        Click="NewSearchButton_Click" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Karsilastirma alani: sorgu (sol, sabit) + secilen sonuc (sag, tiklamayla degisir) -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,14">
+            <StackPanel Margin="0,0,28,0">
+                <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <Border x:Name="QueryDropZone" BorderBrush="Gray" BorderThickness="1" Width="220" Height="220"
+                        Background="#FFF5F5F5" AllowDrop="True" Cursor="Hand"
+                        DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragEnter"
+                        Drop="QueryDropZone_Drop" MouseLeftButtonDown="QueryDropZone_MouseLeftButtonDown">
+                    <Image x:Name="QueryPreviewImage" Stretch="Uniform" Margin="4" />
+                </Border>
+                <TextBlock Text="Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt" FontStyle="Italic"
+                           Foreground="#FF777777" FontSize="11" Margin="0,4,0,0" />
+            </StackPanel>
+
+            <StackPanel>
+                <TextBlock Text="Seçilen Sonuç" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <Border x:Name="ComparisonResultBorder" BorderBrush="Gray" BorderThickness="1" Width="220" Height="220"
+                        Background="#FFF5F5F5" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
+                    <Image x:Name="ComparisonResultImage" Stretch="Uniform" Margin="4" />
+                </Border>
+                <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" Margin="0,4,0,0" />
+            </StackPanel>
         </StackPanel>
 
         <!-- Sonuclar -->
-        <Border Grid.Row="3" BorderBrush="LightGray" BorderThickness="1">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl x:Name="ResultsItemsControl" Margin="4">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border BorderBrush="Gray" BorderThickness="1" Margin="8" Padding="8" Width="190">
-                                <StackPanel>
-                                    <Border BorderBrush="LightGray" BorderThickness="1" Height="160" Background="#FFF5F5F5">
-                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2" />
+        <StackPanel Grid.Row="4">
+            <TextBlock Text="EN BENZER 10 SONUÇ" Style="{StaticResource SectionHeaderStyle}" />
+            <Border BorderBrush="LightGray" BorderThickness="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="ResultsItemsControl" Margin="4">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="5" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Click="ResultCard_Click" MouseDoubleClick="ResultCard_DoubleClick"
+                                        Template="{StaticResource ResultCardButtonTemplate}"
+                                        Cursor="Hand" Margin="6">
+                                    <Border Style="{StaticResource ResultCardBorderStyle}" Padding="6">
+                                        <StackPanel>
+                                            <Border BorderBrush="LightGray" BorderThickness="1" Height="110" Background="White">
+                                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2" />
+                                            </Border>
+                                            <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0" />
+                                            <TextBlock Text="{Binding ScoreText}" FontWeight="Bold" FontSize="11" Margin="0,2,0,0" />
+                                        </StackPanel>
                                     </Border>
-                                    <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" FontSize="12" Margin="0,6,0,0" />
-                                    <TextBlock Text="{Binding ScoreText}" FontWeight="Bold" Margin="0,2,0,0" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-        </Border>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </StackPanel>
 
         <!-- Alt bilgi -->
-        <TextBlock Grid.Row="4" Margin="0,8,0,0" FontStyle="Italic" Foreground="#FF555555"
+        <TextBlock Grid.Row="5" Margin="0,8,0,0" FontStyle="Italic" Foreground="#FF555555"
                     Text="Sistem kesin eşleşme belirtmez; en yakın adaylar listelenir. Son kararı kullanıcı verir." />
     </Grid>
 </Window>

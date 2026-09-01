@@ -188,6 +188,9 @@ Dosyalar" penceresinde bulunur. Detay: `docs/DECISIONS.md` #50-51.
   `WrapPanel` tabanlı sonuç grid'i zaten bunu destekleyecek şekilde
   genişletilebilir).
 
+**Implemented (FAZ 4D, 2026-09-01):** `SimilaritySearch.TopK` çağrısı
+10 olarak güncellendi; sonuç grid'i 5×2 `UniformGrid` düzeninde gösterilir.
+
 ---
 
 ## 10. UI İyileştirmeleri
@@ -198,6 +201,12 @@ Dosyalar" penceresinde bulunur. Detay: `docs/DECISIONS.md` #50-51.
 - Değerlendirilecek küçük iyileştirmeler: daha iyi görsel hiyerarşi,
   sınırlı accent color, başarılı/hata durumları için anlaşılır renk
   kullanımı, Top-10 sonuç grid'i, indexing summary alanı.
+
+**Implemented (FAZ 4D, 2026-09-01):** Accent renk (Ara butonu, seçili Top-10
+kartı), başarı/uyarı renkli durum metni, sade bölüm başlıkları eklendi.
+Ayrıca kabul sürecinde: "Yeni Arama" butonu, minimal "⋮" menü (Ayarlar/Log
+Klasörünü Aç/Hakkında), çift-tıkla büyük görsel önizleme/zoom penceresi.
+Detay: `docs/DECISIONS.md` #52-53.
 
 ---
 
