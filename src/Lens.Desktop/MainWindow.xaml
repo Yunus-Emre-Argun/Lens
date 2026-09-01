@@ -22,6 +22,12 @@
             <TextBox x:Name="FolderPathTextBox" Width="520" IsReadOnly="True"
                      VerticalContentAlignment="Center" Margin="0,0,8,0" />
             <TextBlock x:Name="ProductCountText" Text="Klasör seçilmedi" VerticalAlignment="Center" FontWeight="SemiBold" />
+            <TextBlock x:Name="DirectorySourceText" Text="" VerticalAlignment="Center"
+                       Margin="12,0,8,0" FontStyle="Italic" Foreground="#FF777777" />
+            <Button x:Name="SetDefaultButton" Content="Bu Klasörü Varsayılan Yap" Padding="8,2"
+                    Margin="0,0,8,0" Click="SetDefaultButton_Click" IsEnabled="False" />
+            <Button x:Name="ClearDefaultButton" Content="Varsayılanı Temizle" Padding="8,2"
+                    Click="ClearDefaultButton_Click" Visibility="Collapsed" />
         </StackPanel>
 
         <!-- Index kontrolu -->

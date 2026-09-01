@@ -1,0 +1,69 @@
+namespace Lens.Core.Config;
+
+public enum ProductDirectorySource
+{
+    UserOverride,
+    AdminDefault,
+    None,
+}
+
+public sealed record ProductDirectoryResolution(
+    string? Directory,
+    ProductDirectorySource Source,
+    bool IsAccessible);
+
+/// <summary>
+/// Uygulama acilisinda hangi urun dizininin yuklenecegini belirler:
+/// UserOverride (aktifse) &gt; AdminDefault &gt; hicbiri. Erisilebilirlik
+/// kontrolu burada yapilir; cagiran taraf (UI) sonucu yorumlar.
+/// </summary>
+public static class ProductDirectoryResolver
+{
+    public static ProductDirectoryResolution ResolveDefault()
+    {
+        var userSettings = UserSettings.Load();
+        if (userSettings.UseUserOverride && !string.IsNullOrWhiteSpace(userSettings.UserOverrideProductDirectory))
+        {
+            var dir = userSettings.UserOverrideProductDirectory!;
+            return new ProductDirectoryResolution(dir, ProductDirectorySource.UserOverride, IsAccessible(dir));
+        }
+
+        var adminConfig = AdminConfig.Load(AppPaths.AdminConfigFilePath);
+        if (!string.IsNullOrWhiteSpace(adminConfig.AdminDefaultProductDirectory))
+        {
+            var dir = adminConfig.AdminDefaultProductDirectory!;
+            return new ProductDirectoryResolution(dir, ProductDirectorySource.AdminDefault, IsAccessible(dir));
+        }
+
+        return new ProductDirectoryResolution(null, ProductDirectorySource.None, false);
+    }
+
+    /// <summary>Kullanicinin sectigi klasoru kalici varsayilan yapar.</summary>
+    public static void SetUserOverride(string productDirectory)
+    {
+        var settings = UserSettings.Load();
+        settings.UserOverrideProductDirectory = productDirectory;
+        settings.UseUserOverride = true;
+        settings.Save();
+    }
+
+    /// <summary>Kullanici override'ini temizler; sonraki acilista admin default'a donulur.</summary>
+    public static void ClearUserOverride()
+    {
+        var settings = UserSettings.Load();
+        settings.UseUserOverride = false;
+        settings.Save();
+    }
+
+    public static bool IsAccessible(string directory)
+    {
+        try
+        {
+            return Directory.Exists(directory);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}

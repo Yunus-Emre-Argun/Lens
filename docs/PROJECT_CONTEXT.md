@@ -56,15 +56,24 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
   dağıtılacak (Visual Studio/.NET SDK/Python gerekmeden çalışır). Bkz.
   DECISIONS.md #27.
 
+- **[Faz 4, 2026-09-01 — ikinci yönetici görüşmesi]** Proje artık demo/PoC
+  değil, fabrikada gerçekten kullanılacak bir üründür. Yeni gereksinimler
+  ayrı bir dokümanda toplanıyor: `docs/PRODUCTION_REQUIREMENTS.md`. Bu
+  görüşmede kapsam kalıcı olarak değişti (aşağıya bkz.) — detaylı Confirmed/
+  Recommended/Open Question ayrımı için o dokümana bakılmalı, burada tekrar
+  edilmiyor.
+
 **Later Phase (Production Hedefi — henüz implement edilmeyecek)**
 - Text search.
 - Login / kimlik doğrulama (production'da planlı; bkz. DECISIONS.md #16).
 - Kullanıcı geçmişi.
 - Raporlama.
-- Görsel kaynağı olarak fabrika veritabanı (production'da local klasöre ek
-  ikinci kaynak olarak planlı; bkz. DECISIONS.md #17).
-- Yeni ürün girişi / CRUD, Lens uygulaması üzerinden (production'da planlı;
-  bkz. DECISIONS.md #18).
+
+**Kalıcı olarak kapsam dışı (Later değil — bkz. DECISIONS.md #30, #31)**
+- Görsel kaynağı olarak fabrika veritabanı — **SUPERSEDED**, kaynak artık
+  yalnızca dosya dizini (`docs/PRODUCTION_REQUIREMENTS.md` §2).
+- Yeni ürün girişi / CRUD, Lens uygulaması üzerinden — **SUPERSEDED**, yeni
+  ürün ekleme Lens'in sorumluluğu değil (`docs/PRODUCTION_REQUIREMENTS.md` §1).
 
 ---
 
@@ -75,12 +84,14 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 - Görseller temiz, katalog/dijital tasarım görünümünde (telefon fotoğrafı değil).
 - Ürünler arası temel ayrım: **desen ve renk**.
 - Ölçü (boyut) bilgisi görselden belirgin değil.
-- İleride yönetici daha fazla görsel sağlayabilir; görseller klasör halinde
-  veya ileride SQL tabanlı fabrika veritabanından gelebilir.
+- İleride yönetici daha fazla görsel sağlayabilir; görseller klasör
+  halinde gelecek (bkz. aşağıdaki güncelleme — DB kaynağı kapsam dışı
+  bırakıldı).
 
-**Open Question**
-- İleride kaç görsele çıkılacağı net değil (yaklaşık ~1.000 rakamı bir
-  ölçek varsayımı olarak konuşuldu, kesin taahhüt değil).
+**[Faz 4, 2026-09-01] Güncellendi — artık Confirmed**
+- Gerçek ölçek: **~5000 desen görseli**, **tek (flat) klasörde**. Önceki
+  ~1.000 tahmini **SUPERSEDED** (bkz. DECISIONS.md #32). Recursive alt
+  klasör taraması şu an gerekli değil. Detay: `docs/PRODUCTION_REQUIREMENTS.md` §2.
 
 ---
 
@@ -112,10 +123,12 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 
 **Open Question**
 - İleride birden fazla kullanıcı senaryosu var, ama eşzamanlılık/çoklu
-  erişim gereksinimleri netleşmedi.
+  erişim gereksinimleri netleşmedi. Kısmi cevap: her kullanıcı/PC kendi
+  local index/cache'ini tutacak (Recommended, bkz. DECISIONS.md #39).
 
-**Later Phase**
-- Gerçek DB entegrasyonu.
+**Kalıcı olarak kapsam dışı**
+- Gerçek DB entegrasyonu — **SUPERSEDED**, görsel kaynağı artık yalnızca
+  dosya dizini (bkz. DECISIONS.md #31).
 
 ---
 

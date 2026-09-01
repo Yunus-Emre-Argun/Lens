@@ -13,6 +13,12 @@
           Link="models\clip-vision-b16-openai.onnx"
           CopyToOutputDirectory="PreserveNewest"
           Condition="Exists('..\..\models\clip-vision-b16-openai.onnx')" />
+
+    <!-- [Faz 4A] Admin default config sablonu: repo'daki hali BOS gelir
+         (gercek UNC path hardcode edilmez). IT, publish ciktisindaki
+         appsettings.json'i exe ile ayni klasorde elle duzenler -
+         bkz. docs/DECISIONS.md #41-42. -->
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

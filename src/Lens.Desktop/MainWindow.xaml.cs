@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using Lens.Core.Ai;
+using Lens.Core.Config;
 using Lens.Core.Indexing;
 using Lens.Core.Search;
 using Microsoft.Win32;
@@ -10,22 +11,64 @@ using Microsoft.Win32;
 namespace Lens.Desktop;
 
 /// <summary>
-/// Faz 3B: tek ekranli WPF MVP. AI/index katmani (Lens.Core) Faz 3A'da
+/// Faz 3B/4A: tek ekranli WPF MVP. AI/index katmani (Lens.Core) Faz 3A'da
 /// dogrulanan haliyle degistirilmeden kullanilir; bu dosya yalnizca UI
 /// orkestrasyonunu yapar (MVVM framework kasitli olarak kullanilmadi - YAGNI).
 /// </summary>
 public partial class MainWindow : Window
 {
+    private enum DirectoryOrigin { None, AdminDefault, UserOverride, Manual }
+
     private string? _productFolder;
     private string? _queryImagePath;
     private ClipEmbedder? _embedder;
     private List<ImageIndexEntry> _indexEntries = new();
     private readonly ObservableCollection<SearchResultViewModel> _results = new();
+    private DirectoryOrigin _directoryOrigin = DirectoryOrigin.None;
 
     public MainWindow()
     {
         InitializeComponent();
         ResultsItemsControl.ItemsSource = _results;
+        LoadDefaultProductDirectory();
+    }
+
+    /// <summary>
+    /// [Faz 4A] Acilista admin default / kullanici override'i coz, erisilebilirse
+    /// otomatik yukle. Indeksleme burada TETIKLENMEZ - klasor hazir gelir,
+    /// kullanici "Indeksi Guncelle" ile taramayi kendisi baslatir.
+    /// </summary>
+    private void LoadDefaultProductDirectory()
+    {
+        var resolution = ProductDirectoryResolver.ResolveDefault();
+
+        if (resolution.Directory is null)
+        {
+            IndexStatusText.Text = "Varsayılan ürün dizini yapılandırılmamış. Lütfen bir klasör seçin.";
+            UpdateDirectoryOriginUi();
+            return;
+        }
+
+        if (!resolution.IsAccessible)
+        {
+            IndexStatusText.Text =
+                $"Varsayılan ürün dizinine ulaşılamadı: {resolution.Directory}\nLütfen başka bir klasör seçin.";
+            UpdateDirectoryOriginUi();
+            return;
+        }
+
+        _productFolder = resolution.Directory;
+        FolderPathTextBox.Text = _productFolder;
+        _indexEntries = ImageIndex.Load(_productFolder);
+        ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
+        IndexStatusText.Text = _indexEntries.Count > 0
+            ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
+            : "Varsayılan klasör yüklendi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.";
+
+        _directoryOrigin = resolution.Source == ProductDirectorySource.UserOverride
+            ? DirectoryOrigin.UserOverride
+            : DirectoryOrigin.AdminDefault;
+        UpdateDirectoryOriginUi();
     }
 
     private void SelectFolderButton_Click(object sender, RoutedEventArgs e)
@@ -45,6 +88,48 @@ public partial class MainWindow : Window
         IndexStatusText.Text = _indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
             : "Klasör seçildi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.";
+
+        // [Faz 4A] Manuel secim varsayilan olarak GECICIDIR (session-only) -
+        // burada hicbir ayar dosyasina yazilmaz. Kalici hale getirmek icin
+        // kullanici "Bu Klasoru Varsayilan Yap" butonuna basmali.
+        _directoryOrigin = DirectoryOrigin.Manual;
+        UpdateDirectoryOriginUi();
+    }
+
+    private void SetDefaultButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_productFolder is null)
+        {
+            return;
+        }
+
+        ProductDirectoryResolver.SetUserOverride(_productFolder);
+        _directoryOrigin = DirectoryOrigin.UserOverride;
+        UpdateDirectoryOriginUi();
+        IndexStatusText.Text = "Bu klasör kalıcı varsayılan olarak ayarlandı.";
+    }
+
+    private void ClearDefaultButton_Click(object sender, RoutedEventArgs e)
+    {
+        ProductDirectoryResolver.ClearUserOverride();
+        _directoryOrigin = _productFolder is null ? DirectoryOrigin.None : DirectoryOrigin.Manual;
+        UpdateDirectoryOriginUi();
+        IndexStatusText.Text = "Kullanıcı varsayılanı temizlendi. Sonraki açılışta yönetici varsayılanı kullanılacak.";
+    }
+
+    private void UpdateDirectoryOriginUi()
+    {
+        DirectorySourceText.Text = _directoryOrigin switch
+        {
+            DirectoryOrigin.AdminDefault => "(Yönetici varsayılanı)",
+            DirectoryOrigin.UserOverride => "(Kullanıcı varsayılanı)",
+            DirectoryOrigin.Manual => "(Geçici seçim)",
+            _ => string.Empty,
+        };
+        SetDefaultButton.IsEnabled = _productFolder is not null && _directoryOrigin != DirectoryOrigin.UserOverride;
+        ClearDefaultButton.Visibility = _directoryOrigin == DirectoryOrigin.UserOverride
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private async void UpdateIndexButton_Click(object sender, RoutedEventArgs e)
@@ -287,6 +372,8 @@ public partial class MainWindow : Window
         UpdateIndexButton.IsEnabled = !busy;
         SelectQueryButton.IsEnabled = !busy;
         SearchButton.IsEnabled = !busy;
+        SetDefaultButton.IsEnabled = !busy && _productFolder is not null && _directoryOrigin != DirectoryOrigin.UserOverride;
+        ClearDefaultButton.IsEnabled = !busy;
         Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
     }
 

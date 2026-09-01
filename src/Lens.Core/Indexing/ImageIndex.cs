@@ -1,26 +1,30 @@
 using System.Text.Json;
 using Lens.Core.Ai;
+using Lens.Core.Config;
+using Lens.Core.IO;
 
 namespace Lens.Core.Indexing;
 
 /// <summary>
 /// Klasor bazli, kalici, JSON dosyasina yazilan basit embedding index'i.
 /// Vector DB / SQLite kullanilmiyor (bkz. docs/DECISIONS.md #23) - MVP
-/// olcegi (~10-1000 gorsel) icin duz dosya yeterli.
+/// olcegi (~10-5000 gorsel) icin duz dosya yeterli.
 ///
-/// Index dosyasi, secilen urun klasorunun icinde ".lens_index.json" olarak
-/// tutulur (kullanici verisiyle birlikte, basit ve tasinabilir).
+/// [Faz 4A] Index dosyasi artik urun klasorunde DEGIL,
+/// %LocalAppData%\Lens\cache\&lt;path-hash&gt;\index.json altinda tutulur
+/// (bkz. docs/DECISIONS.md #39, #44) - paylasilan ag klasoru birden fazla
+/// kullanicinin ayni dosyaya yazmasindan (race condition/bozulma riski)
+/// ve Lens'e ozel teknik dosyalarla kirlenmekten korunur. Yazim atomic'tir
+/// (bkz. docs/DECISIONS.md #40, AtomicFileWriter).
 /// </summary>
 public static class ImageIndex
 {
-    private const string IndexFileName = ".lens_index.json";
-
     public static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg", ".jpeg", ".png", ".bmp",
     };
 
-    public static string IndexPath(string folderPath) => Path.Combine(folderPath, IndexFileName);
+    public static string IndexPath(string folderPath) => AppPaths.CacheIndexFilePath(folderPath);
 
     public static List<ImageIndexEntry> Load(string folderPath)
     {
@@ -37,7 +41,7 @@ public static class ImageIndex
     public static void Save(string folderPath, List<ImageIndexEntry> entries)
     {
         var json = JsonSerializer.Serialize(entries);
-        File.WriteAllText(IndexPath(folderPath), json);
+        AtomicFileWriter.WriteAllText(IndexPath(folderPath), json);
     }
 
     /// <summary>
