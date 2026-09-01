@@ -30,13 +30,41 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 - İlk versiyon sadece **görselle arama** içerir.
 - Demo, klasörde bulunan mevcut görseller üzerinden çalışabilir
   (gerçek DB entegrasyonu zorunlu değil).
+- **[Faz 3, 2026-09-01]** Bugünkü MVP akışı: kullanıcı klasör seçer → uygulama
+  klasördeki görselleri gösterir → kullanıcı query görseli seçer → embedding
+  çıkarılır → klasördeki görsellerle karşılaştırılır → en yakın 5 ürün (mümkünse
+  similarity score ile) gösterilir → son kararı kullanıcı verir.
+- **[Faz 3, 2026-09-01]** Bugünkü MVP'de görsel kaynağı yalnızca **local klasör**.
+- **[Faz 3, 2026-09-01]** Bugünkü MVP'de **login/yetkilendirme yok**,
+  **ürün ekleme/CRUD/DB'ye yazma yok**, **text search yok**.
+- **[Faz 3A, 2026-09-01]** İlk ürün index'i: mevcut 11 gerçek nevresim görseli
+  (`nevresim/`), .NET/CLIP embedder ile üretilir. Faz 2'nin 55 sentetik
+  varyasyonu yalnızca benchmark/test verisidir, ürün index'ine girmez.
+- **[Faz 3A, 2026-09-01]** Embedding'ler kalıcı local cache/index olarak
+  saklanır (vector DB/SQLite yok); klasör her seçildiğinde yeniden
+  hesaplanmaz. İlk indeksleme tüm görselleri embed eder; sonraki
+  çalıştırmalarda yalnızca yeni/değişmiş/silinmiş dosyalar işlenir
+  (relative path + file size + LastWriteTimeUtc ile tespit). Detay:
+  DECISIONS.md #23.
+- **[Faz 3A, 2026-09-01]** MVP iş kuralı (geçici): aynı desenin farklı renk
+  varyasyonu aynı ürün kabul edilir. Ekstra grayscale/özel algoritma
+  eklenmeyecek. Bkz. DECISIONS.md #25.
+- **[Faz 3A, 2026-09-01]** Query görselleri MVP'de temiz/katalog tipi olacak;
+  karmaşık telefon fotoğrafı, kırışık kumaş, perspektif farkı, karmaşık
+  arka plan kapsam dışı. Bkz. DECISIONS.md #26.
+- **[Faz 3A, 2026-09-01]** Final MVP self-contained Windows publish olarak
+  dağıtılacak (Visual Studio/.NET SDK/Python gerekmeden çalışır). Bkz.
+  DECISIONS.md #27.
 
-**Later Phase**
+**Later Phase (Production Hedefi — henüz implement edilmeyecek)**
 - Text search.
-- Login / kimlik doğrulama.
+- Login / kimlik doğrulama (production'da planlı; bkz. DECISIONS.md #16).
 - Kullanıcı geçmişi.
 - Raporlama.
-- Gerçek fabrika veritabanı entegrasyonu.
+- Görsel kaynağı olarak fabrika veritabanı (production'da local klasöre ek
+  ikinci kaynak olarak planlı; bkz. DECISIONS.md #17).
+- Yeni ürün girişi / CRUD, Lens uygulaması üzerinden (production'da planlı;
+  bkz. DECISIONS.md #18).
 
 ---
 
@@ -77,6 +105,10 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 - Sadece fabrika içinde kullanılacak.
 - Merkezi fabrika veritabanı mevcut; SQL tabanlı olduğu düşünülüyor ama
   tam DBMS henüz bilinmiyor.
+- **[Faz 3, 2026-09-01]** Uygulama dili/platformu: **C# / .NET**. Faz 1/2'de
+  yazılan Python benchmark kodu silinmeyecek; model değerlendirme/engineering
+  aracı olarak kalacak, ancak Lens masaüstü uygulamasının runtime'ı Python
+  değil .NET olacak.
 
 **Open Question**
 - İleride birden fazla kullanıcı senaryosu var, ama eşzamanlılık/çoklu
@@ -119,6 +151,24 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
   renk/hue değişimi yapılmayacak** (yalnızca hafif/kontrollü fotometrik
   varyasyonlar kullanılacak).
 
+**[Faz 2] Benchmark Sonucu (Tamamlandı — 2026-08-31)**
+- 11 orijinal görsel + sentetik varyasyonlar (brightness, contrast, crop,
+  downscale/upscale, jpeg quality), toplam 55 sorgu.
+- Top-1 doğruluk: CLIP (openai/clip-vit-base-patch16) %98, SigLIP
+  (google/siglip-base-patch16-224) %100.
+- Top-3 ve Top-5 doğruluk: ikisinde de %100.
+- CPU sorgu süresi: ~91ms/sorgu, iki modelde de eşit.
+- Fark yalnızca `downscale_upscale` varyasyonunda görülüyor (CLIP %91,
+  SigLIP %100); diğer tüm varyasyon tiplerinde ikisi de %100.
+- Küçük ölçekli, gösterge niteliğinde bir ölçüm — istatistiksel genel
+  geçerlilik iddiası yok. Detay: `benchmark/results/report.md`.
+- **[Faz 3A, 2026-09-01] MVP model kararı: CLIP** (openai/clip-vit-base-patch16),
+  Tech Lead/CTO onayı ile — **provisional/reversible**, production için kesin
+  değil. Gerekçe: Top-5 ikisinde de %100, SigLIP avantajı yalnızca tek
+  varyasyon tipinde ve küçük; CLIP'in ONNX/.NET entegrasyon riski daha düşük.
+  Production için final model seçimi hâlâ açık (bkz. DECISIONS.md
+  Not Yet Decided #1).
+
 ---
 
 ## 8. Geliştirme Ortamı (Bu Makine — Gözlem)
@@ -130,6 +180,10 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
   `pip` 26.2.1 mevcut.
 - Bu geliştirme makinesinde bir NVIDIA GPU (RTX 5060 Ti, ~16 GB VRAM,
   driver 610.74) tespit edildi.
+- **[Faz 3A, 2026-09-01]** Bu turda kontrol edildi: makinede hiç .NET SDK
+  kurulu değildi. Faz 3A önkoşulu olarak `winget` ile **.NET 8 SDK**
+  (`Microsoft.DotNet.SDK.8`, sürüm 8.0.424) kuruldu. Gereksiz/ekstra SDK
+  sürümü kurulmadı.
 
 **Önemli not**
 - Bu makinede GPU bulunması, hedef fabrika/ofis bilgisayarlarında da GPU
