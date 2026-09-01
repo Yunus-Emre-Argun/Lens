@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lens.Core\Lens.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CLIP ONNX model: repo kokunde models/ altinda tutuluyor (buyuk binary,
+         git'e commit edilmiyor - bkz. docs/DECISIONS.md #28). Build/publish
+         ciktisinda "models\" alt klasorune kopyalanir, MainWindow.ResolveModelPath
+         bunu AppContext.BaseDirectory altinda arar. -->
+    <None Include="..\..\models\clip-vision-b16-openai.onnx"
+          Link="models\clip-vision-b16-openai.onnx"
+          CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('..\..\models\clip-vision-b16-openai.onnx')" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>

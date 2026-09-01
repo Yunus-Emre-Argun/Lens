@@ -32,3 +32,23 @@ benchmark/data/variations/
 benchmark/data/variations_manifest.json
 benchmark/results/embeddings/
 nevresim/
+
+# Faz 3C - internetten indirilen distractor gorselleri (acik lisansli ama
+# repoya commit edilmiyor; sadece lokal stress-test verisi). sources.csv
+# (kaynak/lisans metadata'si) izlenmeye devam eder.
+benchmark/data/distractors/*
+!benchmark/data/distractors/sources.csv
+
+# Faz 3A - ONNX model agirliklari (buyuk binary, repo'ya commit edilmiyor;
+# dagitim yaklasimi ayrica degerlendirilecek, bkz. docs/DECISIONS.md #28)
+models/
+
+# Faz 3A - .NET build ciktilari
+src/**/bin/
+src/**/obj/
+
+# Faz 3B - self-contained publish ciktisi (model + runtime dahil, buyuk; repoya commit edilmiyor)
+publish/
+
+# Faz 3A - klasor-ici persistent embedding index/cache (kullanici verisiyle birlikte)
+.lens_index.json
