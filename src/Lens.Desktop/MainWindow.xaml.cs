@@ -50,7 +50,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         ResultsItemsControl.ItemsSource = _results;
         _logger.Info("AppStart");
-        LoadDefaultProductDirectory();
+        // [Reliability] Varsayilan dizin bir UNC yol olabilir ve erisim
+        // kontrolu (Directory.Exists) yavas/askida kalabilir - constructor'i
+        // (dolayisiyla pencerenin ilk gorunmesini) BLOKLAMAMASI icin arka
+        // planda calistirilir. Fire-and-forget ama kendi ici try/catch'li.
+        _ = LoadDefaultProductDirectoryAsync();
     }
 
     /// <summary>
@@ -73,10 +77,28 @@ public partial class MainWindow : Window
     /// [Faz 4A] Acilista admin default / kullanici override'i coz, erisilebilirse
     /// otomatik yukle. Indeksleme burada TETIKLENMEZ - klasor hazir gelir,
     /// kullanici "Indeksi Guncelle" ile taramayi kendisi baslatir.
+    ///
+    /// [Reliability] UNC erisim kontrolu (ResolveDefault icindeki
+    /// Directory.Exists) yavas olabilecegi icin arka planda (Task.Run)
+    /// calistirilir; devami (await sonrasi) otomatik olarak UI thread'e
+    /// doner (WPF SynchronizationContext), bu yuzden asagidaki UI erisimleri
+    /// degismeden kalabilir. Beklenmeyen bir hata olursa kullanici dostu bir
+    /// durum mesaji gosterilir, uygulama cokmez.
     /// </summary>
-    private void LoadDefaultProductDirectory()
+    private async Task LoadDefaultProductDirectoryAsync()
     {
-        var resolution = ProductDirectoryResolver.ResolveDefault(_logger);
+        ProductDirectoryResolution resolution;
+        try
+        {
+            resolution = await Task.Run(() => ProductDirectoryResolver.ResolveDefault(_logger));
+        }
+        catch (Exception ex)
+        {
+            SetIndexStatus("Varsayılan ürün dizinine ulaşılamadı. Lütfen bir klasör seçin.", success: false);
+            _logger.Error("ProductDirectory", reason: ex.Message);
+            UpdateDirectoryOriginUi();
+            return;
+        }
 
         if (resolution.Directory is null)
         {
@@ -99,12 +121,21 @@ public partial class MainWindow : Window
         _productFolder = resolution.Directory;
         _logger.Info("ProductDirectory", file: _productFolder, reason: resolution.Source.ToString());
         FolderPathTextBox.Text = _productFolder;
-        _indexEntries = ImageIndex.Load(_productFolder);
+
+        var hadCacheFile = File.Exists(ImageIndex.IndexPath(_productFolder));
+        _indexEntries = ImageIndex.Load(_productFolder, _logger);
         _lastFreshnessCheckUtc = null;
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
         SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
-            : "Varsayılan klasör yüklendi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
+            : hadCacheFile
+                // [Reliability] Cache dosyasi vardi ama Load onu gecersiz
+                // bulup reddetti (bozuk/uyumsuz) - kullanicinin "ilk kullanim"
+                // ile "bozuk cache" durumlarini ayirt edebilmesi icin farkli
+                // bir mesaj gosterilir. Guvenli cozum: "Indeksi Guncelle" ile
+                // normal rebuild.
+                ? "Kayıtlı index okunamadı (bozuk veya uyumsuz). 'İndeksi Güncelle' ile yeniden oluşturabilirsiniz."
+                : "Varsayılan klasör yüklendi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
 
         _directoryOrigin = resolution.Source == ProductDirectorySource.UserOverride
             ? DirectoryOrigin.UserOverride
@@ -126,11 +157,14 @@ public partial class MainWindow : Window
         ClearComparison();
         _lastFreshnessCheckUtc = null;
 
-        _indexEntries = ImageIndex.Load(_productFolder);
+        var hadCacheFile = File.Exists(ImageIndex.IndexPath(_productFolder));
+        _indexEntries = ImageIndex.Load(_productFolder, _logger);
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
         SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
-            : "Klasör seçildi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
+            : hadCacheFile
+                ? "Kayıtlı index okunamadı (bozuk veya uyumsuz). 'İndeksi Güncelle' ile yeniden oluşturabilirsiniz."
+                : "Klasör seçildi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
 
         // [Faz 4A] Manuel secim varsayilan olarak GECICIDIR (session-only) -
         // burada hicbir ayar dosyasina yazilmaz. Kalici hale getirmek icin
@@ -181,27 +215,49 @@ public partial class MainWindow : Window
     {
         if (_productFolder is null)
         {
-            MessageBox.Show(this, "Önce bir ürün klasörü seçin.", "Klasör seçilmedi",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            AlertWindow.Show(this, "Önce bir ürün klasörü seçin.", "Klasör seçilmedi", AlertKind.Warning);
             return;
         }
 
-        var hasSupportedImage = Directory.EnumerateFiles(_productFolder)
-            .Any(f => FileClassifier.Classify(Path.GetExtension(f)) == FileClassification.SupportedImage);
+        SetBusy(true);
+        SetIndexStatus("Klasör kontrol ediliyor...");
+
+        // [Reliability] Bu on-kontrol daha once UI thread'de senkron
+        // calisiyordu - UNC yol yavas/erisilemezse pencereyi donduruyordu.
+        // Artik arka planda calisir ve olasi bir erisim hatasi burada
+        // yakalanip kullanici dostu mesaja cevrilir (uygulama cokmez).
+        bool hasSupportedImage;
+        try
+        {
+            var folder = _productFolder;
+            hasSupportedImage = await Task.Run(() =>
+                Directory.EnumerateFiles(folder)
+                    .Any(f => FileClassifier.Classify(Path.GetExtension(f)) == FileClassification.SupportedImage));
+        }
+        catch (Exception ex)
+        {
+            SetBusy(false);
+            SetIndexStatus("Ürün klasörüne şu anda ulaşılamıyor.", success: false);
+            _logger.Warning("IndexPreflight", file: _productFolder, reason: ex.Message);
+            AlertWindow.Show(this, "Ürün klasörüne şu anda ulaşılamıyor.", "Klasöre ulaşılamıyor", AlertKind.Warning);
+            return;
+        }
+
         if (!hasSupportedImage)
         {
-            MessageBox.Show(this, "Bu klasörde desteklenen görsel (jpg/jpeg/png) bulunamadı.",
-                "Görsel bulunamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+            SetBusy(false);
+            AlertWindow.Show(this, "Bu klasörde desteklenen görsel (jpg/jpeg/png) bulunamadı.",
+                "Görsel bulunamadı", AlertKind.Warning);
             return;
         }
 
         if (!TryEnsureEmbedder(out var modelError))
         {
-            MessageBox.Show(this, modelError, "Model yüklenemedi", MessageBoxButton.OK, MessageBoxImage.Error);
+            SetBusy(false);
+            AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
             return;
         }
 
-        SetBusy(true);
         SetIndexStatus("İndeksleniyor...");
 
         // Manuel "İndeksi Güncelle" her zaman FORCE SCAN yapar (freshness
@@ -234,16 +290,16 @@ public partial class MainWindow : Window
 
             _logger.Info("IndexScan", reason: $"trigger={trigger} başladı");
             var (entries, stats) = await Task.Run(
-                () => ImageIndex.BuildOrUpdate(folder, embedder, progress));
+                () => ImageIndex.BuildOrUpdate(folder, embedder, progress, _logger));
 
             if (stats.ScanError is not null)
             {
                 SetIndexStatus($"Klasör taranamadı: {stats.ScanError}", success: false);
                 _logger.Error("IndexScan", file: folder, reason: $"trigger={trigger}: {stats.ScanError}");
-                MessageBox.Show(this,
+                AlertWindow.Show(this,
                     $"Ürün klasörü şu anda taranamadı (ör. ağ bağlantısı):\n{stats.ScanError}\n"
                     + "Mevcut kayıtlı index değiştirilmedi.",
-                    "Tarama başarısız", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Tarama başarısız", AlertKind.Warning);
                 return;
             }
 
@@ -255,7 +311,7 @@ public partial class MainWindow : Window
 
             ProductCountText.Text = $"{entries.Count} ürün";
             var summaryText = BuildSummaryText(stats, entries.Count, wasFirstCreation);
-            var hasProblems = stats.FailedCount + stats.UnsupportedFormatCount > 0;
+            var hasProblems = stats.FailedCount + stats.UnsupportedFormatCount + stats.SkippedNonImageCount > 0;
             SetIndexStatus(summaryText, success: !hasProblems);
 
             _logger.Info("IndexScan",
@@ -265,8 +321,16 @@ public partial class MainWindow : Window
 
             foreach (var issue in stats.Issues)
             {
-                var operation = issue.Kind == FileIssueKind.UnsupportedImageFormat ? "UnsupportedFormat" : "IndexingFailed";
-                var level = issue.Kind == FileIssueKind.UnsupportedImageFormat ? LogLevel.Warning : LogLevel.Error;
+                // NonImageFile/UnsupportedImageFormat uygulama hatasi degildir
+                // (WARNING); yalnizca gercekten decode edilmeye calisilip
+                // basarisiz olan SupportedImageButFailed ERROR'dur.
+                var (operation, level) = issue.Kind switch
+                {
+                    FileIssueKind.UnsupportedImageFormat => ("UnsupportedFormat", LogLevel.Warning),
+                    FileIssueKind.NonImageFile => ("UnsupportedFile", LogLevel.Warning),
+                    _ => ("IndexingFailed", LogLevel.Error),
+                };
+
                 if (level == LogLevel.Warning)
                 {
                     _logger.Warning(operation, file: issue.FileName, extension: issue.Extension, reason: issue.Reason);
@@ -281,8 +345,7 @@ public partial class MainWindow : Window
         {
             SetIndexStatus("İndeksleme başarısız oldu.", success: false);
             _logger.Error("IndexScan", reason: $"trigger={trigger}: {ex.Message}");
-            MessageBox.Show(this, $"İndeksleme sırasında hata oluştu:\n{ex.Message}",
-                "Hata", MessageBoxButton.OK, MessageBoxImage.Error);
+            AlertWindow.Show(this, $"İndeksleme sırasında hata oluştu:\n{ex.Message}", "Hata", AlertKind.Error);
         }
     }
 
@@ -290,12 +353,16 @@ public partial class MainWindow : Window
     /// [Faz 4C] Ana ekranda gösterilen özet metni SADE tutar: sıfır sayımlar
     /// atlanır, "değişmeyen" hiç gösterilmez (kullanıcı için anlamlı değil).
     /// Tüm ayrıntı (failed/unsupported ayrımı dahil) log dosyasında ve
-    /// "Sorunlu Dosyalar" penceresinde eksiksiz kalır - burada yalnızca
+    /// "Sorunlu / Atlanan Dosyalar" penceresinde eksiksiz kalır - burada yalnızca
     /// gösterim metni sadeleştiriliyor, IndexUpdateStats'ın kendisi değil.
     /// </summary>
     private static string BuildSummaryText(IndexUpdateStats stats, int totalEntries, bool isFirstCreation)
     {
-        var problemCount = stats.FailedCount + stats.UnsupportedFormatCount;
+        // [Kullanici geri bildirimi] Gorsel-olmayan/desteklenmeyen dosyalar
+        // (.pdf/.zip vb.) artik sessizce yok sayilmiyor - "sorun" sayacina
+        // dahil edilir ki ana ozette de gorunsun. Detay: Sorunlu/Atlanan
+        // Dosyalar penceresi.
+        var problemCount = stats.FailedCount + stats.UnsupportedFormatCount + stats.SkippedNonImageCount;
 
         if (isFirstCreation)
         {
@@ -340,12 +407,12 @@ public partial class MainWindow : Window
         return summary + ".";
     }
 
-    /// <summary>[Faz 4C] "Sorunlu Dosyalar (N)" butonunu son sonuca göre günceller; sorun yoksa gizler.</summary>
+    /// <summary>[Faz 4C] "Sorunlu / Atlanan Dosyalar (N)" butonunu son sonuca göre günceller; sorun yoksa gizler.</summary>
     private void UpdateProblemFilesUi()
     {
         if (_lastIssues.Count > 0)
         {
-            ProblemFilesButton.Content = $"Sorunlu Dosyalar ({_lastIssues.Count})";
+            ProblemFilesButton.Content = $"Sorunlu / Atlanan Dosyalar ({_lastIssues.Count})";
             ProblemFilesButton.Visibility = Visibility.Visible;
         }
         else
@@ -399,17 +466,28 @@ public partial class MainWindow : Window
     {
         try
         {
+            // [Reliability] Asiri buyuk/yuksek cozunurluklu bir query gorseli
+            // arama baslatmadan ONCE burada reddedilir - CLIP embed asamasina
+            // (Task.Run icinde) hic ulasmaz.
+            ImageResourceLimits.EnsureWithinLimits(path);
             QueryPreviewImage.Source = LoadPreview(path);
             _queryImagePath = path;
             QueryFileNameText.Text = Path.GetFileName(path);
+        }
+        catch (ImageTooLargeException)
+        {
+            _queryImagePath = null;
+            QueryPreviewImage.Source = null;
+            QueryFileNameText.Text = string.Empty;
+            AlertWindow.Show(this, "Görsel çok büyük. Lütfen daha düşük çözünürlüklü bir görsel seçin.",
+                "Görsel çok büyük", AlertKind.Warning);
         }
         catch (Exception ex)
         {
             _queryImagePath = null;
             QueryPreviewImage.Source = null;
             QueryFileNameText.Text = string.Empty;
-            MessageBox.Show(this, $"Görsel önizlemesi yüklenemedi:\n{ex.Message}",
-                "Görsel okunamadı", MessageBoxButton.OK, MessageBoxImage.Error);
+            AlertWindow.Show(this, $"Görsel önizlemesi yüklenemedi:\n{ex.Message}", "Görsel okunamadı", AlertKind.Error);
         }
 
         _results.Clear();
@@ -462,7 +540,7 @@ public partial class MainWindow : Window
 
         if (!TryGetDroppedImagePath(e.Data, out var path, out var error))
         {
-            MessageBox.Show(this, error, "Sürükle-bırak", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AlertWindow.Show(this, error, "Sürükle-bırak", AlertKind.Warning);
             return;
         }
 
@@ -533,12 +611,16 @@ public partial class MainWindow : Window
     {
         if (active)
         {
+            // Surukleme sirasinda GECICI accent vurgusu - normal durumda
+            // query paneli asla mavi olmaz (bkz. NeutralBorderBrush).
+            QueryDropZone.BorderBrush = (Brush)FindResource("AccentBrush");
             QueryDropZone.BorderThickness = new Thickness(3);
             QueryDropZone.Background = (Brush)FindResource("AccentBrushLight");
             QueryDropHintText.Text = "Görseli buraya bırak";
         }
         else
         {
+            QueryDropZone.BorderBrush = (Brush)FindResource("NeutralBorderBrush");
             QueryDropZone.BorderThickness = new Thickness(2);
             QueryDropZone.Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
             QueryDropHintText.Text = "Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt";
@@ -634,6 +716,12 @@ public partial class MainWindow : Window
 
         try
         {
+            // [Reliability] Bu yukleme DecodePixelWidth kullanmiyor (tam
+            // cozunurluk gerekiyor) - bu yuzden asiri buyuk bir dosyada tam
+            // decode denemeden ONCE ayni guard burada da calisir (bkz.
+            // ImagePreprocessor.PreprocessToChwTensor - guard bypass edilmez).
+            ImageResourceLimits.EnsureWithinLimits(path);
+
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
@@ -656,10 +744,15 @@ public partial class MainWindow : Window
             };
             preview.Show();
         }
+        catch (ImageTooLargeException)
+        {
+            AlertWindow.Show(this, "Görsel önizleme için çok büyük (boyut sınırını aşıyor).",
+                "Önizleme açılamadı", AlertKind.Warning);
+        }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Görsel açılamadı (dosya silinmiş veya erişilemez olabilir):\n{ex.Message}",
-                "Önizleme açılamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AlertWindow.Show(this, $"Görsel açılamadı (dosya silinmiş veya erişilemez olabilir):\n{ex.Message}",
+                "Önizleme açılamadı", AlertKind.Warning);
             _logger.Warning("ImagePreview", file: path, reason: ex.Message);
         }
     }
@@ -692,7 +785,7 @@ public partial class MainWindow : Window
             "Klasörü değiştirmek veya varsayılan yapmak için ana ekrandaki "
             + "\"Ürün Klasörü Seç\", \"Bu Klasörü Varsayılan Yap\" ve "
             + "\"Varsayılanı Temizle\" butonlarını kullanın.";
-        MessageBox.Show(this, message, "Ayarlar", MessageBoxButton.OK, MessageBoxImage.Information);
+        AlertWindow.Show(this, message, "Ayarlar", AlertKind.Information);
     }
 
     private void OpenLogFolderMenuItem_Click(object sender, RoutedEventArgs e)
@@ -704,8 +797,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Log klasörü açılamadı:\n{ex.Message}",
-                "Klasör açılamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AlertWindow.Show(this, $"Log klasörü açılamadı:\n{ex.Message}", "Klasör açılamadı", AlertKind.Warning);
             _logger.Warning("OpenLogFolder", reason: ex.Message);
         }
     }
@@ -715,7 +807,7 @@ public partial class MainWindow : Window
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         var versionText = version is null ? "MVP" : $"{version.Major}.{version.Minor}.{version.Build}";
         var message = $"Lens\nGörsel Ürün Arama Sistemi\nSürüm: {versionText}";
-        MessageBox.Show(this, message, "Hakkında", MessageBoxButton.OK, MessageBoxImage.Information);
+        AlertWindow.Show(this, message, "Hakkında", AlertKind.Information);
     }
 
     private void SelectResult(SearchResultViewModel result)
@@ -754,21 +846,19 @@ public partial class MainWindow : Window
     {
         if (_productFolder is null || _indexEntries.Count == 0)
         {
-            MessageBox.Show(this, "Önce bir ürün klasörü seçip index'i güncelleyin.",
-                "Index yok", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AlertWindow.Show(this, "Önce bir ürün klasörü seçip index'i güncelleyin.", "Index yok", AlertKind.Warning);
             return;
         }
 
         if (_queryImagePath is null)
         {
-            MessageBox.Show(this, "Önce bir sorgu görseli seçin.",
-                "Görsel seçilmedi", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AlertWindow.Show(this, "Önce bir sorgu görseli seçin.", "Görsel seçilmedi", AlertKind.Warning);
             return;
         }
 
         if (!TryEnsureEmbedder(out var modelError))
         {
-            MessageBox.Show(this, modelError, "Model yüklenemedi", MessageBoxButton.OK, MessageBoxImage.Error);
+            AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
             return;
         }
 
@@ -783,7 +873,7 @@ public partial class MainWindow : Window
         {
             SetIndexStatus("Klasör güncelliği kontrol ediliyor...");
             var folder = _productFolder;
-            var changes = await Task.Run(() => ImageIndex.DetectChanges(folder));
+            var changes = await Task.Run(() => ImageIndex.DetectChanges(folder, _logger));
 
             if (changes.ScanError is not null)
             {
@@ -814,8 +904,7 @@ public partial class MainWindow : Window
         if (_indexEntries.Count == 0)
         {
             SetBusy(false);
-            MessageBox.Show(this, "Bu klasörde indekslenmiş ürün yok.",
-                "Index boş", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AlertWindow.Show(this, "Bu klasörde indekslenmiş ürün yok.", "Index boş", AlertKind.Warning);
             return;
         }
 
@@ -869,8 +958,7 @@ public partial class MainWindow : Window
         {
             SetIndexStatus("Arama başarısız oldu.", success: false);
             _logger.Error("Search", file: _queryImagePath, reason: ex.Message);
-            MessageBox.Show(this, $"Arama sırasında hata oluştu:\n{ex.Message}",
-                "Hata", MessageBoxButton.OK, MessageBoxImage.Error);
+            AlertWindow.Show(this, $"Arama sırasında hata oluştu:\n{ex.Message}", "Hata", AlertKind.Error);
         }
         finally
         {

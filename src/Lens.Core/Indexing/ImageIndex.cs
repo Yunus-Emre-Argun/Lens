@@ -2,6 +2,7 @@ using System.Text.Json;
 using Lens.Core.Ai;
 using Lens.Core.Config;
 using Lens.Core.IO;
+using Lens.Core.Logging;
 
 namespace Lens.Core.Indexing;
 
@@ -25,7 +26,21 @@ public static class ImageIndex
 {
     public static string IndexPath(string folderPath) => AppPaths.CacheIndexFilePath(folderPath);
 
-    public static List<ImageIndexEntry> Load(string folderPath)
+    /// <summary>CLIP ViT-B/16 embedding boyutu (bkz. docs/DECISIONS.md #20) - gecerli bir cache kaydinin embedding'i bu uzunlukta olmali.</summary>
+    private const int ExpectedEmbeddingDimension = 512;
+
+    /// <summary>
+    /// [Reliability] Cache dosyasi bozuk/yarim JSON, deserialize edilemeyen
+    /// icerik, veya gecersiz embedding (null/yanlis boyut/NaN/Infinity)
+    /// icerebilir - onceki bir Lens surumunden kalma veya kesintiye ugramis
+    /// bir yazimdan kaynaklanabilir. Bu durumda UYGULAMA COKMEZ: cache
+    /// tamamen guvensiz sayilir (basit "hepsi ya da hicbiri" politikasi -
+    /// kismi kurtarma/migration YOK), bos liste donulur, cagiran taraf
+    /// (BuildOrUpdate/MainWindow) bunu normal "index yok, yeniden olustur"
+    /// durumu gibi ele alir - kaynak klasor erisilebiliyorsa guvenli rebuild
+    /// zaten dogal olarak gerceklesir.
+    /// </summary>
+    public static List<ImageIndexEntry> Load(string folderPath, ILensLogger? logger = null)
     {
         var path = IndexPath(folderPath);
         if (!File.Exists(path))
@@ -33,8 +48,50 @@ public static class ImageIndex
             return new List<ImageIndexEntry>();
         }
 
-        var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<List<ImageIndexEntry>>(json) ?? new List<ImageIndexEntry>();
+        try
+        {
+            var json = File.ReadAllText(path);
+            var entries = JsonSerializer.Deserialize<List<ImageIndexEntry>>(json);
+            if (entries is null || entries.Any(e => !IsValidEntry(e)))
+            {
+                logger?.Warning("IndexCacheLoad", file: path,
+                    reason: "Cache içeriği geçersiz veya uyumsuz - yok sayıldı, yeniden oluşturulacak");
+                return new List<ImageIndexEntry>();
+            }
+
+            return entries;
+        }
+        catch (Exception ex)
+        {
+            // Bozuk/yarim JSON (orn. yazim sirasinda kesinti) - dosyaya
+            // dokunulmaz (bir sonraki basarili Save zaten atomic overwrite
+            // yapar), sadece bu yuklemede yok sayilir.
+            logger?.Error("IndexCacheLoad", file: path, reason: ex.Message);
+            return new List<ImageIndexEntry>();
+        }
+    }
+
+    private static bool IsValidEntry(ImageIndexEntry? entry)
+    {
+        if (entry is null || string.IsNullOrWhiteSpace(entry.RelativePath) || entry.Embedding is null)
+        {
+            return false;
+        }
+
+        if (entry.Embedding.Length != ExpectedEmbeddingDimension)
+        {
+            return false;
+        }
+
+        foreach (var value in entry.Embedding)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static void Save(string folderPath, List<ImageIndexEntry> entries)
@@ -50,12 +107,19 @@ public static class ImageIndex
     /// islemi durdurmaz; SupportedImageButFailed olarak Issues'a eklenir.
     /// Taramanin KENDISI basarisiz olursa (orn. UNC yola hic ulasilamadi),
     /// eski index DEGISTIRILMEDEN doner - hicbir sey kaybedilmez/bozulmaz.
+    ///
+    /// [Reliability] Tarama dosyayi hala goruyor ama TEK dosyanin islenmesi
+    /// (metadata okuma veya embed) gecici bir nedenle (network kesintisi,
+    /// dosya kilidi, izin sorunu) basarisiz olursa ve bu dosyanin daha once
+    /// SAGLAM bir kaydi varsa, o eski kayit sonuca AYNEN tasinir - "removed"
+    /// sayilmaz ve cache'den kaybolmaz. Yalnizca directory snapshot'inda hic
+    /// gorunmeyen dosyalar (gercekten silinmis) removed sayilir.
     /// </summary>
     public static (List<ImageIndexEntry> Entries, IndexUpdateStats Stats) BuildOrUpdate(
-        string folderPath, ClipEmbedder embedder, IProgress<(int Done, int Total)>? progress = null)
+        string folderPath, ClipEmbedder embedder, IProgress<(int Done, int Total)>? progress = null, ILensLogger? logger = null)
     {
         var stats = new IndexUpdateStats();
-        var existingEntries = Load(folderPath);
+        var existingEntries = Load(folderPath, logger);
 
         List<string> supportedFiles;
         try
@@ -82,6 +146,9 @@ public static class ImageIndex
         {
             var relativePath = Path.GetFileName(filePath);
             var extension = Path.GetExtension(filePath);
+            // [Reliability] Lookup TRY bloğunun disinda - FileInfo erisimi
+            // basarisiz olsa bile existingEntry catch icinde kullanilabilsin.
+            existingByPath.TryGetValue(relativePath, out var existingEntry);
 
             try
             {
@@ -89,8 +156,8 @@ public static class ImageIndex
                 var sizeBytes = fileInfo.Length;
                 var lastWriteTicks = fileInfo.LastWriteTimeUtc.Ticks;
 
-                var isUnchanged = existingByPath.TryGetValue(relativePath, out var existingEntry)
-                    && existingEntry!.FileSizeBytes == sizeBytes
+                var isUnchanged = existingEntry is not null
+                    && existingEntry.FileSizeBytes == sizeBytes
                     && existingEntry.LastWriteTimeUtcTicks == lastWriteTicks;
 
                 if (isUnchanged)
@@ -121,9 +188,18 @@ public static class ImageIndex
             }
             catch (Exception ex)
             {
-                // Dosya metadata okuma VEYA embed etme sirasinda basarisiz oldu
-                // (bozuk dosya, ani network kopmasi vb.) - bu TEK dosyayi
-                // atlar, taramanin geri kalanini durdurmaz.
+                // [Reliability] Dosya metadata okuma VEYA embed etme sirasinda
+                // GECICI bir nedenle basarisiz oldu (network kesintisi, dosya
+                // kilidi, izin sorunu, bozuk dosya). Dosya klasorde hala
+                // GORULUYOR (supportedFiles listesinde) - bu yuzden "silinmis"
+                // degil, "su an islenemedi" durumu. Eski saglam kayit varsa
+                // AYNEN korunur ki tek seferlik/gecici bir okuma hatasi
+                // urunun embedding'ini kalici olarak kaybettirmesin.
+                if (existingEntry is not null)
+                {
+                    result.Add(existingEntry);
+                }
+
                 stats.Issues.Add(new IndexFileIssue(relativePath, extension, FileIssueKind.SupportedImageButFailed, ex.Message));
             }
 
@@ -143,7 +219,7 @@ public static class ImageIndex
     /// boyut/LastWriteTimeUtc mevcut index ile karsilastirilir. UNC uzerinde
     /// bile hizlidir (agir olan CLIP inference'i, network I/O degil).
     /// </summary>
-    public static ChangeSummary DetectChanges(string folderPath)
+    public static ChangeSummary DetectChanges(string folderPath, ILensLogger? logger = null)
     {
         List<string> supportedFiles;
         try
@@ -155,7 +231,7 @@ public static class ImageIndex
             return new ChangeSummary(0, 0, 0, 0, ex.Message);
         }
 
-        var existingByPath = Load(folderPath).ToDictionary(e => e.RelativePath, e => e);
+        var existingByPath = Load(folderPath, logger).ToDictionary(e => e.RelativePath, e => e);
         int newCount = 0;
         int changedCount = 0;
         int unchangedCount = 0;
@@ -209,6 +285,15 @@ public static class ImageIndex
 
         foreach (var filePath in allFiles)
         {
+            var fileName = Path.GetFileName(filePath);
+            if (FileClassifier.IsKnownHarmless(fileName))
+            {
+                // Lens'in kendi eski artefakti veya Windows'un otomatik
+                // dosyasi - kullanicinin sucu degil, "sorun" olarak hic
+                // sayilmaz/gorunmez (Issues'a girmez, sayaclara girmez).
+                continue;
+            }
+
             var extension = Path.GetExtension(filePath);
             switch (FileClassifier.Classify(extension))
             {
@@ -222,7 +307,16 @@ public static class ImageIndex
                         "Bilinen görsel formatı ama şu an desteklenmiyor"));
                     break;
                 default:
+                    // [Kullanici geri bildirimi] Urun klasoru esas olarak
+                    // gorsel icindir - bir .pdf/.zip/.txt vb. gorulunce
+                    // sessizce yok sayilmaz, Issues'a da eklenir ki
+                    // kullaniciya UI/log uzerinden gorunur olsun. Yine de
+                    // decode DENENMEZ ve indeksleme durmaz - yalnizca
+                    // gorunurluk ekleniyor.
                     skippedCount++;
+                    unsupportedIssues.Add(new IndexFileIssue(
+                        Path.GetFileName(filePath), extension, FileIssueKind.NonImageFile,
+                        "Desteklenmeyen dosya türü"));
                     break;
             }
         }

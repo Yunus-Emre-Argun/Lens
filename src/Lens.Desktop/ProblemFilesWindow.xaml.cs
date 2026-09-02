@@ -19,7 +19,12 @@ public partial class ProblemFilesWindow : Window
     private static IssueRow ToRow(IndexFileIssue issue) => new(
         issue.FileName,
         issue.Extension,
-        issue.Kind == FileIssueKind.UnsupportedImageFormat ? "Desteklenmeyen format" : "Okunamadı",
+        issue.Kind switch
+        {
+            FileIssueKind.UnsupportedImageFormat => "Desteklenmeyen görsel formatı",
+            FileIssueKind.NonImageFile => "Desteklenmeyen dosya türü",
+            _ => "Görsel okunamadı",
+        },
         issue.Reason);
 
     private sealed record IssueRow(string FileName, string Extension, string KindText, string Reason);

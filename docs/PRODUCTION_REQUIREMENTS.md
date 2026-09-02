@@ -138,9 +138,10 @@ Dört kategori:
 | Kategori | Örnek | Hata sayılır mı? |
 |---|---|---|
 | PROCESSED | `urun01.jpg` başarıyla embed edildi | — |
-| SUPPORTED IMAGE BUT FAILED | `.jpg` uzantılı ama decode edilemedi (bozuk dosya) | Evet |
+| SUPPORTED IMAGE BUT FAILED | `.jpg` uzantılı ama decode edilemedi (bozuk dosya) veya boyut/çözünürlük sınırını aşıyor | Evet |
 | UNSUPPORTED IMAGE FORMAT | `urun02.tif`, `.bmp`, `.webp` — bilinen görsel formatı ama şu an desteklenmiyor | Evet (ayrı, "unsupported" olarak) |
-| NON-IMAGE / SKIPPED | `.lens_index.json`, `.txt`, `.csv` vb. | **Hayır** |
+| NON-IMAGE FILE | `.pdf`, `.zip`, `.txt`, `.csv` vb. görsel olmayan dosya | Evet (ayrı, "desteklenmeyen dosya türü" olarak — kullanıcıya görünür, decode denenmez) |
+| BİLİNEN ZARARSIZ (görünmez) | `.lens_index.json` (Lens'in eski artefaktı), `Thumbs.db`, `desktop.ini` | Hayır — sayaçlara/Issues'a hiç girmez |
 
 Gelecekte TIFF/BMP/WEBP desteği eklenmesi kolay olmalı (yalnızca
 sınıflandırma/mesaj için "bilinen ama desteklenmeyen" listesi tutulur,
@@ -152,6 +153,16 @@ sınıflandırılıyor; "SUPPORTED IMAGE BUT FAILED" durumu ayrı bir kategori
 değil, `SupportedImage` dosyalarının işlenme aşamasında (embed edilirken)
 oluşan bir sonuç olarak `IndexFileIssue.Kind` üzerinden izleniyor. Kavramsal
 4'lü model korunuyor.
+
+**Güncellendi (kullanıcı geri bildirimi, 2026-09-02):** Görsel olmayan
+dosyalar (`.pdf`, `.zip`, `.txt`, `.csv` vb.) artık sessizce yok
+sayılmıyor — ürün klasörü esas olarak görsel içindir, bu yüzden
+`FileIssueKind.NonImageFile` olarak Issues'a eklenir ve ana özet + "Sorunlu
+/ Atlanan Dosyalar" penceresinde "Desteklenmeyen dosya türü" etiketiyle
+görünür (decode yine DENENMEZ, indeksleme durmaz). Yalnızca Lens'in kendi
+eski teknik artefaktı (`.lens_index.json`) ve Windows'un otomatik oluşturduğu
+dosyalar (`Thumbs.db`, `desktop.ini`) hâlâ tamamen görünmez kalır
+(`FileClassifier.KnownHarmless`).
 
 ---
 
@@ -219,7 +230,7 @@ Detay: `docs/DECISIONS.md` #52-53.
 - Mevcut doğrulama (188 aday, 55 query, C#: Top-1 %98.2 / Top-3 %100 /
   Top-5 %100, ~51 ms ortalama query) **umut verici ama ~5000 gerçek ürün
   üzerinde henüz ölçülmedi** — bu bir varsayımdır, kanıt değil (bkz.
-  ROADMAP Faz 4E).
+  ROADMAP Faz 4F).
 - Brute-force cosine similarity'nin ~5000 vektörde de yeterli olması
   **bekleniyor** (mimari görüş #11) ama gerçek veri üzerinde ölçülmeli.
 
@@ -245,8 +256,8 @@ Detay: `docs/DECISIONS.md` #52-53.
 
 | # | Soru | Neden Önemli |
 |---|------|---------------|
-| 1 | ~5000 gerçek görsel setine ne zaman erişilebilecek (FAZ 4E'nin bağımlılığı) | Gerçek ölçek doğrulaması bu veriye bağlı |
-| 2 | Yönetici bilgisayarında/factory workstation'larında Smart App Control veya benzeri Application Control politikası aktif mi? | FAZ 4F rollout riski (bkz. DEMO_DEPLOYMENT_GUIDE.md §6) |
+| 1 | ~5000 gerçek görsel setine ne zaman erişilebilecek (FAZ 4F'nin bağımlılığı) | Gerçek ölçek doğrulaması bu veriye bağlı |
+| 2 | Yönetici bilgisayarında/factory workstation'larında Smart App Control veya benzeri Application Control politikası aktif mi? | FAZ 4G rollout riski (bkz. DEMO_DEPLOYMENT_GUIDE.md §6) |
 
 **Çözüldü (FAZ 4A kickoff, 2026-09-01):** Override restart sonrası
 hatırlanmıyor (session-only, bkz. DECISIONS.md #43); ayarlar dosyası

@@ -10,7 +10,9 @@ kısa ve uygulamaya yöneliktir.
 
 **Yönetici bilgisayarına kaynak kod götürülmez.**
 
-Sadece `publish/Lens.Desktop-win-x64/` klasörünün **TAMAMI** kopyalanır.
+Sadece ilgili publish klasörünün **TAMAMI** kopyalanır (`publish/Lens.Desktop-win-x64/`
+veya yönetici dağıtımı için `publish/Lens.Desktop-win-x64-manager/` —
+ikisi de aynı self-contained Release yapılandırmasıyla üretilir).
 Yalnızca `Lens.Desktop.exe` dosyasını kopyalamak **yeterli değildir** —
 uygulama çalışmaz.
 
@@ -29,15 +31,18 @@ Gerçek ürün görselleri publish paketine **dahil değildir**. Kullanıcı ken
 
 ## 2. Yönetici bilgisayarında çalıştırma
 
-1. `publish/Lens.Desktop-win-x64/` klasörünü hedef Windows bilgisayarına kopyala.
+1. İlgili publish klasörünü hedef Windows bilgisayarına kopyala.
 2. `Lens.Desktop.exe` dosyasını çalıştır.
-3. **"Ürün Klasörü Seç"** ile fabrika ürün/desen klasörünü seç.
+3. **"Ürün Klasörü Seç"** ile fabrika ürün/desen klasörünü seç (veya
+   `appsettings.json` içinde `AdminDefaultProductDirectory` önceden
+   ayarlanmışsa açılışta otomatik yüklenir).
 4. **"İndeksi Güncelle / Klasörü Tara"** ile ürünleri indeksle.
 5. İlk indekslemede ürün görsellerinin embedding'leri oluşturulur.
 6. Sonraki çalıştırmalarda değişmeyen görseller tekrar embed edilmez.
-7. **"Sorgu Görseli Seç"** ile aranacak görseli seç.
+7. **"Sorgu Görseli Seç"** ile (veya sürükle-bırak ile) aranacak görseli seç.
 8. **"Ara"** butonuna bas.
-9. Top-5 sonuçlarını incele.
+9. Top-10 sonuçlarını incele; bir sonuca tıklayarak query görseliyle yan
+   yana karşılaştır.
 10. Nihai kararı kullanıcı verir — sistem kesin eşleşme iddia etmez.
 
 ---
@@ -47,7 +52,7 @@ Gerçek ürün görselleri publish paketine **dahil değildir**. Kullanıcı ken
 Örnek: yönetici ilk seferde 200 ürün görseli verirse:
 
 ```
-200 görsel → ilk indeksleme → embedding'ler oluşturulur → .lens_index.json'a kaydedilir
+200 görsel → ilk indeksleme → embedding'ler oluşturulur → local cache'e kaydedilir
 ```
 
 Daha sonra klasöre 20 yeni ürün eklenirse:
@@ -55,14 +60,49 @@ Daha sonra klasöre 20 yeni ürün eklenirse:
 - Sadece yeni 20 görsel embed edilir.
 - Değişmeyen 200 görsel yeniden hesaplanmaz.
 - Değişmiş dosyalar yeniden embed edilir.
-- Silinmiş dosyalar index'ten çıkarılır.
+- Silinmiş dosyalar index'ten çıkarılır (yalnızca dosya klasörde gerçekten
+  artık görünmüyorsa; geçici bir okuma hatasında eski kayıt korunur — bkz.
+  §4).
 
-Persistent index/cache dosyası, seçilen ürün klasörünün içinde
-**`.lens_index.json`** olarak tutulur.
+Persistent index/cache dosyası ürün klasörünün İÇİNDE **değil**,
+`%LocalAppData%\Lens\cache\<klasör-hash'i>\index.json` altında tutulur
+(ürün dizini path'inden türetilen bir hash ile) — paylaşılan ağ klasörünün
+Lens'e özel dosyalarla kirlenmemesi ve birden fazla kullanıcının aynı
+dosyaya eşzamanlı yazmaması için (bkz. `docs/DECISIONS.md` #39, #44).
+Aynı ürün klasörüne tekrar dönüldüğünde aynı cache otomatik olarak
+kullanılır.
 
 ---
 
-## 4. Kurulum gereksinimleri
+## 4. Güvenilirlik davranışı ve limitler
+
+- **Geçici hata ≠ silme:** Ağ klasörüne kısa süreli erişim kaybı, dosya
+  kilidi veya izin sorunu nedeniyle bir görsel o an okunamazsa, önceki
+  başarılı indeksleme kaydı korunur — ürün aramadan düşmez. Yalnızca dosya
+  gerçekten klasörden kaldırılmışsa index'ten çıkarılır.
+- **Bozuk/uyumsuz cache dosyası** (örn. yarım kalmış bir yazımdan) uygulamayı
+  çökertmez; sessizce yok sayılıp normal ilk-kullanım akışıyla yeniden
+  oluşturulur.
+- **Ağ/UNC klasörüne erişilemediğinde** uygulama donmaz veya kapanmaz;
+  "Ürün klasörüne şu anda ulaşılamıyor" gibi bir durum mesajı gösterilir,
+  bağlantı geri geldiğinde kullanıcı tekrar deneyebilir.
+- **Büyük/aşırı çözünürlüklü görsel limiti:** ~50 MB dosya boyutu veya ~50
+  megapiksel üzerindeki görseller (indexing, sorgu ve büyük önizleme/zoom
+  için) belleği aşırı tüketmemek amacıyla reddedilir — normal katalog/telefon
+  fotoğrafları bundan etkilenmez. Sınırı aşan bir ürün görseli "Görsel
+  boyutu desteklenen sınırı aşıyor" olarak işaretlenir (eski kaydı varsa
+  korunur); sorgu olarak seçilirse arama başlamadan aynı mesajla reddedilir.
+- **Görsel olmayan dosyalar** (`.pdf`, `.zip`, `.txt`, `.csv` vb.) ürün
+  klasöründe bulunabilir; sessizce yok sayılmaz, "Desteklenmeyen dosya türü"
+  olarak işaretlenip görünür kalır, ama decode denenmez ve indekslemeyi
+  durdurmaz.
+
+Detay ve gerekçeler için bkz. `docs/ROADMAP.md` FAZ 4E ve `docs/DECISIONS.md`
+#55-59.
+
+---
+
+## 5. Kurulum gereksinimleri
 
 Self-contained Windows publish kullanıldığı için hedef bilgisayarda normal
 şartlarda şunların kurulu olması **gerekmez**:
@@ -74,7 +114,7 @@ Self-contained Windows publish kullanıldığı için hedef bilgisayarda normal
 
 ---
 
-## 5. Mevcut doğrulama sonuçları
+## 6. Mevcut doğrulama sonuçları
 
 Doğrulanmış mevcut stress test verisi:
 
@@ -89,13 +129,18 @@ Doğrulanmış mevcut stress test verisi:
 | 177 yeni görselin ilk indekslemesi | ~10.5 sn |
 | İkinci çalıştırmada cache-hit | yeni=0, değişmeyen=177, ~0.02 sn |
 
+Not: Bu ölçüm Top-5 doğruluğu içindir (Faz 2/3C benchmark metodolojisi);
+UI'da gösterilen sonuç sayısı Faz 4D'den beri **Top-10**'dur (bkz. §2, §8).
+
 **Önemli:** Bu sonuçlar yalnızca mevcut test datasetine (188 aday) aittir.
 "1000 üründe de %100 çalışır" gibi bir garanti değildir — **"188 aday ürün
-üzerindeki mevcut testlerde gözlenen davranış"** olarak okunmalıdır.
+üzerindeki mevcut testlerde gözlenen davranış"** olarak okunmalıdır. Gerçek
+~5000 görsellik ölçek doğrulaması henüz yapılmadı (bkz. `docs/ROADMAP.md`
+FAZ 4F).
 
 ---
 
-## 6. Smart App Control notu
+## 7. Smart App Control notu
 
 Geliştirme bilgisayarında, Windows Smart App Control'un imzasız geliştirme
 binary'lerini bir süre engellediği gözlemlendi. Kullanıcı Smart App
@@ -110,22 +155,24 @@ ile birlikte değerlendirilmelidir.
 
 ---
 
-## 7. MVP kapsamında olanlar
+## 8. MVP kapsamında olanlar
 
 - Windows Desktop uygulaması
 - C# / .NET
 - WPF arayüz
 - Local klasörden ürün görselleri alma
 - CLIP ONNX embedding (openai/clip-vit-base-patch16)
-- Persistent local index/cache
+- Persistent local index/cache (`%LocalAppData%\Lens\cache\`)
 - Incremental index update (yeni/değişen/silinen dosya tespiti)
 - Cosine similarity ile arama
-- Top-5 görsel sonuç
+- Top-10 görsel sonuç + query/sonuç karşılaştırma
 - Similarity score gösterimi
+- Sürükle-bırak, büyük önizleme/zoom, kalıcı log dosyası
+- Geçici hata/bozuk cache/aşırı büyük görsel için güvenli davranış (bkz. §4)
 
 ---
 
-## 8. MVP kapsamında olmayanlar
+## 9. MVP kapsamında olmayanlar
 
 Bugünkü MVP'de **yok**:
 

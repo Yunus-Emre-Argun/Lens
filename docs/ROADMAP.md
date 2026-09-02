@@ -274,7 +274,69 @@ ayrıca kabul sürecinde şu ek iyileştirmeler eklendi:
 
 ---
 
-## FAZ 4E — 5000-Image Real Dataset Validation
+## FAZ 4E — Reliability Hardening (Codex Audit Follow-up)
+
+**Durum: Tamamlandı ve kabul edildi (2026-09-02).**
+
+**Amaç:** Codex tarafından yapılan bir production-audit sonrası tespit edilen
+4 dayanıklılık maddesini kapatmak. FAZ 4B'nin per-dosya hata toleransı
+mimarisi üzerine inşa edilir, yeni bir mimari kavram eklemez.
+
+**Yapılan işler:**
+1. **Geçici hata ≠ gerçek silme:** `ImageIndex.BuildOrUpdate`, bir dosyanın
+   metadata okuma veya embed adımı GEÇİCİ bir nedenle (network kesintisi,
+   dosya kilidi, izin sorunu) başarısız olduğunda — dosya directory
+   taramasında hâlâ görünüyorsa — o dosyanın önceki SAĞLAM kaydını sonuca
+   aynen taşır; "removed" saymaz. Yalnızca directory snapshot'ında hiç
+   görünmeyen dosyalar gerçekten silinmiş sayılır.
+2. **Bozuk/uyumsuz cache recovery:** `ImageIndex.Load`, bozuk/yarım JSON,
+   deserialize hatası, null/eksik alan, embedding boyutu CLIP'in beklediği
+   512'den farklı, veya embedding içinde NaN/Infinity içeren bir cache
+   dosyasını "hepsi ya da hiçbiri" politikasıyla tamamen güvensiz sayar:
+   uygulama çökmez, cache'i yok sayıp boş listeyle döner; çağıran taraf
+   bunu normal "index yok, yeniden oluştur" durumu gibi ele alır.
+3. **UNC/network UI freeze/crash azaltma:** Uygulama açılışındaki varsayılan
+   dizin çözümlemesi ve "İndeksi Güncelle" öncesi ön-kontrol artık UI
+   thread'ini bloklamıyor (`Task.Run` + try/catch); olası bir erişim hatası
+   kullanıcı dostu bir durum mesajına çevrilir, "busy" durumu her çıkış
+   yolunda düzgün sıfırlanır, exception hiçbir `async void` event handler'dan
+   kontrolsüz kaçmaz.
+4. **Büyük/aşırı çözünürlüklü görsel resource guard:** Tek bir kontrol
+   noktasından (`Lens.Core.Ai.ImageResourceLimits`) dosya boyutu (~50 MB) ve
+   piksel sayısı (~50 MP) sınırı; tam piksel decode'undan ÖNCE (ImageSharp
+   `Image.Identify` ile, yalnızca header okunur) kontrol edilir. Bu guard
+   indexing, query embedding ve büyük önizleme/zoom'un ÜÇÜNÜN de ortak geçiş
+   noktasında (`ImagePreprocessor.PreprocessToChwTensor`) ve büyük önizleme
+   penceresinin tam-çözünürlük yükleyicisinde çalışır — bypass yoktur.
+   Limiti aşan bir ürün görseli embed edilmez, "Görsel boyutu desteklenen
+   sınırı aşıyor" mesajıyla Issue olarak kaydedilir; eski sağlam kaydı varsa
+   (2) numaralı maddedeki AYNI mekanizmayla korunur. Query tarafında görsel
+   seçilir seçilmez (arama başlamadan) reddedilir.
+
+**Kabul kriterleri:** Kendi konsol test aracına (`Lens.AiProof hardeningtest`
+modu) eklenen fonksiyonel testlerle doğrulandı — gerçek dosya kilidi, bozuk
+JSON, NaN/Infinity embedding, 511/513 boyutlu embedding, sentetik 60MP
+görsel, >50MB dosya ve PDF/ZIP/TXT senaryolarının tümü otomatik test
+kapsamındadır (29/29 PASS). `dotnet build` Debug ve Release'de 0 warning/0
+error. UNC/network maddesi kod incelemesiyle doğrulandı (gerçek bir UNC pay
+üzerinde manuel doğrulama hâlâ önerilir — bkz. yönetici bilgisayarı
+checklist'i).
+
+**Bağımlılık:** FAZ 4A-4D (mevcut indexing/cache/UI mimarisi üzerine inşa
+edilir, yeni bir mimari karar eklemez).
+
+**Bilerek bu fazın kapsamı dışında bırakılanlar** (ileride gerçekten gerekli
+görülürse ayrıca değerlendirilecek): model/preprocessing cache versioning,
+cache içeriğinin SHA-256 ile doğrulanması, aynı anda birden fazla Lens
+örneğine karşı dosya kilidi/mutex, atomic-write'a ek "backup dosyası"
+geliştirmesi, boyut+zaman damgası yerine tam dosya hash'i, log
+gizliliği/redaction refactor'ü, `MainWindow`'un büyük refactor'ü/MVVM
+dönüşümü, bağımlılık/.NET sürüm yükseltmeleri, code signing, installer/MSI,
+vector database.
+
+---
+
+## FAZ 4F — 5000-Image Real Dataset Validation
 
 **Amaç:** Şu ana kadarki tüm varsayımları (brute-force performansı, index
 boyutu/süresi, doğruluk) gerçek ~5000 görsellik veri üzerinde ölçmek.
@@ -298,14 +360,14 @@ boyutu/süresi, doğruluk) gerçek ~5000 görsellik veri üzerinde ölçmek.
 - Brute-force cosine similarity'nin bu ölçekte yeterli olduğu (veya
   olmadığı) somut sayılarla doğrulandı.
 
-**Bağımlılık:** FAZ 4A-4D (tüm production sağlamlaştırmaları tamamlanmış
+**Bağımlılık:** FAZ 4A-4E (tüm production sağlamlaştırmaları tamamlanmış
 olmalı — aksi halde gerçek veri testi eksik bir sistemle yapılmış olur).
 Ayrıca **dış bağımlılık:** gerçek ~5000 görsellik veri setine erişim
 (bkz. Open Question, `PRODUCTION_REQUIREMENTS.md` §13).
 
 ---
 
-## FAZ 4F — Production Publish / Factory Rollout
+## FAZ 4G — Production Publish / Factory Rollout
 
 **Amaç:** Self-contained publish'i gerçek fabrika ortamına (UNC path,
 gerçek workstation) taşımak.
@@ -324,7 +386,7 @@ gerçek workstation) taşımak.
 - Application Control/güvenlik politikası engeli varsa **tespit edilip
   raporlandı** (bypass edilmedi — bkz. `CLAUDE.md`, `DEMO_DEPLOYMENT_GUIDE.md` §6).
 
-**Bağımlılık:** FAZ 4E (gerçek ölçek doğrulaması geçmeden rollout yapılmaz).
+**Bağımlılık:** FAZ 4F (gerçek ölçek doğrulaması geçmeden rollout yapılmaz).
 
 ---
 
@@ -342,6 +404,6 @@ gözlem eklendi:
    geçmek ve grid'i genişletmek, indexing-summary UI'sından bağımsız,
    istenirse çok daha erken/ayrı yapılabilir. İndexing-summary kısmı ise
    4B/4C'nin verisine bağımlı olduğu için o sırada kalmalı.
-3. **4E'nin dış bağımlılığı açık bir risktir** — gerçek ~5000 görsellik
+3. **4F'nin dış bağımlılığı açık bir risktir** — gerçek ~5000 görsellik
    veriye ne zaman erişileceği bilinmiyor (bkz. Open Questions). Bu,
    takvim riski olarak Tech Lead/CTO'ya ayrıca iletilmeli.

@@ -11,9 +11,11 @@ public sealed class IndexUpdateStats
     public int Removed { get; set; }
 
     public int UnsupportedFormatCount { get; set; }
+
+    /// <summary>Gorsel olmayan/taninmayan uzantili dosya sayisi (orn. .pdf, .zip, .txt). Bu dosyalar embed edilmez ama Issues'da da ayrica listelenir - sessizce atlanmaz.</summary>
     public int SkippedNonImageCount { get; set; }
 
-    /// <summary>Sorunlu tek tek dosyalar (hem SupportedImageButFailed hem UnsupportedImageFormat burada).</summary>
+    /// <summary>Sorunlu/atlanan tek tek dosyalar (SupportedImageButFailed, UnsupportedImageFormat, NonImageFile).</summary>
     public List<IndexFileIssue> Issues { get; } = new();
 
     /// <summary>

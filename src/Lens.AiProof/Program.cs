@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Lens.Core.Ai;
 using Lens.Core.Indexing;
 using Lens.Core.Search;
+using SixLabors.ImageSharp;
 
 // Faz 3A: minimal .NET AI proof (varsayilan mod).
 // Faz 3C: "stresstest" argumaniyla genisletilmis veri seti stres testi
@@ -16,6 +17,12 @@ using Lens.Core.Search;
 if (args.Length > 0 && args[0] == "stresstest")
 {
     RunStressTest();
+    return;
+}
+
+if (args.Length > 0 && args[0] == "hardeningtest")
+{
+    RunHardeningTest();
     return;
 }
 
@@ -116,6 +123,342 @@ foreach (var queryFile in testQueries)
 
 Console.WriteLine();
 Console.WriteLine("=== Bitti ===");
+
+static void RunHardeningTest()
+{
+    int passed = 0, failed = 0;
+    void Check(string name, bool condition, string detail = "")
+    {
+        if (condition) { Console.WriteLine($"  [PASS] {name}"); passed++; }
+        else { Console.WriteLine($"  [FAIL] {name} {detail}"); failed++; }
+    }
+
+    Console.WriteLine("=== Lens Hardening Test (Codex fix #1 & #2) ===\n");
+
+    // ---- Grup A: bozuk/gecersiz cache recovery (model gerekmez) ----
+    Console.WriteLine("[A] Bozuk/gecersiz cache recovery");
+    string cacheTestFolder = Path.Combine(Path.GetTempPath(), "lens_cache_test_" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(cacheTestFolder);
+    try
+    {
+        string cachePath = ImageIndex.IndexPath(cacheTestFolder);
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+
+        File.WriteAllText(cachePath, "{ this is not valid json ][");
+        Check("A1 bozuk JSON -> bos liste, exception yok", ImageIndex.Load(cacheTestFolder).Count == 0);
+
+        var entryNullEmbedding = new List<Dictionary<string, object?>>
+        {
+            new() { ["RelativePath"] = "a.jpg", ["FileSizeBytes"] = 100L, ["LastWriteTimeUtcTicks"] = 0L, ["Embedding"] = null },
+        };
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(entryNullEmbedding));
+        Check("A2 null embedding -> bos liste", ImageIndex.Load(cacheTestFolder).Count == 0);
+
+        var badDimEntry511 = new List<ImageIndexEntry> { new() { RelativePath = "a.jpg", FileSizeBytes = 100, Embedding = new float[511] } };
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(badDimEntry511));
+        Check("A3 511-dim embedding -> bos liste", ImageIndex.Load(cacheTestFolder).Count == 0);
+
+        var badDimEntry513 = new List<ImageIndexEntry> { new() { RelativePath = "a.jpg", FileSizeBytes = 100, Embedding = new float[513] } };
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(badDimEntry513));
+        Check("A4 513-dim embedding -> bos liste", ImageIndex.Load(cacheTestFolder).Count == 0);
+
+        // System.Text.Json varsayilan olarak NaN'i de YAZAMAZ - ham JSON metni
+        // elle olusturuluyor (bkz. Infinity yorumu, birkac satir asagida).
+        var nanValues = string.Join(",", Enumerable.Repeat("0.0", 511).Prepend("NaN"));
+        File.WriteAllText(cachePath,
+            $"[{{\"RelativePath\":\"a.jpg\",\"FileSizeBytes\":100,\"LastWriteTimeUtcTicks\":0,\"Embedding\":[{nanValues}]}}]");
+        Check("A5 NaN icerikli embedding -> bos liste", ImageIndex.Load(cacheTestFolder).Count == 0);
+
+        // System.Text.Json varsayilan olarak Infinity'yi YAZAMAZ (AllowNamedFloatingPointLiterals
+        // gerekir) - bu yuzden ham JSON metni elle olusturuluyor (bozuk/elle
+        // duzenlenmis bir cache dosyasini simule ediyor).
+        var infValues = string.Join(",", Enumerable.Repeat("0.0", 511).Prepend("Infinity"));
+        File.WriteAllText(cachePath,
+            $"[{{\"RelativePath\":\"a.jpg\",\"FileSizeBytes\":100,\"LastWriteTimeUtcTicks\":0,\"Embedding\":[{infValues}]}}]");
+        Check("A6 Infinity icerikli embedding -> bos liste", ImageIndex.Load(cacheTestFolder).Count == 0);
+
+        var validEntry = new List<ImageIndexEntry> { new() { RelativePath = "a.jpg", FileSizeBytes = 100, Embedding = new float[512] } };
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(validEntry));
+        var loadedGood = ImageIndex.Load(cacheTestFolder);
+        Check("A7 gecerli cache -> normal yuklenir (yanlis pozitif yok)", loadedGood.Count == 1 && loadedGood[0].RelativePath == "a.jpg");
+    }
+    finally
+    {
+        TryDeleteCacheAndFolder(cacheTestFolder);
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup B: gecici hata -> eski entry korunur; gercek silme -> removed ----
+    Console.WriteLine("[B] Gecici hata vs gercek silme");
+    string repoRoot = FindRepoRoot();
+    string modelPath = Path.Combine(repoRoot, "models", "clip-vision-b16-openai.onnx");
+    string sourceImagesDir = Path.Combine(repoRoot, "benchmark", "data", "raw");
+    string productDir = Path.Combine(Path.GetTempPath(), "lens_temp_failure_test_" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(productDir);
+    try
+    {
+        var sourceImages = Directory.Exists(sourceImagesDir)
+            ? Directory.EnumerateFiles(sourceImagesDir)
+                .Where(f => f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToList()
+            : new List<string>();
+
+        if (sourceImages.Count < 2 || !File.Exists(modelPath))
+        {
+            Console.WriteLine("  [ATLANDI] test gorselleri veya ONNX model bulunamadi");
+        }
+        else
+        {
+            string fileA = Path.Combine(productDir, "fileA.jpeg");
+            string fileB = Path.Combine(productDir, "fileB.jpeg");
+            File.Copy(sourceImages[0], fileA);
+            File.Copy(sourceImages[1], fileB);
+
+            using var embedder = new ClipEmbedder(modelPath);
+
+            var (entries1, stats1) = ImageIndex.BuildOrUpdate(productDir, embedder);
+            ImageIndex.Save(productDir, entries1);
+            Check("B1 ilk indeksleme: 2 entry olusturuldu", entries1.Count == 2 && stats1.Added == 2);
+
+            var originalEntryA = entries1.First(e => e.RelativePath == "fileA.jpeg");
+
+            // fileA'yi "degismis" gibi gostermek icin LastWriteTime ileri alinir
+            // (BuildOrUpdate yeniden embed etmeyi dener), sonra dosya exclusive
+            // kilitlenir - bu, network/lock kaynakli GECICI bir okuma hatasini
+            // gercekci sekilde simule eder (dosya hala klasorde GORULUYOR).
+            File.SetLastWriteTimeUtc(fileA, DateTime.UtcNow.AddMinutes(5));
+
+            List<ImageIndexEntry> entries2;
+            IndexUpdateStats stats2;
+            using (new FileStream(fileA, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                (entries2, stats2) = ImageIndex.BuildOrUpdate(productDir, embedder);
+            }
+
+            var preservedA = entries2.FirstOrDefault(e => e.RelativePath == "fileA.jpeg");
+            Check("B2 gecici kilit sirasinda fileA 'removed' olmadi", preservedA is not null);
+            Check("B3 fileA eski (saglam) embedding ile ayni kaldi",
+                preservedA is not null && preservedA.Embedding.SequenceEqual(originalEntryA.Embedding));
+            Check("B4 fileA icin SupportedImageButFailed issue eklendi",
+                stats2.Issues.Any(i => i.FileName == "fileA.jpeg" && i.Kind == FileIssueKind.SupportedImageButFailed));
+            Check("B5 stats.Removed bu turda fileA'yi saymadi", stats2.Removed == 0);
+
+            ImageIndex.Save(productDir, entries2);
+
+            File.Delete(fileB);
+            var (entries3, stats3) = ImageIndex.BuildOrUpdate(productDir, embedder);
+            Check("B6 gercekten silinen fileB artik entries icinde degil", !entries3.Any(e => e.RelativePath == "fileB.jpeg"));
+            Check("B7 stats.Removed == 1 (fileB)", stats3.Removed == 1);
+            Check("B8 fileA hala index'te (dokunulmadi)", entries3.Any(e => e.RelativePath == "fileA.jpeg"));
+        }
+    }
+    finally
+    {
+        TryDeleteCacheAndFolder(productDir);
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup C: buyuk/asiri cozunurluklu gorsel resource guard ----
+    Console.WriteLine("[C] Buyuk gorsel resource guard");
+    string guardDir = Path.Combine(Path.GetTempPath(), "lens_guard_test_" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(guardDir);
+    try
+    {
+        if (!File.Exists(modelPath) || !Directory.Exists(sourceImagesDir))
+        {
+            Console.WriteLine("  [ATLANDI] ONNX model veya test gorselleri bulunamadi");
+        }
+        else
+        {
+            var normalImage = Directory.EnumerateFiles(sourceImagesDir)
+                .FirstOrDefault(f => f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase));
+
+            if (normalImage is null)
+            {
+                Console.WriteLine("  [ATLANDI] normal test gorseli bulunamadi");
+            }
+            else
+            {
+                using var embedder = new ClipEmbedder(modelPath);
+
+                // C1: normal kucuk gorsel -> guard hicbir sey yapmaz, embed calisir.
+                try
+                {
+                    ImageResourceLimits.EnsureWithinLimits(normalImage);
+                    embedder.Embed(normalImage);
+                    Check("C1 normal gorsel guard'dan gecer, embed calisir", true);
+                }
+                catch (Exception ex)
+                {
+                    Check("C1 normal gorsel guard'dan gecer, embed calisir", false, $"beklenmeyen exception: {ex.Message}");
+                }
+
+                // Sentetik/buyuk dosyalar ayri bir alt klasorde tutulur ki C4'un
+                // ImageIndex.BuildOrUpdate cagrilari bunlari yanlislikla taramasin.
+                string syntheticDir = Path.Combine(guardDir, "synthetic");
+                Directory.CreateDirectory(syntheticDir);
+
+                // C2: asiri yuksek piksel sayili (pixel-count) sentetik gorsel.
+                string hugePixelPath = Path.Combine(syntheticDir, "huge_pixels.jpg");
+                using (var huge = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgb24>(8000, 7500))
+                {
+                    huge.SaveAsJpeg(hugePixelPath);
+                }
+                var hugeFileInfo = new FileInfo(hugePixelPath);
+                Check("C2a sentetik gorsel dosya boyutu limit ALTINDA (yalniz piksel testi icin)",
+                    hugeFileInfo.Length <= ImageResourceLimits.MaxFileSizeBytes,
+                    $"boyut={hugeFileInfo.Length} byte");
+
+                bool threwForPixels = false;
+                try { ImageResourceLimits.EnsureWithinLimits(hugePixelPath); }
+                catch (ImageTooLargeException) { threwForPixels = true; }
+                Check("C2b 60MP gorsel icin ImageTooLargeException firlatildi", threwForPixels);
+
+                bool embedThrewForPixels = false;
+                try { embedder.Embed(hugePixelPath); }
+                catch (ImageTooLargeException) { embedThrewForPixels = true; }
+                Check("C2c ClipEmbedder.Embed de ayni guard'dan geciyor (bypass yok)", embedThrewForPixels);
+
+                // C3: dosya-boyutu bazli limit - kucuk cozunurluklu ama > 50MB dosya
+                // (gecerli bir JPEG'in sonuna doldurma byte'lari eklenerek).
+                string hugeFilePath = Path.Combine(syntheticDir, "huge_filesize.jpg");
+                File.Copy(normalImage, hugeFilePath, overwrite: true);
+                using (var fs = new FileStream(hugeFilePath, FileMode.Append))
+                {
+                    var padding = new byte[1024 * 1024];
+                    long targetExtra = ImageResourceLimits.MaxFileSizeBytes + (5 * 1024 * 1024) - new FileInfo(hugeFilePath).Length;
+                    for (long written = 0; written < targetExtra; written += padding.Length)
+                    {
+                        fs.Write(padding, 0, (int)Math.Min(padding.Length, targetExtra - written));
+                    }
+                }
+                bool threwForFileSize = false;
+                try { ImageResourceLimits.EnsureWithinLimits(hugeFilePath); }
+                catch (ImageTooLargeException) { threwForFileSize = true; }
+                Check("C3 >50MB dosya icin ImageTooLargeException firlatildi (dosya-boyutu kontrolu)", threwForFileSize);
+
+                // C4: eski saglam entry + sonradan asiri buyuk hale gelen ayni dosya adi
+                // -> entry index'ten yanlislikla dusmemeli (mevcut generic catch yolu
+                // Aşama 1'deki gecici-hata korumasiyla AYNI mekanizmayi kullanir).
+                // Kendi izole klasorunde tutulur ki synthetic/ klasorundeki diger
+                // buyuk dosyalar taramaya karismasin.
+                string productDirC4 = Path.Combine(guardDir, "producttest");
+                Directory.CreateDirectory(productDirC4);
+                try
+                {
+                    string productImagePath = Path.Combine(productDirC4, "product.jpg");
+                    File.Copy(normalImage, productImagePath, overwrite: true);
+                    var (entriesInit, statsInit) = ImageIndex.BuildOrUpdate(productDirC4, embedder);
+                    ImageIndex.Save(productDirC4, entriesInit);
+                    var originalProductEntry = entriesInit.FirstOrDefault(e => e.RelativePath == "product.jpg");
+                    Check("C4a ilk indekslemede product.jpg saglam embed edildi", originalProductEntry is not null);
+
+                    File.Delete(productImagePath);
+                    File.Copy(hugePixelPath, productImagePath);
+                    File.SetLastWriteTimeUtc(productImagePath, DateTime.UtcNow.AddMinutes(10));
+
+                    var (entriesAfter, statsAfter) = ImageIndex.BuildOrUpdate(productDirC4, embedder);
+                    var preservedProductEntry = entriesAfter.FirstOrDefault(e => e.RelativePath == "product.jpg");
+                    Check("C4b asiri buyuk hale gelen product.jpg icin ESKI entry korundu (removed olmadi)",
+                        preservedProductEntry is not null);
+                    Check("C4c korunan entry orijinal (kucuk gorsel) embedding ile ayni",
+                        preservedProductEntry is not null && originalProductEntry is not null
+                        && preservedProductEntry.Embedding.SequenceEqual(originalProductEntry.Embedding));
+                    Check("C4d Issues icinde 'sinir asiyor' ifadesi geciyor (kullanici dostu mesaj)",
+                        statsAfter.Issues.Any(i => i.FileName == "product.jpg"
+                            && i.Reason.Contains("sınırı aşıyor", StringComparison.OrdinalIgnoreCase)));
+                    Check("C4e stats.Removed bu turda product.jpg'yi saymadi", statsAfter.Removed == 0);
+                }
+                finally
+                {
+                    TryDeleteCacheAndFolder(productDirC4);
+                }
+            }
+        }
+    }
+    finally
+    {
+        TryDeleteCacheAndFolder(guardDir);
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup D: PDF/ZIP/non-image dosya semantigi ----
+    Console.WriteLine("[D] PDF/ZIP/non-image dosya semantigi");
+    string nonImageDir = Path.Combine(Path.GetTempPath(), "lens_nonimage_test_" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(nonImageDir);
+    try
+    {
+        if (!File.Exists(modelPath) || !Directory.Exists(sourceImagesDir))
+        {
+            Console.WriteLine("  [ATLANDI] ONNX model veya test gorselleri bulunamadi");
+        }
+        else
+        {
+            var normalImage = Directory.EnumerateFiles(sourceImagesDir)
+                .FirstOrDefault(f => f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase));
+            if (normalImage is null)
+            {
+                Console.WriteLine("  [ATLANDI] normal test gorseli bulunamadi");
+            }
+            else
+            {
+                File.Copy(normalImage, Path.Combine(nonImageDir, "urun.jpg"), overwrite: true);
+                File.WriteAllText(Path.Combine(nonImageDir, "katalog.pdf"), "sahte pdf icerigi");
+                File.WriteAllText(Path.Combine(nonImageDir, "arsiv.zip"), "sahte zip icerigi");
+                File.WriteAllText(Path.Combine(nonImageDir, "notlar.txt"), "sahte txt icerigi");
+
+                using var embedder = new ClipEmbedder(modelPath);
+                var (entries, stats) = ImageIndex.BuildOrUpdate(nonImageDir, embedder);
+
+                Check("D1 crash yok, urun.jpg normal indekslendi", entries.Any(e => e.RelativePath == "urun.jpg"));
+                Check("D2 SkippedNonImageCount == 3 (pdf/zip/txt)", stats.SkippedNonImageCount == 3);
+                Check("D3 pdf/zip/txt Issues'da NonImageFile + 'Desteklenmeyen dosya türü' olarak gorunuyor",
+                    new[] { "katalog.pdf", "arsiv.zip", "notlar.txt" }.All(name =>
+                        stats.Issues.Any(i => i.FileName == name && i.Kind == FileIssueKind.NonImageFile
+                            && i.Reason == "Desteklenmeyen dosya türü")));
+                Check("D4 pdf/zip/txt icin embedding denenmedi (Added sadece urun.jpg)", stats.Added == 1);
+            }
+        }
+    }
+    finally
+    {
+        TryDeleteCacheAndFolder(nonImageDir);
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"=== Sonuc: {passed} PASS, {failed} FAIL ===");
+    if (failed > 0)
+    {
+        Environment.ExitCode = 1;
+    }
+}
+
+static void TryDeleteCacheAndFolder(string productFolder)
+{
+    try
+    {
+        var cachePath = ImageIndex.IndexPath(productFolder);
+        var cacheDir = Path.GetDirectoryName(cachePath);
+        if (cacheDir is not null && Directory.Exists(cacheDir))
+        {
+            Directory.Delete(cacheDir, recursive: true);
+        }
+    }
+    catch { /* best-effort temizlik */ }
+
+    try
+    {
+        if (Directory.Exists(productFolder))
+        {
+            Directory.Delete(productFolder, recursive: true);
+        }
+    }
+    catch { /* best-effort temizlik */ }
+}
 
 static string FindRepoRoot()
 {

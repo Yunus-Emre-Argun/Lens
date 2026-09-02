@@ -1,0 +1,24 @@
+<Window x:Class="Lens.Desktop.AlertWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Lens" SizeToContent="Height" Width="420" MinHeight="150"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Top">
+            <TextBlock x:Name="IconText" Text="ℹ" FontSize="28" FontWeight="Bold"
+                       Width="34" TextAlignment="Center" VerticalAlignment="Top" Margin="0,0,16,0" />
+            <TextBlock x:Name="MessageText" Text="" FontSize="13.5" TextWrapping="Wrap"
+                       MaxWidth="330" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <Button Grid.Row="1" x:Name="OkButton" Content="Tamam" Padding="26,9" FontWeight="Bold"
+                Background="#FF2F6FED" Foreground="White" BorderThickness="0" Cursor="Hand"
+                HorizontalAlignment="Right" Margin="0,22,0,0" IsDefault="True" Click="OkButton_Click" />
+    </Grid>
+</Window>

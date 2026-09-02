@@ -19,6 +19,11 @@ public static class ImagePreprocessor
 
     public static float[] PreprocessToChwTensor(string imagePath)
     {
+        // [Reliability] Tam piksel verisi okunmadan (Image.Load) ONCE boyut/
+        // cozunurluk kontrolu - hem indexing hem query embed bu tek yoldan
+        // gecer (bkz. ImageResourceLimits).
+        ImageResourceLimits.EnsureWithinLimits(imagePath);
+
         using var image = Image.Load<Rgb24>(imagePath);
 
         int shortest = Math.Min(image.Width, image.Height);

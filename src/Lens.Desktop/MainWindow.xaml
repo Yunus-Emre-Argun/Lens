@@ -13,6 +13,10 @@
         <SolidColorBrush x:Key="WarningBrush" Color="#FFB00020" />
         <SolidColorBrush x:Key="NeutralTextBrush" Color="#FF222222" />
         <SolidColorBrush x:Key="SectionHeaderBrush" Color="#FF333333" />
+        <!-- Sorgu paneli icin sabit, koyu-notr "bu benim referansim" rengi -
+             AccentBrush (mavi) yalnizca Selected Result / secili Top-10 karti
+             icin kullanilir, boylece iki rol hicbir zaman karismaz. -->
+        <SolidColorBrush x:Key="NeutralBorderBrush" Color="#FF3A3A3A" />
 
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -25,8 +29,18 @@
             <Setter Property="Background" Value="{StaticResource AccentBrush}" />
             <Setter Property="Foreground" Value="White" />
             <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Padding" Value="24,6" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="28,9" />
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- Ana sorgu akisi (Sorgu Gorseli Sec / Yeni Arama) - veri/klasor
+             yonetimi butonlarindan bilincli olarak daha buyuk/rahat, boylece
+             kullanicinin tekrar tekrar dokundugu asil akis one cikar. -->
+        <Style x:Key="QueryActionButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="16,9" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
 
@@ -112,7 +126,7 @@
                     Margin="0,0,8,0" Click="UpdateIndexButton_Click" />
             <TextBlock x:Name="IndexStatusText" Text="—" VerticalAlignment="Center" TextWrapping="Wrap"
                        Foreground="{StaticResource NeutralTextBrush}" />
-            <Button x:Name="ProblemFilesButton" Content="Sorunlu Dosyalar (0)" Padding="6,2"
+            <Button x:Name="ProblemFilesButton" Content="Sorunlu / Atlanan Dosyalar (0)" Padding="6,2"
                     Margin="12,0,0,0" Click="ProblemFilesButton_Click" Visibility="Collapsed"
                     Foreground="{StaticResource WarningBrush}" />
         </StackPanel>
@@ -121,11 +135,11 @@
         <StackPanel Grid.Row="2" Margin="0,0,0,8">
             <TextBlock Text="SORGU VE KARŞILAŞTIRMA" Style="{StaticResource SectionHeaderStyle}" />
             <StackPanel Orientation="Horizontal">
-                <Button x:Name="SelectQueryButton" Content="Sorgu Görseli Seç" Padding="10,4"
-                        Margin="0,0,12,0" Click="SelectQueryButton_Click" />
+                <Button x:Name="SelectQueryButton" Content="Sorgu Görseli Seç" Style="{StaticResource QueryActionButtonStyle}"
+                        Margin="0,0,16,0" Click="SelectQueryButton_Click" />
                 <Button x:Name="SearchButton" Content="Ara" Style="{StaticResource PrimaryButtonStyle}"
-                        Margin="0,0,12,0" Click="SearchButton_Click" />
-                <Button x:Name="NewSearchButton" Content="Yeni Arama" Padding="10,4"
+                        Margin="0,0,16,0" Click="SearchButton_Click" />
+                <Button x:Name="NewSearchButton" Content="Yeni Arama" Style="{StaticResource QueryActionButtonStyle}"
                         Click="NewSearchButton_Click" />
             </StackPanel>
         </StackPanel>
@@ -134,7 +148,7 @@
         <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,14">
             <StackPanel Margin="0,0,28,0">
                 <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <Border x:Name="QueryDropZone" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="220" Height="220"
+                <Border x:Name="QueryDropZone" BorderBrush="{StaticResource NeutralBorderBrush}" BorderThickness="2" Width="220" Height="220"
                         Background="#FFF5F5F5" AllowDrop="True" Cursor="Hand"
                         DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragOver"
                         DragLeave="QueryDropZone_DragLeave"
@@ -148,7 +162,7 @@
 
             <StackPanel>
                 <TextBlock Text="Seçilen Sonuç" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <Border x:Name="ComparisonResultBorder" BorderBrush="Gray" BorderThickness="1" Width="220" Height="220"
+                <Border x:Name="ComparisonResultBorder" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="220" Height="220"
                         Background="#FFF5F5F5" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
                     <Image x:Name="ComparisonResultImage" Stretch="Uniform" Margin="4" />
                 </Border>
