@@ -1,0 +1,25 @@
+Proprietary — All Rights Reserved
+
+Copyright (c) 2026 [Şirket/yönetici tarafından doldurulacak]
+
+Bu depoda (repository) yer alan tüm kaynak kod, dokümantasyon ve ilişkili
+materyaller, yukarıda belirtilen hak sahibinin özel mülkiyetindedir.
+
+Bu yazılım yalnızca dahili/kurumsal kullanım için geliştirilmiştir. Hak
+sahibinin önceden yazılı izni olmaksızın bu depodaki içeriğin tamamının veya
+bir kısmının kopyalanması, dağıtılması, değiştirilmesi, alt lisanslanması
+veya üçüncü taraflarla paylaşılması yasaktır.
+
+Bu depoya erişimi olan kişiler (çalışanlar, yükleniciler, iş ortakları),
+erişim izinlerinin kapsamı dışında kalan hiçbir kullanım hakkına sahip
+değildir.
+
+---
+
+NOT: `[Şirket/yönetici tarafından doldurulacak]` alanı, gerçek hak sahibi
+netleşene kadar bilinçli olarak boş/placeholder bırakılmıştır — bu bilgi
+uydurulmamıştır. Bu dosyanın nihai hali için ilgili yönetici/hukuk
+danışmanıyla teyit edilmelidir.
+
+Üçüncü taraf bağımlılıkların (ONNX Runtime, ImageSharp, CLIP modeli) kendi
+lisansları için bkz. `THIRD_PARTY_NOTICES.md`.
