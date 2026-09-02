@@ -246,6 +246,32 @@ ayrıca kabul sürecinde şu ek iyileştirmeler eklendi:
   birlikte çalışır. Dosya silinmiş/erişilemezse (UNC ağ klasörü) sade bir
   hata mesajı gösterilir, ana pencere etkilenmez.
 
+**Son görsel geri bildirim turu (2026-09-02):**
+- Sürükle-bırak sırasında `QueryDropZone`'da accent border + hafif arka
+  plan tonu + "Görseli buraya bırak" metni; `DragLeave`/`Drop` sonrası
+  normale döner; geçersiz dosyada yanlış "kabul edilebilir" görünümü
+  verilmez.
+- Karşılaştırma alanında görüntülenen benzerlik **tam %100.0** ise yeşil
+  vurgu (gösterilen/yuvarlanmış metin karşılaştırılır, ham `double == 1.0`
+  değil).
+- Sorgulanan görsel paneli her zaman accent renkli/2px border ile
+  belirginleştirilmiş durur (karşılaştırma paneli nötr gri/1px kalır) —
+  kullanıcı ilk bakışta "arattığım görsel bu" diye ayırt edebilir.
+- Query, karşılaştırma sonucu ve Top-10 kartlarındaki dosya adları
+  salt-okunur ama seçilebilir/kopyalanabilir metin kutusu (I-beam imleç,
+  fare ile seçim, Ctrl+C, sağ-tık "Kopyala"). Top-10 kartlarında dosya adı
+  butonun **dışına** taşındı — metin seçimi artık kartın tek-tık seçim
+  davranışını bozmuyor; çift-tık önizleme thumbnail üzerinde korunuyor.
+- Sürükleme sırasında küçük (64px), yarı saydam bir thumbnail fareyi takip
+  eder (native WPF `Adorner`, `IsHitTestVisible=false` — WPF'in drag-event
+  hit-testini bozmaz, yeni dependency yok). Windows Explorer'ın kendi
+  sürükleme "ghost"u Lens penceresine girince kaybolduğu için eklendi;
+  `DragEnter`'da bir kez yüklenir, `DragOver`'da yalnızca pozisyonu
+  güncellenir, `DragLeave`/`Drop`'ta hemen kaldırılır.
+- **Bilinen sınırlama:** gerçek OS-seviyesi sürükleme davranışı (drag
+  preview'ın gerçekten fareyi takip etmesi) otomasyonla güvenilir test
+  edilemedi; kod incelemesiyle doğrulandı, manuel doğrulama gerekiyor.
+
 ---
 
 ## FAZ 4E — 5000-Image Real Dataset Validation

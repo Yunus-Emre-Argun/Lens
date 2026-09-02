@@ -30,6 +30,21 @@
             <Setter Property="Cursor" Value="Hand" />
         </Style>
 
+        <!-- Secilebilir/kopyalanabilir ama buton gibi davranmayan "duz metin" gorunumu -->
+        <Style x:Key="SelectableFileNameStyle" TargetType="TextBox">
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#FF555555" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+            <Setter Property="Cursor" Value="IBeam" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="IsReadOnlyCaretVisible" Value="False" />
+        </Style>
+
         <!-- Top-10 kart border stili: secili karta sade accent vurgusu -->
         <Style x:Key="ResultCardBorderStyle" TargetType="Border">
             <Setter Property="BorderBrush" Value="#FFBBBBBB" />
@@ -49,7 +64,7 @@
             <ContentPresenter />
         </ControlTemplate>
     </Window.Resources>
-    <Grid Margin="12">
+    <Grid x:Name="RootGrid" Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -119,13 +134,15 @@
         <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,14">
             <StackPanel Margin="0,0,28,0">
                 <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <Border x:Name="QueryDropZone" BorderBrush="Gray" BorderThickness="1" Width="220" Height="220"
+                <Border x:Name="QueryDropZone" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="220" Height="220"
                         Background="#FFF5F5F5" AllowDrop="True" Cursor="Hand"
-                        DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragEnter"
+                        DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragOver"
+                        DragLeave="QueryDropZone_DragLeave"
                         Drop="QueryDropZone_Drop" MouseLeftButtonDown="QueryDropZone_MouseLeftButtonDown">
                     <Image x:Name="QueryPreviewImage" Stretch="Uniform" Margin="4" />
                 </Border>
-                <TextBlock Text="Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt" FontStyle="Italic"
+                <TextBox x:Name="QueryFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" />
+                <TextBlock x:Name="QueryDropHintText" Text="Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt" FontStyle="Italic"
                            Foreground="#FF777777" FontSize="11" Margin="0,4,0,0" />
             </StackPanel>
 
@@ -135,6 +152,7 @@
                         Background="#FFF5F5F5" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
                     <Image x:Name="ComparisonResultImage" Stretch="Uniform" Margin="4" />
                 </Border>
+                <TextBox x:Name="ComparisonFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" />
                 <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" Margin="0,4,0,0" />
             </StackPanel>
         </StackPanel>
@@ -152,19 +170,22 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Click="ResultCard_Click" MouseDoubleClick="ResultCard_DoubleClick"
-                                        Template="{StaticResource ResultCardButtonTemplate}"
-                                        Cursor="Hand" Margin="6">
-                                    <Border Style="{StaticResource ResultCardBorderStyle}" Padding="6">
-                                        <StackPanel>
+                                <!-- Disari tasindi: dosya adi artik Button'un DISINDA, boylece metin
+                                     secimi/kopyalama kartin tek-tik secim davranisiyla catismiyor.
+                                     Buton yalnizca thumbnail'i sarar - "kartin gorseli" tek tik hedefi. -->
+                                <Border Style="{StaticResource ResultCardBorderStyle}" Padding="6" Margin="6">
+                                    <StackPanel>
+                                        <Button Click="ResultCard_Click" MouseDoubleClick="ResultCard_DoubleClick"
+                                                Template="{StaticResource ResultCardButtonTemplate}" Cursor="Hand">
                                             <Border BorderBrush="LightGray" BorderThickness="1" Height="110" Background="White">
                                                 <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2" />
                                             </Border>
-                                            <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0" />
-                                            <TextBlock Text="{Binding ScoreText}" FontWeight="Bold" FontSize="11" Margin="0,2,0,0" />
-                                        </StackPanel>
-                                    </Border>
-                                </Button>
+                                        </Button>
+                                        <TextBox Text="{Binding FileName, Mode=OneWay}"
+                                                 Style="{StaticResource SelectableFileNameStyle}" Margin="0,6,0,0" />
+                                        <TextBlock Text="{Binding ScoreText}" FontWeight="Bold" FontSize="11" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

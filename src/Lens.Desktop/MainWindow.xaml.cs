@@ -3,6 +3,8 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -41,6 +43,7 @@ public partial class MainWindow : Window
     private IReadOnlyList<IndexFileIssue> _lastIssues = Array.Empty<IndexFileIssue>();
     private SearchResultViewModel? _selectedResult;
     private ImagePreviewWindow? _openPreview;
+    private DragPreviewAdorner? _dragPreviewAdorner;
 
     public MainWindow()
     {
@@ -366,6 +369,7 @@ public partial class MainWindow : Window
     {
         _queryImagePath = null;
         QueryPreviewImage.Source = null;
+        QueryFileNameText.Text = string.Empty;
         _results.Clear();
         ClearComparison();
     }
@@ -397,11 +401,13 @@ public partial class MainWindow : Window
         {
             QueryPreviewImage.Source = LoadPreview(path);
             _queryImagePath = path;
+            QueryFileNameText.Text = Path.GetFileName(path);
         }
         catch (Exception ex)
         {
             _queryImagePath = null;
             QueryPreviewImage.Source = null;
+            QueryFileNameText.Text = string.Empty;
             MessageBox.Show(this, $"Görsel önizlemesi yüklenemedi:\n{ex.Message}",
                 "Görsel okunamadı", MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -412,12 +418,48 @@ public partial class MainWindow : Window
 
     private void QueryDropZone_DragEnter(object sender, DragEventArgs e)
     {
-        e.Effects = TryGetDroppedImagePath(e.Data, out _, out _) ? DragDropEffects.Copy : DragDropEffects.None;
+        var isValid = TryGetDroppedImagePath(e.Data, out var path, out _);
+        e.Effects = isValid ? DragDropEffects.Copy : DragDropEffects.None;
+        // [Faz 4D polish] Gecersiz surukleme icin yanlis "kabul edilebilir"
+        // gorunumu vermeyelim - vurgu yalnizca gercekten kabul edilecek bir
+        // dosya oldugunda gosterilir.
+        SetQueryDropZoneActive(isValid);
+
+        RemoveDragPreview();
+        if (isValid)
+        {
+            // Surukleme sirasinda kucuk/ucuz bir onizleme yuklenir (64px) -
+            // Drop'ta LoadQueryImage'in yaptigi tam onizlemeden ayri ve
+            // DragOver'da TEKRAR yuklenmez (yalnizca pozisyon guncellenir).
+            var thumbnail = TryLoadDragThumbnail(path!);
+            if (thumbnail is not null)
+            {
+                ShowDragPreview(thumbnail, e.GetPosition(RootGrid));
+            }
+        }
+
         e.Handled = true;
+    }
+
+    private void QueryDropZone_DragOver(object sender, DragEventArgs e)
+    {
+        var isValid = TryGetDroppedImagePath(e.Data, out _, out _);
+        e.Effects = isValid ? DragDropEffects.Copy : DragDropEffects.None;
+        _dragPreviewAdorner?.UpdatePosition(e.GetPosition(RootGrid));
+        e.Handled = true;
+    }
+
+    private void QueryDropZone_DragLeave(object sender, DragEventArgs e)
+    {
+        SetQueryDropZoneActive(false);
+        RemoveDragPreview();
     }
 
     private void QueryDropZone_Drop(object sender, DragEventArgs e)
     {
+        SetQueryDropZoneActive(false);
+        RemoveDragPreview();
+
         if (!TryGetDroppedImagePath(e.Data, out var path, out var error))
         {
             MessageBox.Show(this, error, "Sürükle-bırak", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -425,6 +467,82 @@ public partial class MainWindow : Window
         }
 
         LoadQueryImage(path!);
+    }
+
+    private static BitmapImage? TryLoadDragThumbnail(string path)
+    {
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(path);
+            bitmap.DecodePixelWidth = 64;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch
+        {
+            // Surukleme sirasinda dosya gecici olarak kilitli/erisilemez
+            // olabilir - onizleme sadece atlanir, surukleme islemi bozulmaz.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// [Faz 4D polish] Windows Explorer'in surukleme sirasinda gosterdigi
+    /// "ghost" gorsel, fare Lens penceresine girince kayboluyor (ayri
+    /// process/pencere). Bunu telafi etmek icin AdornerLayer uzerinde sade,
+    /// yari saydam bir onizleme fareyi takip eder. Adorner IsHitTestVisible=
+    /// false ile isaretlenir ki WPF'in drag-event hit-testi QueryDropZone'a
+    /// degil yanlislikla adorner'a gitmesin (drop davranisini bozmaz).
+    /// </summary>
+    private void ShowDragPreview(BitmapImage thumbnail, Point position)
+    {
+        var layer = AdornerLayer.GetAdornerLayer(RootGrid);
+        if (layer is null)
+        {
+            return;
+        }
+
+        _dragPreviewAdorner = new DragPreviewAdorner(RootGrid, thumbnail);
+        _dragPreviewAdorner.UpdatePosition(position);
+        layer.Add(_dragPreviewAdorner);
+    }
+
+    private void RemoveDragPreview()
+    {
+        if (_dragPreviewAdorner is null)
+        {
+            return;
+        }
+
+        var layer = AdornerLayer.GetAdornerLayer(RootGrid);
+        layer?.Remove(_dragPreviewAdorner);
+        _dragPreviewAdorner = null;
+    }
+
+    /// <summary>
+    /// [Faz 4D polish] Surukle-birak sirasinda sade bir "buraya birakilabilir"
+    /// geri bildirimi. Animasyon/glow yok - yalnizca border/arka plan/ipucu
+    /// metni degisimi. false ile cagrildiginda panel, her zaman gorunen
+    /// "sorgulanan gorsel" vurgusuna (accent border, 2px) doner.
+    /// </summary>
+    private void SetQueryDropZoneActive(bool active)
+    {
+        if (active)
+        {
+            QueryDropZone.BorderThickness = new Thickness(3);
+            QueryDropZone.Background = (Brush)FindResource("AccentBrushLight");
+            QueryDropHintText.Text = "Görseli buraya bırak";
+        }
+        else
+        {
+            QueryDropZone.BorderThickness = new Thickness(2);
+            QueryDropZone.Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
+            QueryDropHintText.Text = "Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt";
+        }
     }
 
     /// <summary>
@@ -609,7 +727,13 @@ public partial class MainWindow : Window
 
         _selectedResult = result;
         ComparisonResultImage.Source = result.Thumbnail;
+        ComparisonFileNameText.Text = result.FileName;
         ComparisonScoreText.Text = result.ScoreText;
+        // [Faz 4D polish] Yalnizca goruntulenen deger tam %100 oldugunda
+        // basari/yesil vurgusu - diger skorlar notr kalir.
+        ComparisonScoreText.Foreground = result.IsPerfectMatch
+            ? (Brush)FindResource("SuccessBrush")
+            : (Brush)FindResource("NeutralTextBrush");
     }
 
     private void ClearComparison()
@@ -621,7 +745,9 @@ public partial class MainWindow : Window
 
         _selectedResult = null;
         ComparisonResultImage.Source = null;
+        ComparisonFileNameText.Text = string.Empty;
         ComparisonScoreText.Text = string.Empty;
+        ComparisonScoreText.Foreground = (Brush)FindResource("NeutralTextBrush");
     }
 
     private async void SearchButton_Click(object sender, RoutedEventArgs e)
@@ -712,12 +838,14 @@ public partial class MainWindow : Window
             foreach (var r in top10)
             {
                 var fullPath = Path.Combine(_productFolder, r.RelativePath);
+                var scoreText = $"Benzerlik: {r.Score:P1}";
                 _results.Add(new SearchResultViewModel
                 {
                     FileName = r.RelativePath,
-                    ScoreText = $"Benzerlik: {r.Score:P1}",
+                    ScoreText = scoreText,
                     Thumbnail = TryLoadPreview(fullPath),
                     FullPath = fullPath,
+                    IsPerfectMatch = scoreText.EndsWith("100.0%", StringComparison.Ordinal),
                 });
             }
 
@@ -858,6 +986,14 @@ public sealed class SearchResultViewModel : INotifyPropertyChanged
     /// <summary>[Faz 4D polish] Buyuk onizleme icin diskten tam cozunurlukte yeniden okunacak dosya yolu.</summary>
     public string FullPath { get; set; } = string.Empty;
 
+    /// <summary>
+    /// [Faz 4D polish] ScoreText ile AYNI bicimlendirmeden (P1) turetilir -
+    /// UI'da gosterilen yuvarlanmis deger ile tutarli olmasi icin ham double
+    /// karsilastirmasi (== 1.0) yerine bicimlendirilmis metnin kendisi kontrol
+    /// edilir.
+    /// </summary>
+    public bool IsPerfectMatch { get; set; }
+
     public bool IsSelected
     {
         get => _isSelected;
@@ -874,4 +1010,54 @@ public sealed class SearchResultViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>
+/// [Faz 4D polish] Surukleme sirasinda fareyi takip eden sade, yari saydam
+/// bir onizleme. IsHitTestVisible=false - WPF'in drag-event hit-testini
+/// (dolayisiyla DragOver/Drop davranisini) etkilemez.
+/// </summary>
+internal sealed class DragPreviewAdorner : Adorner
+{
+    private readonly Image _image;
+    private Point _position;
+
+    public DragPreviewAdorner(UIElement adornedElement, ImageSource source) : base(adornedElement)
+    {
+        IsHitTestVisible = false;
+        _image = new Image
+        {
+            Source = source,
+            Width = 64,
+            Height = 64,
+            Stretch = Stretch.Uniform,
+            Opacity = 0.75,
+            IsHitTestVisible = false,
+        };
+        AddVisualChild(_image);
+    }
+
+    protected override int VisualChildrenCount => 1;
+
+    protected override Visual GetVisualChild(int index) => _image;
+
+    public void UpdatePosition(Point position)
+    {
+        _position = position;
+        InvalidateArrange();
+    }
+
+    protected override Size MeasureOverride(Size constraint)
+    {
+        _image.Measure(new Size(_image.Width, _image.Height));
+        return base.MeasureOverride(constraint);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        // Kucuk bir ofset ile OS'un sürükleme "ghost"una benzer sekilde
+        // imlecin hemen sag-altina yerlesir, imleci kapatmaz.
+        _image.Arrange(new Rect(_position.X + 14, _position.Y + 14, _image.Width, _image.Height));
+        return finalSize;
+    }
 }
