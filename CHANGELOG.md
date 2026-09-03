@@ -8,6 +8,41 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Faz 1 — Manager Requirement Paketi] — 2026-09-03
+
+### Eklendi
+- Minimum benzerlik (%) eşiği (inclusive, 0-100, TR virgül destekli) +
+  en fazla 15 sonuç, azalan sırada (`SimilaritySearch.SearchWithThreshold`,
+  `SimilarityThreshold`). Sabit Top-10/Top-5 sözleşmesi kaldırıldı.
+- No-result artık hata değil: önceki sonuç/seçim temizlenir, query görseli
+  ve threshold girdisi korunur, modal gösterilmez.
+- "Arama öncesi indeksi otomatik kontrol et ve güncelle" checkbox'ı
+  (varsayılan açık, `user-settings.json`'da kalıcı, geriye uyumlu).
+- **Shared (paylaşılan) index**: canonical index artık
+  `<ProductDirectory>/.lens/index.json` — `%LocalAppData%` DEĞİL. Eski
+  local cache dosyaları otomatik silinmiyor ama normal operasyonda
+  kullanılmıyor.
+- Tek-yazarlı exclusive dosya kilidi (`Lens.Core.Indexing.IndexLock`,
+  `.lens/index.lock`, `FileShare.None`) — eşzamanlı yazımı engeller,
+  okuma kilitsizdir.
+- `AtomicFileWriter` UNC/paylaşılan klasörler için güçlendirildi (benzersiz
+  temp dosya adı, `File.Replace` → `Move(overwrite:true)` fallback).
+- Ana UI'da ayrıntılı son-başarılı-tarama sayaçları (yeni/güncellenen/
+  değişmeyen/silinen/okunamayan/desteklenmeyen görsel/dosya — sıfırlar dahil).
+- Sonuç grid'i için bounded `ScrollViewer` düzeltmesi (tüm sonuçlara mouse
+  wheel ile erişim); query/seçilen-sonuç alanı merkez hizalı iki sütun;
+  arka plan `#F5F6F8`.
+- `Lens.AiProof hardeningtest`'e 41 yeni test (shared index/lock, arama
+  sözleşmesi, threshold validasyonu, auto-index persistence) — toplam 70.
+
+### Kaldırıldı
+- Sabit ~50 MB dosya boyutu / ~50 MP çözünürlük reddi (`ImageTooLargeException`
+  ve ilgili guard tamamen kaldırıldı). Eşiğin üstündeki gerçek görseller artık
+  reddedilmez, ekonomik (decoder-level downsampled) decode ile işlenir.
+
+Detay: `docs/DECISIONS.md` #60-65, `docs/ARCHITECTURE.md`,
+`docs/PRODUCTION_REQUIREMENTS.md` §5/§9/§15/§16.
+
 ## [Faz 4E] — 2026-09-02 — Reliability Hardening
 
 ### Eklendi

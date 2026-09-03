@@ -86,9 +86,10 @@ uyumluluk kontrolü yoktur.
 - L2-normalize edilir (`ClipEmbedder.L2Normalize`) — benzerlik hesaplaması
   (`SimilaritySearch`) düz **dot product**'tır (L2-normalize sayesinde cosine
   similarity'ye eşdeğerdir).
-- Cache'te (`%LocalAppData%\Lens\cache\...\index.json`) `float[512]` olarak
-  saklanır; yükleme sırasında boyut/`NaN`/`Infinity` doğrulaması yapılır
-  (bkz. `docs/DECISIONS.md` #56).
+- **[Faz 1]** Shared index'te (`<ProductDirectory>/.lens/index.json` —
+  artık `%LocalAppData%` değil, bkz. `docs/DECISIONS.md` #61) `float[512]`
+  olarak saklanır; yükleme sırasında boyut/`NaN`/`Infinity` doğrulaması
+  yapılır (bkz. `docs/DECISIONS.md` #56).
 
 ## ONNX Runtime Sürümü
 
@@ -154,12 +155,15 @@ ertelenmiş bir konudur (bkz. `docs/ROADMAP.md` FAZ 4E "bilerek ertelenenler").
 
 **Sonuç:** Model dosyası değiştirilirse (farklı checkpoint, farklı export
 ayarı) veya `ImagePreprocessor` mantığı değişirse, aynı boyutta ama artık
-**anlamsal olarak farklı** embedding'ler üretilebilir — mevcut cache bunu
-otomatik algılamaz. Böyle bir değişiklikten sonra:
+**anlamsal olarak farklı** embedding'ler üretilebilir — mevcut index bunu
+otomatik algılamaz. Böyle bir değişiklikten sonra **[Faz 1 güncellemesi]**:
 
 ```
-%LocalAppData%\Lens\cache\
+<ProductDirectory>\.lens\index.json
 ```
 
-klasörü **elle silinmeli**, sonraki "İndeksi Güncelle" tüm görselleri yeni
-modelle yeniden embed edecektir.
+dosyası **elle silinmeli** (artık `%LocalAppData%\Lens\cache\` DEĞİL —
+paylaşılan ürün dizininin içinde, bkz. `docs/ARCHITECTURE.md`), sonraki
+"İndeksi Güncelle" tüm görselleri yeni modelle yeniden embed edecektir.
+Bu paylaşılan bir dosya olduğu için silme işlemi **tüm kullanıcıları**
+etkiler — koordinasyon gerekir (tek bir istasyonun local cache'i değil).

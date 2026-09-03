@@ -85,28 +85,47 @@ ilkeler) ve ilgili `docs/DECISIONS.md` / `docs/ROADMAP.md` maddeleri.
 
 ## 5. Index / Cache Yerleşimi
 
-**Confirmed (2026-09-01, FAZ 4A kickoff — önceden Recommended'dı)**
-- Ürün dizini (paylaşılan UNC klasör) yalnızca görsel/desen dosyaları
-  içerir.
-- Her kullanıcı/PC kendi **local** index/cache'ini tutar —
+**⚠️ SUPERSEDED (Faz 1, 2026-09-03) — bkz. DECISIONS.md #61-62.** Aşağıdaki
+"her kullanıcı kendi local cache'ini tutar" modeli, gerçek kullanımda her
+istasyonun ~5000 görseli ayrı ayrı embed etmesi gereken trade-off'u kabul
+edilemez bulunduğu için **shared (paylaşılan) index** ile değiştirildi:
+
+**Confirmed (Faz 1, 2026-09-03)**
+- Canonical index artık **ürün dizininin kendi içinde**:
+  `<ProductDirectory>/.lens/index.json` (UNC olabilir). Tüm kullanıcılar/PC'ler
+  AYNI index dosyasını paylaşır — soğuk başlangıç maliyeti yalnızca BİR kez
+  ödenir, istasyon başına değil.
+- Eşzamanlı yazımı önlemek için tek-yazarlı exclusive dosya kilidi zorunlu:
+  `<ProductDirectory>/.lens/index.lock` (`FileShare.None`, load→scan→
+  update→save boyunca tutulur). Reader kilit almaz. Bkz. DECISIONS.md #62,
+  `Lens.Core.Indexing.IndexLock`.
+- Atomic save UNC için güçlendirildi: benzersiz temp dosya adı, hedef
+  önceden silinmez, `File.Replace` desteklenmezse `Move(overwrite:true)`'a
+  düşer. Bkz. DECISIONS.md #63.
+- **Bilinen açık risk:** kilit-alamama nedeninin ("başka yazar tutuyor" vs.
+  "farklı bir I/O sorunu") ayrımı yalnızca exception tipine dayanır ve
+  gerçek UNC/SMB üzerinde henüz doğrulanmadı — bkz.
+  `docs/PRODUCTION_CHECKLIST.md` "Codex Bulguları" (lock I/O hata ayrımı).
+- `.lens` klasörü için IT/paylaşım izinleri: Lens kullanıcısının en az
+  create/write/replace-rename/delete (temp cleanup) hakkına ihtiyacı vardır.
+  Önerilen düzen: ürün görselleri genel **read**, `.lens` teknik klasörü
+  kontrollü **write**.
+- Config (`appsettings.json`), user settings ve loglar hâlâ
+  `%LocalAppData%\Lens\` altında (bu faz DEĞİŞMEDİ) — yalnızca embedding
+  index'i taşındı. Eski `%LocalAppData%\Lens\cache\<hash>\index.json`
+  normal operasyonda kullanılmıyor, otomatik silinmiyor da.
+
+**Eski (Faz 4A) model — artık normal operasyonda geçerli değil:**
+- ~~Her kullanıcı/PC kendi **local** index/cache'ini tutar —
   `%LocalAppData%\Lens\` altında (`config/`, `cache/`, `logs/` alt
-  klasörleri; `logs/` bu fazda oluşturulur ama kullanılmaz). Bkz.
-  DECISIONS.md #39, #45.
-- Cache anahtarı: ürün dizini path'inden türetilen deterministic bir
-  tanımlayıcı (hash) — farklı ürün dizinleri farklı cache kullanır, aynı
-  dizine dönülünce eski cache tekrar kullanılır. Bkz. DECISIONS.md #44.
-- Gerekçe: birden fazla Lens instance'ın aynı JSON dosyasına yazmaması,
-  race condition/dosya bozulması riskinin azalması, paylaşılan klasörün
-  Lens'e özel teknik dosyalarla kirlenmemesi, ağ üzerinde her aramada index
-  I/O bağımlılığının ortadan kalkması.
-- **Kabul edilen trade-off:** her yeni bilgisayarda ilk kullanımda ~5000
-  görsel ayrı ayrı embed edilmek zorunda kalabilir (tahmini ~5 dakika, bkz.
-  mimari görüş #5/#11). Bu MVP+ ölçeğinde kabul edilebilir bulunuyor.
-  Merkezi/paylaşılan index yalnızca şu koşullardan biri gerçekleşirse
-  yeniden değerlendirilmeli: (a) çok sayıda farklı istasyon aynı soğuk
-  başlangıç maliyetini tekrar tekrar öder hale gelirse, (b) veri ölçeği
-  ~5000'den bir büyüklük mertebesi daha artarsa (örn. 50.000+), veya
-  (c) embedding süresi belirgin şekilde artarsa (daha büyük model vb.).
+  klasörleri).~~ Bkz. DECISIONS.md #39 (superseded).
+- ~~Cache anahtarı: ürün dizini path'inden türetilen deterministic bir
+  tanımlayıcı (hash).~~
+- Eski gerekçe (birden fazla Lens instance'ın aynı JSON dosyasına
+  yazmaması) artık **exclusive lock ile** çözülüyor; "paylaşılan klasörün
+  Lens'e özel teknik dosyalarla kirlenmemesi" endişesi `.lens/` alt
+  klasörüyle (görünür ama izole, `.gitignore`'da da hariç tutulan bir
+  runtime teknik klasörü) karşılanıyor.
 
 ---
 
@@ -192,15 +211,31 @@ Dosyalar" penceresinde bulunur. Detay: `docs/DECISIONS.md` #50-51.
 
 ## 9. Arama Sonucu Sayısı
 
-**Confirmed**
-- **Top-10** gösterilecek (Top-5 yerine — SUPERSEDES eski karar #9).
-- Arama algoritması (embedding + cosine similarity) **değişmiyor**.
-- UI, 10 sonucu rahat gösterebilmeli (scroll/wrap grid — mevcut
-  `WrapPanel` tabanlı sonuç grid'i zaten bunu destekleyecek şekilde
-  genişletilebilir).
+**⚠️ SUPERSEDED (Faz 1, 2026-09-03) — bkz. DECISIONS.md #60.** Sabit Top-N
+yerine kullanıcının kontrol ettiği bir minimum benzerlik eşiği getirildi.
 
-**Implemented (FAZ 4D, 2026-09-01):** `SimilaritySearch.TopK` çağrısı
-10 olarak güncellendi; sonuç grid'i 5×2 `UniformGrid` düzeninde gösterilir.
+**Confirmed (Faz 1, 2026-09-03)**
+- Kullanıcı arama öncesi **"Minimum benzerlik (%)"** girer (0-100, ondalık/TR
+  virgül destekli, boş/negatif/>100/NaN/Infinity reddedilir).
+- Pipeline: tüm skorlar hesaplanır → `score >= threshold` (inclusive,
+  float-epsilon toleranslı) filtrelenir → azalan sıra → **en fazla 15**
+  sonuç. Bkz. `Lens.Core.Search.SimilaritySearch.SearchWithThreshold`.
+- Eşiği geçen sonuç yoksa hata DEĞİLDİR: önceki sonuç/seçim temizlenir,
+  query görseli ve threshold girdisi korunur, sade durum mesajı gösterilir
+  (modal yok).
+- **OPEN PRODUCT DECISION:** threshold için kalıcı bir varsayım/default
+  değer henüz onaylanmadı — alan boş başlar (bkz. DECISIONS.md Not Yet
+  Decided #8).
+- **Bilinen açık risk:** eşik karşılaştırmasındaki float-epsilon toleransı
+  (`1e-4`) product owner onayı almamış teknik bir seçimdir; `%100` (kesin
+  eşleşme) girildiğinde teknik olarak `%100` olmayan bir sonuç da "dahil"
+  sayılabilir — bkz. `docs/PRODUCTION_CHECKLIST.md` "Codex Bulguları"
+  (strict threshold epsilon).
+
+**Eski (Faz 4D) davranış — artık geçerli değil:**
+- ~~**Top-10** gösterilecek (Top-5 yerine).~~ `SimilaritySearch.TopK`
+  çağrısı threshold'suz sabit-N modeliydi; UI 5×2 grid kullanıyordu.
+  Sonuç grid'i artık en fazla 15 için 5×3 `UniformGrid` düzeninde.
 
 ---
 
@@ -236,7 +271,10 @@ Detay: `docs/DECISIONS.md` #52-53.
 
 **Out of Scope (bu faz setinde eklenmez)**
 - Vector database, ANN index, merkezi index servisi, database, cloud,
-  microservice, locking service.
+  microservice.
+- **Distributed** lock/queue/servis — Faz 1'de eklenen tek-yazarlı dosya
+  kilidi (`.lens/index.lock`, bkz. §5) bunun yerine geçmez, minimal ve
+  yalnızca tek paylaşılan klasör içindir.
 
 ---
 
@@ -273,7 +311,41 @@ alternatif.
 
 ---
 
-## 14. Later Phase (Bu Gereksinim Setinin Dışında)
+## 15. Otomatik İndeks Kontrolü (Faz 1, 2026-09-03)
+
+**Confirmed**
+- Ana ekranda "Arama öncesi indeksi otomatik kontrol et ve güncelle"
+  checkbox'ı — varsayılan **açık**, tercih `user-settings.json`'da kalıcı
+  (eski dosyada alan yoksa geriye uyumlu açık kabul edilir).
+- Açıkken: index yok/boş/geçersizse "Ara" doğrudan oluşturur; index varsa
+  30 sn freshness TTL + gerekirse incremental güncelleme (önceki
+  search-before-refresh davranışıyla aynı, artık lock'lu).
+- Kapalıyken: "Ara" hiçbir `DetectChanges`/`BuildOrUpdate`/yazım yapmaz,
+  yalnızca bellekteki mevcut stable index ile arar; index yoksa arama
+  başlamaz ("İndeksi Güncelle" yönlendirmesi gösterilir).
+- Manuel "İndeksi Güncelle / Klasörü Tara" butonu checkbox'tan bağımsız
+  her zaman force scan yapar. Bkz. DECISIONS.md #65.
+
+## 16. Büyük/Aşırı Çözünürlüklü Görsel — Hard Limit Kaldırıldı (Faz 1, 2026-09-03)
+
+**⚠️ SUPERSEDED (Faz 1) — bkz. DECISIONS.md #64.** Eski ~50 MB / ~50 MP
+hard-rejection guard'ı (bkz. eski DECISIONS.md #58) **kaldırıldı**.
+
+**Confirmed**
+- Geçerli bir fabrika görseli artık **sadece büyük olduğu için
+  reddedilmez**. Yeni sabit bir MB/MP reddetme eşiği de eklenmedi.
+- Eşiğin üstündeki dosyalar decoder-seviyesi downsampling (ImageSharp
+  `DecoderOptions.TargetSize`) ile ekonomik decode edilir — dosya kabul
+  edilir, yalnızca tam çözünürlük belleğe alınmadan işlenir. Eşiğin
+  altındaki (eskiden zaten kabul edilen) görseller ÖNCEKİ ile birebir aynı
+  tam-çözünürlük yolunu kullanmaya devam eder (regresyon riski yok).
+- Büyük önizleme/zoom penceresi de aynı mantıkla bounded `DecodePixelWidth`
+  kullanır, reddetmez.
+- Resilience korunuyor: dosya-seviyesi exception izolasyonu, decode hatası
+  handling, Issue oluşturma, logging, last-known-good preservation — hiçbiri
+  kaldırılmadı, yalnızca "sırf büyük diye reddet" davranışı kaldırıldı.
+
+## 17. Later Phase (Bu Gereksinim Setinin Dışında)
 
 - Login / kullanıcı yönetimi / yetkilendirme (production hedefinde hâlâ
   planlı, bkz. DECISIONS.md #16)

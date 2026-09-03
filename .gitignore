@@ -53,3 +53,9 @@ publish/
 
 # Faz 3A - klasor-ici persistent embedding index/cache (kullanici verisiyle birlikte)
 .lens_index.json
+
+# Faz 1 (shared index) - urun klasorunun ICINDE olusan runtime teknik klasoru
+# (index.json + index.lock). Kullanici gorselleriyle ayni klasorde oldugu icin
+# gelistirme/test sirasinda yanlislikla commit edilmesini onlemek icin
+# gorunur her yerde (ornegin nevresim/.lens/) ignore edilir.
+.lens/

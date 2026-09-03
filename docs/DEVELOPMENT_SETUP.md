@@ -117,8 +117,13 @@ dotnet run --project src/Lens.AiProof
 dotnet run --project src/Lens.AiProof -- stresstest
 ```
 
-`hardeningtest`, kendi geçici klasörlerini oluşturup temizler — repoya veya
-`%LocalAppData%\Lens\`'e kalıcı bir iz bırakmaz.
+`hardeningtest`, kendi geçici klasörlerini (`%TEMP%` altında) oluşturup
+temizler — repoya veya `%LocalAppData%\Lens\`'e kalıcı bir iz bırakmaz.
+[Faz 1] `dotnet run --project src/Lens.AiProof -- <klasör>` gibi manuel
+çalıştırmalar ise o klasör içinde gerçek bir `.lens/index.json` oluşturur
+(shared index, artık `%LocalAppData%` değil) — test amaçlı kullandıysanız
+`.lens/` alt klasörünü elle silin (`.gitignore`'da zaten hariç tutuluyor,
+commit riski yok, ama diskte kalır).
 
 ## 8. Publish
 
@@ -128,17 +133,27 @@ dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 --self
 
 Detay ve dağıtım süreci: `docs/DEPLOYMENT.md`.
 
-## 9. `%LocalAppData%\Lens\` Altında Biriken Dosyalar
+## 9. Biriken Dosyalar: `%LocalAppData%\Lens\` ve `.lens\` (Faz 1'den beri iki ayrı yer)
 
-Geliştirme sırasında uygulamayı her çalıştırdığınızda şu klasör yapısı oluşur/güncellenir:
+**[Faz 1, 2026-09-03] Embedding index'i artık `%LocalAppData%` DEĞİL,
+denediğiniz her ürün klasörünün KENDİ İÇİNDE** (`.lens/index.json`) tutulur
+— bkz. `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` #61.
 
 ```
 %LocalAppData%\Lens\
-├── config\      (kullanıcı override ayarları, JSON)
-├── cache\<hash>\index.json   (her denediğiniz ürün klasörü için ayrı, klasör yoluna göre hash'lenmiş)
+├── config\      (kullanıcı override ayarları + auto-index tercihi, JSON)
 └── logs\lens-yyyyMMdd.log    (30 gün retention, otomatik temizlenir)
+
+<denediğiniz her ürün klasörü>\.lens\
+├── index.json   (shared embedding index)
+└── index.lock   (yalnızca yazma sırasında kısa süreli açık tutulan kilit dosyası)
 ```
 
-Bunlar **repo dışındadır**, git tarafından hiç görülmez. Temiz bir test
-ortamı istiyorsanız bu klasörü elle silebilirsiniz — uygulama sonraki
-açılışta yeniden oluşturur (bkz. `docs/ARCHITECTURE.md`).
+`%LocalAppData%\Lens\` **repo dışındadır**, git tarafından hiç görülmez.
+`<ürün klasörü>\.lens\` ise geliştirme sırasında repo İÇİNDEKİ bir test
+klasörünü (örn. `benchmark/data/raw`) denerseniz o klasörün içinde oluşur —
+`.gitignore`'da `.lens/` deseni ile hariç tutulur, commit riski yoktur ama
+elle silmeniz gerekir (uygulama/`Lens.AiProof` bunu otomatik temizlemez).
+Eski `%LocalAppData%\Lens\cache\<hash>\index.json` dosyaları (varsa,
+önceki bir Lens sürümünden kalma) artık okunmuyor/yazılmıyor — temiz bir
+test ortamı için elle silebilirsiniz, uygulama bunlara dokunmaz.

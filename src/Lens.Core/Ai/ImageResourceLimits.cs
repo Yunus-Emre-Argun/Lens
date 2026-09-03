@@ -1,63 +1,43 @@
 namespace Lens.Core.Ai;
 
 /// <summary>
-/// [Reliability] Asiri buyuk dosya boyutlu veya asiri yuksek cozunurluklu bir
-/// gorsel (yanlislikla urun klasorune konmus olcek-disi bir dosya, ya da
-/// kullanicinin query olarak sectigi devasa bir fotograf) tam cozunurlukte
-/// decode edilirse bellek tuketimi/donma/OutOfMemory riski olusturur.
+/// [Hard limit kaldirildi - kesin product karari] Eskiden burada 50MB dosya
+/// boyutu / 50MP cozunurluk ustundeki gorseller REDDEDILIYORDU
+/// (ImageTooLargeException). Gecerli bir fabrika gorseli artik SADECE buyuk
+/// oldugu icin reddedilmez.
 ///
-/// Bu limitler TEK bir yerden kontrol edilir (indexing, query embed ve buyuk
-/// onizleme/zoom - bkz. ImagePreprocessor.PreprocessToChwTensor ve
-/// Lens.Desktop MainWindow.LoadQueryImage/TryOpenImagePreview cagrilari),
-/// tam piksel verisi okunmadan ONCE (dosya boyutu + ImageSharp
-/// Image.Identify header-only okuma). Yeni dependency eklenmedi.
-///
-/// Degerler (~50MB dosya, ~50MP piksel) normal katalog/telefon fotograflarini
-/// (tipik olarak birkac MB, birkac MP) reddetmeyecek kadar genis, bir
-/// cozunurluk/dosya "bombasini" durduracak kadar dar secildi.
+/// Bu sinif artik exception FIRLATMAZ - yalnizca "bu gorsel ekonomik
+/// (downsampled) decode'u hak edecek kadar buyuk mu?" sorusuna ucuz
+/// (header-only, Image.Identify - tam piksel verisi okumadan) bir yanit
+/// veren bir yardimci. Kullanim yerleri: ImagePreprocessor (indexing/query
+/// embed) ve Lens.Desktop MainWindow (buyuk onizleme/zoom) - ayni esik,
+/// TEK yerden kontrol edilir.
 /// </summary>
 public static class ImageResourceLimits
 {
-    public const long MaxFileSizeBytes = 50L * 1024 * 1024;
-    public const long MaxPixelCount = 50_000_000;
+    /// <summary>
+    /// Bu piksel sayisinin USTUNDEKI gorseller ekonomik (decoder-level
+    /// downsampled) decode kullanir; ALTINDAKI (eskiden zaten kabul edilen)
+    /// gorseller ONCEKI ile BIREBIR AYNI (tam cozunurluk) decode yolunu
+    /// kullanmaya devam eder - boylece normal katalog/telefon fotograflarinda
+    /// hicbir regresyon riski yoktur. Deger, eski (kaldirilan) 50MP hard
+    /// limitiyle ayni - yeni bir sabit rejection esigi EKLENMEDI, mevcut
+    /// deger yalnizca amaci degistirilerek (reject -> decode-strategy hint)
+    /// yeniden kullanildi.
+    /// </summary>
+    public const long LargeImagePixelHint = 50_000_000;
 
-    /// <summary>Limit asilirsa <see cref="ImageTooLargeException"/> firlatir; format bozuksa karar vermez (gercek decode kendi hatasini uretir).</summary>
-    public static void EnsureWithinLimits(string imagePath)
+    /// <summary>Header-only okuma ile piksel sayisini dondurur; okunamazsa (bozuk/erisilemez dosya) 0 doner - cagiran taraf normal/tam decode yoluna duser ve gercek hatayi decode asamasinda alir.</summary>
+    public static long TryGetPixelCount(string imagePath)
     {
-        var fileInfo = new FileInfo(imagePath);
-        if (fileInfo.Length > MaxFileSizeBytes)
-        {
-            throw new ImageTooLargeException(
-                $"Görsel boyutu desteklenen sınırı aşıyor ({fileInfo.Length / (1024 * 1024)} MB, sınır {MaxFileSizeBytes / (1024 * 1024)} MB).");
-        }
-
-        SixLabors.ImageSharp.ImageInfo? info;
         try
         {
-            info = SixLabors.ImageSharp.Image.Identify(imagePath);
+            var info = SixLabors.ImageSharp.Image.Identify(imagePath);
+            return info is null ? 0 : (long)info.Width * info.Height;
         }
         catch
         {
-            return;
+            return 0;
         }
-
-        if (info is null)
-        {
-            return;
-        }
-
-        var pixelCount = (long)info.Width * info.Height;
-        if (pixelCount > MaxPixelCount)
-        {
-            throw new ImageTooLargeException(
-                $"Görsel boyutu desteklenen sınırı aşıyor ({info.Width}x{info.Height} ≈ {pixelCount / 1_000_000} MP, sınır {MaxPixelCount / 1_000_000} MP).");
-        }
-    }
-}
-
-public sealed class ImageTooLargeException : Exception
-{
-    public ImageTooLargeException(string message) : base(message)
-    {
     }
 }

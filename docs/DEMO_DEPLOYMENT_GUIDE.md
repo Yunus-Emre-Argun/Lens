@@ -40,9 +40,12 @@ Gerçek ürün görselleri publish paketine **dahil değildir**. Kullanıcı ken
 5. İlk indekslemede ürün görsellerinin embedding'leri oluşturulur.
 6. Sonraki çalıştırmalarda değişmeyen görseller tekrar embed edilmez.
 7. **"Sorgu Görseli Seç"** ile (veya sürükle-bırak ile) aranacak görseli seç.
-8. **"Ara"** butonuna bas.
-9. Top-10 sonuçlarını incele; bir sonuca tıklayarak query görseliyle yan
-   yana karşılaştır.
+8. **[Faz 1]** "Minimum benzerlik (%)" alanına geçerli bir değer gir (bu
+   alan boş başlar, kalıcı bir varsayımı yoktur — bkz. `docs/DECISIONS.md`
+   Not Yet Decided #8) ve **"Ara"** butonuna bas.
+9. Eşiği geçen sonuçları (en fazla 15) incele; bir sonuca tıklayarak query
+   görseliyle yan yana karşılaştır. Eşiği geçen sonuç yoksa hata değildir —
+   eşiği düşürüp tekrar deneyebilirsin.
 10. Nihai kararı kullanıcı verir — sistem kesin eşleşme iddia etmez.
 
 ---
@@ -64,13 +67,15 @@ Daha sonra klasöre 20 yeni ürün eklenirse:
   artık görünmüyorsa; geçici bir okuma hatasında eski kayıt korunur — bkz.
   §4).
 
-Persistent index/cache dosyası ürün klasörünün İÇİNDE **değil**,
-`%LocalAppData%\Lens\cache\<klasör-hash'i>\index.json` altında tutulur
-(ürün dizini path'inden türetilen bir hash ile) — paylaşılan ağ klasörünün
-Lens'e özel dosyalarla kirlenmemesi ve birden fazla kullanıcının aynı
-dosyaya eşzamanlı yazmaması için (bkz. `docs/DECISIONS.md` #39, #44).
-Aynı ürün klasörüne tekrar dönüldüğünde aynı cache otomatik olarak
-kullanılır.
+**[Faz 1, 2026-09-03 — değişti]** Persistent index dosyası artık ürün
+klasörünün **KENDİ İÇİNDE**: `<ürün klasörü>\.lens\index.json` (bkz.
+`docs/DECISIONS.md` #61). Birden fazla kullanıcının/PC'nin aynı paylaşılan
+klasöre eşzamanlı yazmasını önlemek için tek-yazarlı bir kilit dosyası
+(`.lens\index.lock`) kullanılır — bir kullanıcı güncellerken diğerleri
+mevcut index ile aramaya devam edebilir, yalnızca eşzamanlı GÜNCELLEME
+birbirini beklemek zorunda kalır. Aynı ürün klasörüne tekrar dönüldüğünde
+aynı (paylaşılan) index otomatik olarak kullanılır — artık her istasyon
+kendi kopyasını ayrı ayrı oluşturmaz.
 
 ---
 
@@ -86,12 +91,13 @@ kullanılır.
 - **Ağ/UNC klasörüne erişilemediğinde** uygulama donmaz veya kapanmaz;
   "Ürün klasörüne şu anda ulaşılamıyor" gibi bir durum mesajı gösterilir,
   bağlantı geri geldiğinde kullanıcı tekrar deneyebilir.
-- **Büyük/aşırı çözünürlüklü görsel limiti:** ~50 MB dosya boyutu veya ~50
-  megapiksel üzerindeki görseller (indexing, sorgu ve büyük önizleme/zoom
-  için) belleği aşırı tüketmemek amacıyla reddedilir — normal katalog/telefon
-  fotoğrafları bundan etkilenmez. Sınırı aşan bir ürün görseli "Görsel
-  boyutu desteklenen sınırı aşıyor" olarak işaretlenir (eski kaydı varsa
-  korunur); sorgu olarak seçilirse arama başlamadan aynı mesajla reddedilir.
+- **[Faz 1 — SUPERSEDED] Büyük/aşırı çözünürlüklü görsel:** eski ~50 MB /
+  ~50 MP hard-rejection limiti **kaldırıldı** (bkz. `docs/DECISIONS.md`
+  #64). Geçerli bir ürün görseli artık sadece büyük olduğu için
+  reddedilmez; eşiğin üstündeki dosyalar indexing/sorgu/büyük önizlemede
+  ekonomik (decoder-level downsampled) decode ile işlenir, dosya kabul
+  edilir. Normal katalog/telefon fotoğrafları (eşiğin altında) önceki
+  davranışla birebir aynı kalır.
 - **Görsel olmayan dosyalar** (`.pdf`, `.zip`, `.txt`, `.csv` vb.) ürün
   klasöründe bulunabilir; sessizce yok sayılmaz, "Desteklenmeyen dosya türü"
   olarak işaretlenip görünür kalır, ama decode denenmez ve indekslemeyi
@@ -130,7 +136,9 @@ Doğrulanmış mevcut stress test verisi:
 | İkinci çalıştırmada cache-hit | yeni=0, değişmeyen=177, ~0.02 sn |
 
 Not: Bu ölçüm Top-5 doğruluğu içindir (Faz 2/3C benchmark metodolojisi);
-UI'da gösterilen sonuç sayısı Faz 4D'den beri **Top-10**'dur (bkz. §2, §8).
+UI'da gösterilen sonuç sayısı Faz 1'den beri sabit değil — kullanıcının
+girdiği minimum benzerlik eşiğini geçen sonuçlardan **en fazla 15**'i
+gösterir (bkz. §2, `docs/DECISIONS.md` #60).
 
 **Önemli:** Bu sonuçlar yalnızca mevcut test datasetine (188 aday) aittir.
 "1000 üründe de %100 çalışır" gibi bir garanti değildir — **"188 aday ürün
@@ -162,10 +170,11 @@ ile birlikte değerlendirilmelidir.
 - WPF arayüz
 - Local klasörden ürün görselleri alma
 - CLIP ONNX embedding (openai/clip-vit-base-patch16)
-- Persistent local index/cache (`%LocalAppData%\Lens\cache\`)
+- Persistent **shared** index (`<ürün klasörü>\.lens\index.json` — Faz 1)
+  + tek-yazarlı exclusive kilit
 - Incremental index update (yeni/değişen/silinen dosya tespiti)
-- Cosine similarity ile arama
-- Top-10 görsel sonuç + query/sonuç karşılaştırma
+- Cosine similarity ile arama; kullanıcı tanımlı minimum benzerlik eşiği +
+  en fazla 15 sonuç (Faz 1)
 - Similarity score gösterimi
 - Sürükle-bırak, büyük önizleme/zoom, kalıcı log dosyası
 - Geçici hata/bozuk cache/aşırı büyük görsel için güvenli davranış (bkz. §4)

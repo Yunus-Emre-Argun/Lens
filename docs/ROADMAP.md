@@ -8,6 +8,16 @@ uygulamaya almak için izlenecek fazları tanımlar.
 **Bu doküman henüz onaylanmadı — implementasyona başlamadan önce Tech
 Lead/CTO onayı bekleniyor.**
 
+> **[2026-09-03 güncelleme]** FAZ 4A-4E aşağıda anlatıldığı gibi tamamlandı
+> ve ardından ayrı bir "manager requirement paketi" turu ile bu fazlardaki
+> bazı kararlar **SUPERSEDE** edildi: sabit Top-10 → minimum benzerlik eşiği
+> + en fazla 15 sonuç; `%LocalAppData%` local cache → paylaşılan
+> `<ProductDirectory>/.lens/index.json` + tek-yazarlı kilit; sabit 50MB/50MP
+> reddi → tamamen kaldırıldı (ekonomik decode). Bu bölümün geri kalanı
+> **tarihsel bir kayıt olarak korunuyor** (o anki kararları olduğu gibi
+> yansıtır) — güncel/nihai durum için `docs/DECISIONS.md` #60-65,
+> `docs/ARCHITECTURE.md` ve `CHANGELOG.md`'ye bakın.
+
 Sıralama mantığı: önce temel depolama/config mimarisi (her şey buna bağımlı),
 sonra sağlamlık (dosya tarama, hata sınıflandırma, atomic write), sonra
 gözlemlenebilirlik (logging), sonra UI, sonra gerçek ölçek doğrulaması, en

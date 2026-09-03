@@ -1,4 +1,5 @@
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -19,12 +20,7 @@ public static class ImagePreprocessor
 
     public static float[] PreprocessToChwTensor(string imagePath)
     {
-        // [Reliability] Tam piksel verisi okunmadan (Image.Load) ONCE boyut/
-        // cozunurluk kontrolu - hem indexing hem query embed bu tek yoldan
-        // gecer (bkz. ImageResourceLimits).
-        ImageResourceLimits.EnsureWithinLimits(imagePath);
-
-        using var image = Image.Load<Rgb24>(imagePath);
+        using var image = LoadForPreprocessing(imagePath);
 
         int shortest = Math.Min(image.Width, image.Height);
         float scale = (float)TargetSize / shortest;
@@ -57,5 +53,36 @@ public static class ImagePreprocessor
         });
 
         return tensor;
+    }
+
+    /// <summary>
+    /// [Hard limit kaldirildi] Buyuk/asiri yuksek cozunurluklu bir gorsel
+    /// artik REDDEDILMEZ - ancak tam cozunurlukte belleye alinmasi
+    /// bellek/performans riski olusturabilecegi icin, ImageResourceLimits
+    /// esiginin USTUNDEKI dosyalar ImageSharp'in decoder-seviyesi
+    /// downsampling'i (DecoderOptions.TargetSize) ile daha ekonomik decode
+    /// edilir. Esigin ALTINDAKI gorseller (eskiden zaten kabul edilenler)
+    /// ONCEKI davranisla BIREBIR AYNI (tam cozunurluk Image.Load) yolu
+    /// kullanmaya devam eder - normal katalog gorsellerinde CLIP sonuclarinda
+    /// regresyon riski yoktur (bkz. AiProof hardeningtest Grup C).
+    ///
+    /// TargetSize, sonraki adimda zaten shortest-edge=224'e indirilecegini
+    /// bildigimiz icin bicubic resize/crop kalitesine pay birakmak amaciyla
+    /// hedefin 2 katini (448x448) kullanir - decoder bu boyuta EN YAKIN
+    /// ekonomik decode'u yapar, tam piksel sayisi kadar bellek harcanmaz.
+    /// </summary>
+    private static Image<Rgb24> LoadForPreprocessing(string imagePath)
+    {
+        var pixelCount = ImageResourceLimits.TryGetPixelCount(imagePath);
+        if (pixelCount > ImageResourceLimits.LargeImagePixelHint)
+        {
+            var decoderOptions = new DecoderOptions
+            {
+                TargetSize = new Size(TargetSize * 2, TargetSize * 2),
+            };
+            return Image.Load<Rgb24>(decoderOptions, imagePath);
+        }
+
+        return Image.Load<Rgb24>(imagePath);
     }
 }

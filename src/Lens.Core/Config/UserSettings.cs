@@ -15,6 +15,14 @@ public sealed class UserSettings
     public string? UserOverrideProductDirectory { get; set; }
     public bool UseUserOverride { get; set; }
 
+    /// <summary>
+    /// "Arama öncesi indeksi otomatik kontrol et ve güncelle" checkbox tercihi.
+    /// Varsayilan acik (true) - eski (bu alani icermeyen) bir settings
+    /// dosyasi yuklendiginde System.Text.Json bu alana dokunmaz, bu yuzden
+    /// deserialize sonrasi da true kalir (geriye uyumlu "acik" davranis).
+    /// </summary>
+    public bool AutoIndexBeforeSearch { get; set; } = true;
+
     public static UserSettings Load(ILensLogger? logger = null)
     {
         try

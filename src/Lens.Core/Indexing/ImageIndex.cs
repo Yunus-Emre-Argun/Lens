@@ -22,9 +22,32 @@ namespace Lens.Core.Indexing;
 /// docs/DECISIONS.md #37) ve ucuz bir "degisiklik var mi?" kontrolu
 /// (DetectChanges) eklendi - search-before-refresh bunu kullanir.
 /// </summary>
+public enum IndexWriteOutcome
+{
+    /// <summary>Kilit alindi, tarama/guncelleme yapildi ve diske kaydedildi.</summary>
+    Updated,
+
+    /// <summary>Baska bir writer kilidi tutuyor - hicbir scan/save baslamadi.</summary>
+    LockUnavailable,
+
+    /// <summary>Kilit alindi ama klasor taranamadi (orn. UNC erisilemedi) - eski index DEGISTIRILMEDI.</summary>
+    ScanFailed,
+
+    /// <summary>Tarama basarili oldu ama diske yazma basarisiz oldu - eski disk index BOZULMADI, in-memory eski index korunmali.</summary>
+    SaveFailed,
+}
+
+/// <summary>Lock-guarded writer orkestrasyonunun sonucu. Entries alani, cagiranin ne zaman _indexEntries'i degistirmesi gerektigini Outcome'a gore yorumlamasi icindir (bkz. MainWindow.RunIndexUpdateAsync).</summary>
+public sealed record IndexWriteResult(
+    IndexWriteOutcome Outcome,
+    List<ImageIndexEntry> Entries,
+    IndexUpdateStats? Stats,
+    Exception? Failure);
+
 public static class ImageIndex
 {
-    public static string IndexPath(string folderPath) => AppPaths.CacheIndexFilePath(folderPath);
+    /// <summary>Canonical shared index dosyasi: &lt;ProductDirectory&gt;/.lens/index.json. Side-effect-free (bkz. AppPaths.SharedIndexFilePath).</summary>
+    public static string IndexPath(string folderPath) => AppPaths.SharedIndexFilePath(folderPath);
 
     /// <summary>CLIP ViT-B/16 embedding boyutu (bkz. docs/DECISIONS.md #20) - gecerli bir cache kaydinin embedding'i bu uzunlukta olmali.</summary>
     private const int ExpectedEmbeddingDimension = 512;
@@ -94,10 +117,62 @@ public static class ImageIndex
         return true;
     }
 
+    /// <summary>
+    /// [Shared index] ".lens" klasoru burada (yazma aninda) olusturulur - Load
+    /// ve IndexPath side-effect-free kalir. Cagiran taraf normalde bunu
+    /// dogrudan degil, BuildOrUpdateWithLock uzerinden (exclusive lock
+    /// tutulurken) cagirmalidir.
+    /// </summary>
     public static void Save(string folderPath, List<ImageIndexEntry> entries)
     {
+        Directory.CreateDirectory(AppPaths.SharedIndexDirectory(folderPath));
         var json = JsonSerializer.Serialize(entries);
         AtomicFileWriter.WriteAllText(IndexPath(folderPath), json);
+    }
+
+    /// <summary>
+    /// Single-writer exclusive lock altinda calisan tam yazici orkestrasyonu:
+    /// lock al -> (BuildOrUpdate zaten en basta Load ile index'i TAZE yeniden
+    /// yukler, boylece lock oncesi stale state uzerinden yazilmaz) -> tara ->
+    /// guncelle -> kaydet -> lock birak (using/finally ile her exception
+    /// yolunda). Reader/arama bu metodu KULLANMAZ - yalnizca gercek
+    /// scan/save/lock ihtiyaci olan yol (manuel "İndeksi Güncelle" ve
+    /// auto-index acikken freshness sonrasi refresh) bunu cagirir.
+    /// </summary>
+    public static IndexWriteResult BuildOrUpdateWithLock(
+        string folderPath, ClipEmbedder embedder, IProgress<(int Done, int Total)>? progress = null, ILensLogger? logger = null)
+    {
+        using var handle = IndexLock.TryAcquire(folderPath, out var lockFailure);
+        if (handle is null)
+        {
+            // Kilit alinamadi: hicbir scan/save baslamadi. Cagiran taraf,
+            // bellekte zaten yuklu bir stable index varsa onunla aramaya
+            // devam edebilir (bu metod o karari vermez, sadece bildirir).
+            return new IndexWriteResult(IndexWriteOutcome.LockUnavailable, Load(folderPath, logger), null, lockFailure);
+        }
+
+        var (entries, stats) = BuildOrUpdate(folderPath, embedder, progress, logger);
+        if (stats.ScanError is not null)
+        {
+            return new IndexWriteResult(IndexWriteOutcome.ScanFailed, entries, stats, null);
+        }
+
+        try
+        {
+            Save(folderPath, entries);
+        }
+        catch (Exception ex)
+        {
+            // [Network safety] Save basarisiz oldu - eski diskteki index.json
+            // AtomicFileWriter sayesinde BOZULMADI (temp yazilamadan/replace
+            // edilemeden hata olustu). entries burada yeni (henuz kaydedilmemis)
+            // hesaplanan liste - cagiran taraf bunu ONEMLI: in-memory state'e
+            // YANSITMAMALI (sahte "guncel" gorunumu olusmasin), sadece hatayi
+            // gostermeli.
+            return new IndexWriteResult(IndexWriteOutcome.SaveFailed, entries, stats, ex);
+        }
+
+        return new IndexWriteResult(IndexWriteOutcome.Updated, entries, stats, null);
     }
 
     /// <summary>

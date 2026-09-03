@@ -45,16 +45,32 @@ public partial class MainWindow : Window
     private ImagePreviewWindow? _openPreview;
     private DragPreviewAdorner? _dragPreviewAdorner;
 
+    /// <summary>[Faz 1] Son BAŞARILI taramanın istatistikleri - başarısız bir tarama bunu değiştirmez (bkz. RunIndexUpdateAsync / UpdateStatsUi, Faz 2).</summary>
+    private IndexUpdateStats? _lastSuccessfulStats;
+
     public MainWindow()
     {
         InitializeComponent();
         ResultsItemsControl.ItemsSource = _results;
         _logger.Info("AppStart");
+
+        var userSettings = UserSettings.Load(_logger);
+        AutoIndexCheckBox.IsChecked = userSettings.AutoIndexBeforeSearch;
+        UpdateStatsUi();
+
         // [Reliability] Varsayilan dizin bir UNC yol olabilir ve erisim
         // kontrolu (Directory.Exists) yavas/askida kalabilir - constructor'i
         // (dolayisiyla pencerenin ilk gorunmesini) BLOKLAMAMASI icin arka
         // planda calistirilir. Fire-and-forget ama kendi ici try/catch'li.
         _ = LoadDefaultProductDirectoryAsync();
+    }
+
+    /// <summary>[Faz 1] Checkbox tercihi degistiginde aninda kalicilastirilir (bkz. UserSettings.AutoIndexBeforeSearch).</summary>
+    private void AutoIndexCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+    {
+        var settings = UserSettings.Load(_logger);
+        settings.AutoIndexBeforeSearch = AutoIndexCheckBox.IsChecked == true;
+        settings.Save(_logger);
     }
 
     /// <summary>
@@ -122,8 +138,14 @@ public partial class MainWindow : Window
         _logger.Info("ProductDirectory", file: _productFolder, reason: resolution.Source.ToString());
         FolderPathTextBox.Text = _productFolder;
 
-        var hadCacheFile = File.Exists(ImageIndex.IndexPath(_productFolder));
-        _indexEntries = ImageIndex.Load(_productFolder, _logger);
+        SetIndexStatus("Paylaşılan index yükleniyor...");
+        var folder = _productFolder;
+        // [Faz 1 - shared index network safety] Shared index artik urun
+        // klasorunun kendi icinde (UNC olabilir) - File.Exists/Load burada da
+        // arka planda calistirilmali (bkz. proje talimati madde 7).
+        var (hadCacheFile, loadedEntries) = await Task.Run(() =>
+            (File.Exists(ImageIndex.IndexPath(folder)), ImageIndex.Load(folder, _logger)));
+        _indexEntries = loadedEntries;
         _lastFreshnessCheckUtc = null;
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
         SetIndexStatus(_indexEntries.Count > 0
@@ -143,7 +165,7 @@ public partial class MainWindow : Window
         UpdateDirectoryOriginUi();
     }
 
-    private void SelectFolderButton_Click(object sender, RoutedEventArgs e)
+    private async void SelectFolderButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog { Title = "Ürün Klasörünü Seçin" };
         if (dialog.ShowDialog() != true)
@@ -156,9 +178,18 @@ public partial class MainWindow : Window
         _results.Clear();
         ClearComparison();
         _lastFreshnessCheckUtc = null;
+        _lastSuccessfulStats = null;
+        UpdateStatsUi();
 
-        var hadCacheFile = File.Exists(ImageIndex.IndexPath(_productFolder));
-        _indexEntries = ImageIndex.Load(_productFolder, _logger);
+        SetBusy(true);
+        SetIndexStatus("Paylaşılan index yükleniyor...");
+        var folder = _productFolder;
+        // [Faz 1 - shared index network safety] bkz. LoadDefaultProductDirectoryAsync.
+        var (hadCacheFile, loadedEntries) = await Task.Run(() =>
+            (File.Exists(ImageIndex.IndexPath(folder)), ImageIndex.Load(folder, _logger)));
+        SetBusy(false);
+
+        _indexEntries = loadedEntries;
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
         SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
@@ -261,8 +292,9 @@ public partial class MainWindow : Window
         SetIndexStatus("İndeksleniyor...");
 
         // Manuel "İndeksi Güncelle" her zaman FORCE SCAN yapar (freshness
-        // kontrolünü atlar). Bu, arama öncesi otomatik freshness-check'in
-        // ("Ara") de aynı işlevi görecek olmasından bağımsızdır.
+        // kontrolünü atlar) VE checkbox tercihinden BAĞIMSIZ olarak çalışır.
+        // Bu, arama öncesi otomatik freshness-check'in ("Ara") de aynı işlevi
+        // görecek olmasından bağımsızdır.
         await RunIndexUpdateAsync(trigger: "Manual");
         SetBusy(false);
     }
@@ -278,7 +310,16 @@ public partial class MainWindow : Window
     /// SADE tutulur (sifir sayimlar gizlenir); tum sayaclar log'da tam
     /// olarak kaliyor (bkz. BuildSummaryText / IndexScan log satiri).
     /// </summary>
-    private async Task RunIndexUpdateAsync(string trigger)
+    /// <summary>
+    /// _productFolder'i, single-writer exclusive lock altinda BuildOrUpdate ile
+    /// tarar/embed eder, kaydeder, UI'yi gunceller ve freshness zaman
+    /// damgasini yeniler. Hem manuel "İndeksi Güncelle" hem de arama öncesi
+    /// otomatik güncelleme bunu kullanır. Donus degeri: aramanin devam
+    /// edebilecegi kullanilabilir (bellekte, entries&gt;0) bir index olup
+    /// olmadigi - "basarili tarama oldu mu" ile AYNI SEY DEGIL (orn. lock
+    /// alinamadi ama eski stable index hala kullanilabilir olabilir).
+    /// </summary>
+    private async Task<bool> RunIndexUpdateAsync(string trigger)
     {
         try
         {
@@ -289,56 +330,123 @@ public partial class MainWindow : Window
                 SetIndexStatus($"İndeksleniyor... {p.Done}/{p.Total}"));
 
             _logger.Info("IndexScan", reason: $"trigger={trigger} başladı");
-            var (entries, stats) = await Task.Run(
-                () => ImageIndex.BuildOrUpdate(folder, embedder, progress, _logger));
+            var result = await Task.Run(
+                () => ImageIndex.BuildOrUpdateWithLock(folder, embedder, progress, _logger));
 
-            if (stats.ScanError is not null)
+            switch (result.Outcome)
             {
-                SetIndexStatus($"Klasör taranamadı: {stats.ScanError}", success: false);
-                _logger.Error("IndexScan", file: folder, reason: $"trigger={trigger}: {stats.ScanError}");
-                AlertWindow.Show(this,
-                    $"Ürün klasörü şu anda taranamadı (ör. ağ bağlantısı):\n{stats.ScanError}\n"
-                    + "Mevcut kayıtlı index değiştirilmedi.",
-                    "Tarama başarısız", AlertKind.Warning);
-                return;
-            }
-
-            _indexEntries = entries;
-            ImageIndex.Save(folder, entries);
-            _lastFreshnessCheckUtc = DateTime.UtcNow;
-            _lastIssues = stats.Issues;
-            UpdateProblemFilesUi();
-
-            ProductCountText.Text = $"{entries.Count} ürün";
-            var summaryText = BuildSummaryText(stats, entries.Count, wasFirstCreation);
-            var hasProblems = stats.FailedCount + stats.UnsupportedFormatCount + stats.SkippedNonImageCount > 0;
-            SetIndexStatus(summaryText, success: !hasProblems);
-
-            _logger.Info("IndexScan",
-                reason: $"trigger={trigger} total={stats.TotalFilesScanned} supported={stats.SupportedImagesSeen} "
-                    + $"added={stats.Added} updated={stats.Updated} unchanged={stats.Unchanged} removed={stats.Removed} "
-                    + $"failed={stats.FailedCount} unsupported={stats.UnsupportedFormatCount} skipped={stats.SkippedNonImageCount}");
-
-            foreach (var issue in stats.Issues)
-            {
-                // NonImageFile/UnsupportedImageFormat uygulama hatasi degildir
-                // (WARNING); yalnizca gercekten decode edilmeye calisilip
-                // basarisiz olan SupportedImageButFailed ERROR'dur.
-                var (operation, level) = issue.Kind switch
+                case IndexWriteOutcome.LockUnavailable:
                 {
-                    FileIssueKind.UnsupportedImageFormat => ("UnsupportedFormat", LogLevel.Warning),
-                    FileIssueKind.NonImageFile => ("UnsupportedFile", LogLevel.Warning),
-                    _ => ("IndexingFailed", LogLevel.Error),
-                };
+                    const string lockMessage = "İndeks şu anda başka bir kullanıcı tarafından güncelleniyor.\n"
+                        + "Lütfen işlem tamamlandıktan sonra tekrar deneyin.";
+                    _logger.Warning("IndexLock", file: folder,
+                        reason: $"trigger={trigger}: kilit alınamadı" + (result.Failure is not null ? $" ({result.Failure.Message})" : string.Empty));
 
-                if (level == LogLevel.Warning)
-                {
-                    _logger.Warning(operation, file: issue.FileName, extension: issue.Extension, reason: issue.Reason);
+                    if (result.Failure is not null)
+                    {
+                        // Kilit "baskasi tutuyor" degil, .lens klasorune/erisime
+                        // dair FARKLI bir sorun (izin, ag) - ayri, daha dogru mesaj.
+                        SetIndexStatus($"İndeks klasörüne (.lens) erişilemedi: {result.Failure.Message}", success: false);
+                        if (trigger == "Manual")
+                        {
+                            AlertWindow.Show(this, $"İndeks klasörüne (.lens) erişilemedi:\n{result.Failure.Message}",
+                                "Erişim hatası", AlertKind.Warning);
+                        }
+                    }
+                    else
+                    {
+                        SetIndexStatus(lockMessage, success: false);
+                        if (trigger == "Manual")
+                        {
+                            AlertWindow.Show(this, lockMessage, "İndeks kilitli", AlertKind.Warning);
+                        }
+                    }
+
+                    // Kilit alinamadiginda hicbir scan/save baslamadi - bellekteki
+                    // (varsa) stable index DOKUNULMADAN kalir, arama onunla devam edebilir.
+                    return _indexEntries.Count > 0;
                 }
-                else
+
+                case IndexWriteOutcome.ScanFailed:
                 {
-                    _logger.Error(operation, file: issue.FileName, extension: issue.Extension, reason: issue.Reason);
+                    var scanError = result.Stats?.ScanError ?? "bilinmeyen hata";
+                    SetIndexStatus($"Klasör taranamadı: {scanError}", success: false);
+                    _logger.Error("IndexScan", file: folder, reason: $"trigger={trigger}: {scanError}");
+                    if (trigger == "Manual")
+                    {
+                        AlertWindow.Show(this,
+                            $"Ürün klasörü şu anda taranamadı (ör. ağ bağlantısı):\n{scanError}\n"
+                            + "Mevcut kayıtlı index değiştirilmedi.",
+                            "Tarama başarısız", AlertKind.Warning);
+                    }
+
+                    return _indexEntries.Count > 0;
                 }
+
+                case IndexWriteOutcome.SaveFailed:
+                {
+                    // [Network safety] entries burada YENİ (hesaplanmış ama
+                    // kaydedilememiş) liste - _indexEntries'e BİLEREK atanmıyor:
+                    // onceki guvenilir in-memory index korunur, UI/disk state'i
+                    // celiskili "guncel" gorunmesin diye sahte basari da gosterilmez.
+                    var saveError = result.Failure?.Message ?? "bilinmeyen hata";
+                    SetIndexStatus($"İndeks paylaşılan klasöre kaydedilemedi: {saveError}\nÖnceki kayıtlı index korunuyor.", success: false);
+                    _logger.Error("IndexSave", file: folder, reason: $"trigger={trigger}: {saveError}");
+                    AlertWindow.Show(this,
+                        $"İndeks paylaşılan klasöre kaydedilemedi:\n{saveError}\nÖnceki kayıtlı index korunuyor (bozulmadı).",
+                        "Kaydetme başarısız", AlertKind.Warning);
+                    return _indexEntries.Count > 0;
+                }
+
+                case IndexWriteOutcome.Updated:
+                {
+                    var entries = result.Entries;
+                    var stats = result.Stats!;
+
+                    _indexEntries = entries;
+                    _lastFreshnessCheckUtc = DateTime.UtcNow;
+                    _lastIssues = stats.Issues;
+                    _lastSuccessfulStats = stats;
+                    UpdateProblemFilesUi();
+                    UpdateStatsUi();
+
+                    ProductCountText.Text = $"{entries.Count} ürün";
+                    var summaryText = BuildSummaryText(stats, entries.Count, wasFirstCreation);
+                    var hasProblems = stats.FailedCount + stats.UnsupportedFormatCount + stats.SkippedNonImageCount > 0;
+                    SetIndexStatus(summaryText, success: !hasProblems);
+
+                    _logger.Info("IndexScan",
+                        reason: $"trigger={trigger} total={stats.TotalFilesScanned} supported={stats.SupportedImagesSeen} "
+                            + $"added={stats.Added} updated={stats.Updated} unchanged={stats.Unchanged} removed={stats.Removed} "
+                            + $"failed={stats.FailedCount} unsupported={stats.UnsupportedFormatCount} skipped={stats.SkippedNonImageCount}");
+
+                    foreach (var issue in stats.Issues)
+                    {
+                        // NonImageFile/UnsupportedImageFormat uygulama hatasi degildir
+                        // (WARNING); yalnizca gercekten decode edilmeye calisilip
+                        // basarisiz olan SupportedImageButFailed ERROR'dur.
+                        var (operation, level) = issue.Kind switch
+                        {
+                            FileIssueKind.UnsupportedImageFormat => ("UnsupportedFormat", LogLevel.Warning),
+                            FileIssueKind.NonImageFile => ("UnsupportedFile", LogLevel.Warning),
+                            _ => ("IndexingFailed", LogLevel.Error),
+                        };
+
+                        if (level == LogLevel.Warning)
+                        {
+                            _logger.Warning(operation, file: issue.FileName, extension: issue.Extension, reason: issue.Reason);
+                        }
+                        else
+                        {
+                            _logger.Error(operation, file: issue.FileName, extension: issue.Extension, reason: issue.Reason);
+                        }
+                    }
+
+                    return true;
+                }
+
+                default:
+                    return _indexEntries.Count > 0;
             }
         }
         catch (Exception ex)
@@ -346,7 +454,76 @@ public partial class MainWindow : Window
             SetIndexStatus("İndeksleme başarısız oldu.", success: false);
             _logger.Error("IndexScan", reason: $"trigger={trigger}: {ex.Message}");
             AlertWindow.Show(this, $"İndeksleme sırasında hata oluştu:\n{ex.Message}", "Hata", AlertKind.Error);
+            return _indexEntries.Count > 0;
         }
+    }
+
+    /// <summary>
+    /// [Faz 1] "Ara" oncesi index'in hazir olup olmadigini, auto-index
+    /// checkbox tercihine gore saglar. Kapaliyken hicbir scan/write yapmaz -
+    /// yalnizca bellekteki mevcut stable shared index'i kullanir. Aciksa
+    /// index yok/bos ise olusturur, TTL dolmussa DetectChanges/BuildOrUpdate
+    /// calistirir. Donus degeri: aramanin baslayip baslamayacagi.
+    /// </summary>
+    private async Task<bool> EnsureIndexReadyForSearchAsync()
+    {
+        var folder = _productFolder!;
+        var autoIndex = AutoIndexCheckBox.IsChecked == true;
+
+        if (!autoIndex)
+        {
+            if (_indexEntries.Count == 0)
+            {
+                SetIndexStatus("Kullanılabilir bir indeks bulunamadı. Lütfen 'İndeksi Güncelle / Klasörü Tara' butonunu kullanın.", success: false);
+                AlertWindow.Show(this,
+                    "Kullanılabilir bir indeks bulunamadı. Lütfen 'İndeksi Güncelle / Klasörü Tara' butonunu kullanın.",
+                    "Index yok", AlertKind.Warning);
+                return false;
+            }
+
+            return true;
+        }
+
+        if (_indexEntries.Count == 0)
+        {
+            SetIndexStatus("İndeks bulunamadı, oluşturuluyor...");
+            var created = await RunIndexUpdateAsync(trigger: "AutoCreate");
+            return created && _indexEntries.Count > 0;
+        }
+
+        var now = DateTime.UtcNow;
+        if (_lastFreshnessCheckUtc is null || now - _lastFreshnessCheckUtc >= FreshnessCheckInterval)
+        {
+            SetIndexStatus("Klasör güncelliği kontrol ediliyor...");
+            var changes = await Task.Run(() => ImageIndex.DetectChanges(folder, _logger));
+
+            if (changes.ScanError is not null)
+            {
+                SetIndexStatus(
+                    $"Klasör güncelliği kontrol edilemedi ({changes.ScanError}). Kayıtlı index ile aranıyor...",
+                    success: false);
+                _logger.Warning("FreshnessCheck", file: folder, reason: changes.ScanError);
+                // Ag gecici olarak erisilemez olabilir - kullaniciyi tamamen
+                // durdurmuyoruz, elimizdeki son bilinen index ile arama
+                // yapmaya devam ediyoruz.
+            }
+            else if (changes.HasChanges)
+            {
+                SetIndexStatus(
+                    $"Değişiklik bulundu (yeni={changes.NewCount}, değişen={changes.ChangedCount}, "
+                    + $"silinen={changes.RemovedCount}). İndeksleniyor...");
+                _logger.Info("FreshnessCheck",
+                    reason: $"new={changes.NewCount} changed={changes.ChangedCount} removed={changes.RemovedCount}");
+                await RunIndexUpdateAsync(trigger: "AutoFreshness");
+            }
+            else
+            {
+                _logger.Info("FreshnessCheck", reason: "değişiklik yok");
+                _lastFreshnessCheckUtc = now;
+            }
+        }
+
+        return _indexEntries.Count > 0;
     }
 
     /// <summary>
@@ -405,6 +582,31 @@ public partial class MainWindow : Window
         }
 
         return summary + ".";
+    }
+
+    /// <summary>
+    /// [Faz 2] Ana UI'daki ayrıntılı sayaçları gösterir - sıfır değerler dahil
+    /// (manager tam özet ister, bkz. proje talimatı). Yalnızca SON BAŞARILI
+    /// taramanın (_lastSuccessfulStats) sayıları gösterilir ve panel bunu
+    /// AÇIKÇA "son başarılı tarama" olarak etiketler - başarısız bir tarama
+    /// (lock/scan/save hatası) bu paneli SIFIRLAMAZ/YANILTMAZ, çünkü
+    /// _lastSuccessfulStats yalnızca IndexWriteOutcome.Updated durumunda
+    /// güncellenir (bkz. RunIndexUpdateAsync). Manuel ve otomatik güncelleme
+    /// AYNI yolu (RunIndexUpdateAsync -> burası) kullanır.
+    /// </summary>
+    private void UpdateStatsUi()
+    {
+        if (_lastSuccessfulStats is null)
+        {
+            DetailedStatsText.Text = "Henüz başarılı bir tarama yapılmadı.";
+            return;
+        }
+
+        var s = _lastSuccessfulStats;
+        DetailedStatsText.Text =
+            $"Son başarılı tarama — Yeni: {s.Added}   Güncellenen: {s.Updated}   Değişmeyen: {s.Unchanged}   "
+            + $"Silinen: {s.Removed}   Okunamayan: {s.FailedCount}   Desteklenmeyen görsel: {s.UnsupportedFormatCount}   "
+            + $"Desteklenmeyen dosya: {s.SkippedNonImageCount}";
     }
 
     /// <summary>[Faz 4C] "Sorunlu / Atlanan Dosyalar (N)" butonunu son sonuca göre günceller; sorun yoksa gizler.</summary>
@@ -466,21 +668,14 @@ public partial class MainWindow : Window
     {
         try
         {
-            // [Reliability] Asiri buyuk/yuksek cozunurluklu bir query gorseli
-            // arama baslatmadan ONCE burada reddedilir - CLIP embed asamasina
-            // (Task.Run icinde) hic ulasmaz.
-            ImageResourceLimits.EnsureWithinLimits(path);
+            // [Hard limit kaldirildi] Buyuk/asiri yuksek cozunurluklu gorseller
+            // artik REDDEDILMIYOR - LoadPreview zaten DecodePixelWidth=300 ile
+            // ekonomik (kucuk) bir onizleme decode eder, boyuttan bagimsiz
+            // ucuzdur. Asil embed (CLIP) asamasindaki ekonomik decode icin
+            // bkz. ImagePreprocessor.LoadForPreprocessing.
             QueryPreviewImage.Source = LoadPreview(path);
             _queryImagePath = path;
             QueryFileNameText.Text = Path.GetFileName(path);
-        }
-        catch (ImageTooLargeException)
-        {
-            _queryImagePath = null;
-            QueryPreviewImage.Source = null;
-            QueryFileNameText.Text = string.Empty;
-            AlertWindow.Show(this, "Görsel çok büyük. Lütfen daha düşük çözünürlüklü bir görsel seçin.",
-                "Görsel çok büyük", AlertKind.Warning);
         }
         catch (Exception ex)
         {
@@ -707,6 +902,9 @@ public partial class MainWindow : Window
     /// Dosya silinmis/erisilemez olabilir (UNC ag klasoru) - basarisizlik
     /// sadece bir uyari gosterir, MainWindow'u etkilemez.
     /// </summary>
+    /// <summary>[Hard limit kaldirildi] Buyuk onizlemeler icin makul bir ust decode genisligi - ekran/zoom kalitesini pratikte etkilemez, sadece asiri buyuk dosyalarda bellek/donma riskini azaltir. Tek, kolay degistirilebilir sabit.</summary>
+    private const int MaxPreviewDecodePixelWidth = 4096;
+
     private void TryOpenImagePreview(string? path)
     {
         if (string.IsNullOrEmpty(path))
@@ -716,16 +914,22 @@ public partial class MainWindow : Window
 
         try
         {
-            // [Reliability] Bu yukleme DecodePixelWidth kullanmiyor (tam
-            // cozunurluk gerekiyor) - bu yuzden asiri buyuk bir dosyada tam
-            // decode denemeden ONCE ayni guard burada da calisir (bkz.
-            // ImagePreprocessor.PreprocessToChwTensor - guard bypass edilmez).
-            ImageResourceLimits.EnsureWithinLimits(path);
-
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.UriSource = new Uri(path);
+
+            // [Hard limit kaldirildi - kesin product karari] Asiri buyuk/yuksek
+            // cozunurluklu gorseller artik REDDEDILMIYOR. Onceden burada tam
+            // cozunurlukte decode edilip limit asilirsa reddediliyordu; simdi
+            // bunun yerine yalnizca esigin USTUNDEKI dosyalar icin ekonomik
+            // (bounded) bir decode genisligi uygulanir - kucuk/normal gorseller
+            // (esigin altinda) ONCEKI ile BIREBIR AYNI (tam cozunurluk) yolu kullanir.
+            if (ImageResourceLimits.TryGetPixelCount(path) > ImageResourceLimits.LargeImagePixelHint)
+            {
+                bitmap.DecodePixelWidth = MaxPreviewDecodePixelWidth;
+            }
+
             bitmap.EndInit();
             bitmap.Freeze();
 
@@ -743,11 +947,6 @@ public partial class MainWindow : Window
                 }
             };
             preview.Show();
-        }
-        catch (ImageTooLargeException)
-        {
-            AlertWindow.Show(this, "Görsel önizleme için çok büyük (boyut sınırını aşıyor).",
-                "Önizleme açılamadı", AlertKind.Warning);
         }
         catch (Exception ex)
         {
@@ -842,11 +1041,17 @@ public partial class MainWindow : Window
         ComparisonScoreText.Foreground = (Brush)FindResource("NeutralTextBrush");
     }
 
+    /// <summary>
+    /// [Faz 1] Siralama: 1) urun klasoru, 2) sorgu gorseli, 3) threshold
+    /// validasyonu (pahali islemlerden ONCE), 4) model hazirligi, 5) auto-index
+    /// tercihine gore index hazirlama/kontrol, 6) kullanilabilir index
+    /// kontrolu, 7) threshold filtreli en fazla 15 sonuclu arama.
+    /// </summary>
     private async void SearchButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_productFolder is null || _indexEntries.Count == 0)
+        if (_productFolder is null)
         {
-            AlertWindow.Show(this, "Önce bir ürün klasörü seçip index'i güncelleyin.", "Index yok", AlertKind.Warning);
+            AlertWindow.Show(this, "Önce bir ürün klasörü seçin.", "Klasör seçilmedi", AlertKind.Warning);
             return;
         }
 
@@ -856,6 +1061,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!SimilarityThreshold.TryParse(ThresholdTextBox.Text, out var thresholdPercent))
+        {
+            ShowThresholdValidationError();
+            return;
+        }
+
+        HideThresholdValidationError();
+
         if (!TryEnsureEmbedder(out var modelError))
         {
             AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
@@ -863,68 +1076,31 @@ public partial class MainWindow : Window
         }
 
         SetBusy(true);
-
-        // [Faz 4B] Search-before-refresh: cache'e korukorune guvenme. TTL
-        // dolmadiysa (30 sn) hicbir I/O yapilmaz. Doldiyse ucuz bir
-        // metadata-only DetectChanges calisir; degisiklik varsa gercek
-        // (yalnizca degisenleri embed eden) BuildOrUpdate tetiklenir.
-        var now = DateTime.UtcNow;
-        if (_lastFreshnessCheckUtc is null || now - _lastFreshnessCheckUtc >= FreshnessCheckInterval)
-        {
-            SetIndexStatus("Klasör güncelliği kontrol ediliyor...");
-            var folder = _productFolder;
-            var changes = await Task.Run(() => ImageIndex.DetectChanges(folder, _logger));
-
-            if (changes.ScanError is not null)
-            {
-                SetIndexStatus(
-                    $"Klasör güncelliği kontrol edilemedi ({changes.ScanError}). Kayıtlı index ile aranıyor...",
-                    success: false);
-                _logger.Warning("FreshnessCheck", file: folder, reason: changes.ScanError);
-                // Ag gecici olarak erisilemez olabilir - kullaniciyi tamamen
-                // durdurmuyoruz, elimizdeki son bilinen index ile arama
-                // yapmaya devam ediyoruz.
-            }
-            else if (changes.HasChanges)
-            {
-                SetIndexStatus(
-                    $"Değişiklik bulundu (yeni={changes.NewCount}, değişen={changes.ChangedCount}, "
-                    + $"silinen={changes.RemovedCount}). İndeksleniyor...");
-                _logger.Info("FreshnessCheck",
-                    reason: $"new={changes.NewCount} changed={changes.ChangedCount} removed={changes.RemovedCount}");
-                await RunIndexUpdateAsync(trigger: "AutoFreshness");
-            }
-            else
-            {
-                _logger.Info("FreshnessCheck", reason: "değişiklik yok");
-                _lastFreshnessCheckUtc = now;
-            }
-        }
-
-        if (_indexEntries.Count == 0)
-        {
-            SetBusy(false);
-            AlertWindow.Show(this, "Bu klasörde indekslenmiş ürün yok.", "Index boş", AlertKind.Warning);
-            return;
-        }
-
-        SetIndexStatus("Aranıyor...");
-
-        var searchStopwatch = Stopwatch.StartNew();
         try
         {
+            var ready = await EnsureIndexReadyForSearchAsync();
+            if (!ready)
+            {
+                // Kullanicidan aksiyon isteyen uygun mesaj EnsureIndexReadyForSearchAsync
+                // icinde zaten gosterildi - burada sessizce durulur.
+                return;
+            }
+
+            SetIndexStatus("Aranıyor...");
+            var searchStopwatch = Stopwatch.StartNew();
+
             var queryPath = _queryImagePath;
             var entries = _indexEntries;
             var embedder = _embedder!;
 
-            var top10 = await Task.Run(() =>
+            var matches = await Task.Run(() =>
             {
                 var embedding = embedder.Embed(queryPath);
-                return SimilaritySearch.TopK(embedding, entries, 10);
+                return SimilaritySearch.SearchWithThreshold(embedding, entries, thresholdPercent);
             });
 
             _results.Clear();
-            foreach (var r in top10)
+            foreach (var r in matches)
             {
                 var fullPath = Path.Combine(_productFolder, r.RelativePath);
                 var scoreText = $"Benzerlik: {r.Score:P1}";
@@ -938,21 +1114,28 @@ public partial class MainWindow : Window
                 });
             }
 
-            // [Faz 4D] Karsilastirma alani hicbir zaman bos kalmasin diye
-            // Top-1 otomatik secilir; kullanici isterse listeden baskasina gecer.
+            searchStopwatch.Stop();
+
             if (_results.Count > 0)
             {
+                // [Faz 4D] Karsilastirma alani hicbir zaman bos kalmasin diye
+                // ilk (en yuksek skorlu) sonuc otomatik secilir; kullanici
+                // isterse listeden baskasina gecer.
                 SelectResult(_results[0]);
+                SetIndexStatus($"{matches.Count} sonuç bulundu.", success: true);
             }
             else
             {
+                // [Faz 1] No-result HATA DEGILDIR: onceki results/selection
+                // temizlenir, query gorseli ve threshold girdisi KORUNUR,
+                // modal gosterilmez - kullanici threshold'u degistirip
+                // tekrar arayabilir.
                 ClearComparison();
+                SetIndexStatus("Seçilen minimum benzerlik değerini karşılayan sonuç bulunamadı.");
             }
 
-            searchStopwatch.Stop();
-            SetIndexStatus($"{top10.Count} sonuç bulundu.", success: true);
             _logger.Info("Search", file: Path.GetFileName(queryPath),
-                reason: $"results={top10.Count} duration_ms={searchStopwatch.ElapsedMilliseconds}");
+                reason: $"results={matches.Count} threshold={thresholdPercent} duration_ms={searchStopwatch.ElapsedMilliseconds}");
         }
         catch (Exception ex)
         {
@@ -964,6 +1147,20 @@ public partial class MainWindow : Window
         {
             SetBusy(false);
         }
+    }
+
+    /// <summary>[Faz 1] Gecersiz threshold: odak hatali alana doner, sade (modal olmayan) bir mesaj gosterilir.</summary>
+    private void ShowThresholdValidationError()
+    {
+        ThresholdValidationText.Text = "Lütfen 0-100 arasında geçerli bir minimum benzerlik yüzdesi girin.";
+        ThresholdValidationText.Visibility = Visibility.Visible;
+        ThresholdTextBox.Focus();
+        ThresholdTextBox.SelectAll();
+    }
+
+    private void HideThresholdValidationError()
+    {
+        ThresholdValidationText.Visibility = Visibility.Collapsed;
     }
 
     private bool TryEnsureEmbedder(out string error)
@@ -1049,6 +1246,8 @@ public partial class MainWindow : Window
         UpdateIndexButton.IsEnabled = !busy;
         SelectQueryButton.IsEnabled = !busy;
         SearchButton.IsEnabled = !busy;
+        ThresholdTextBox.IsEnabled = !busy;
+        AutoIndexCheckBox.IsEnabled = !busy;
         SetDefaultButton.IsEnabled = !busy && _productFolder is not null && _directoryOrigin != DirectoryOrigin.UserOverride;
         ClearDefaultButton.IsEnabled = !busy;
         ProblemFilesButton.IsEnabled = !busy;

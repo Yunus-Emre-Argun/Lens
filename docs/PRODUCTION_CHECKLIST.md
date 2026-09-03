@@ -5,6 +5,73 @@ Bu doküman, `docs/DECISIONS.md` "Not Yet Decided", `docs/ROADMAP.md`'nin
 kalemlerini **tek bir aksiyon listesinde** toplar. FAZ 4G (production
 rollout) öncesi bu listenin gözden geçirilmesi önerilir.
 
+## Codex Bulguları — Açık/Bekleyen Riskler (Faz 1, 2026-09-03, henüz düzeltilmedi)
+
+Codex code review'ında tespit edilen ama bu turda **bilinçli olarak
+düzeltilmeyen** (yalnızca kayıt altına alınan) altı madde. Hiçbiri release'i
+bloklayan bir "crash/veri kaybı" riski değildir, ama production onayından
+önce gözden geçirilmelidir.
+
+- [ ] **Strict threshold epsilon.** `SimilaritySearch.SearchWithThreshold`
+  içindeki `ScoreEpsilon = 1e-4f` toleransı, float32 birikim hatasını
+  telafi etmek için eklendi ama **product owner tarafından onaylanmış bir
+  değer değil** — kullanıcı `%100` (kesin eşleşme) girdiğinde, aslında
+  `%99.99` olan bir sonuç da "dahil" sayılabilir. "Strict" (sıfır tolerans)
+  bir mod gerekip gerekmediği ve epsilon'un kesin değeri henüz onaylı
+  değil. Kod: `src/Lens.Core/Search/SimilaritySearch.cs`.
+- [ ] **Lock I/O hata ayrımı güvenilir değil.** `IndexLock.TryAcquire`,
+  "kilit başka bir yazar tarafından tutuluyor" (`IOException`, sharing
+  violation) ile "başka bir I/O sorunu" (`UnauthorizedAccessException`)
+  arasında yalnızca **exception tipine bakarak** ayrım yapıyor. Gerçek bir
+  UNC/SMB paylaşımında geçici ağ kesintisi, stale handle veya antivirüs
+  kilidi gibi durumlar da `IOException` fırlatabilir ve yanlışlıkla
+  "başka bir kullanıcı güncelliyor" olarak yorumlanabilir (kullanıcıya
+  yanıltıcı mesaj). Gerçek UNC/SMB testi (bkz. "Manuel Doğrulama" bölümü)
+  bu ayrımın pratikte ne kadar güvenilir olduğunu netleştirmeli. Kod:
+  `src/Lens.Core/Indexing/IndexLock.cs`.
+- [ ] **Legacy LocalAppData cache yan etkisi.** `AppPaths.CacheIndexFilePath`
+  (eski, artık normal operasyonda kullanılmayan LocalAppData index yolu)
+  hâlâ kodda duruyor ve **çağrıldığında side-effect'lidir**: içeride
+  `EnsureCacheDirectoryFor` çalışır, bu da `%LocalAppData%\Lens\cache\<hash>\`
+  klasörünü ve bir `meta.json` dosyasını **oluşturur** — dönen path artık
+  hiçbir yerde okunup yazılmasa bile. Bu metodu (ör. teşhis/debug amaçlı)
+  çağıran gelecekteki bir kod, farkında olmadan LocalAppData'da gereksiz
+  klasör biriktirebilir. Düzeltme opsiyonları: metodu tamamen kaldırmak
+  (yalnızca product owner onayıyla — mimari değişiklik) veya side-effect'i
+  ayrı bir metoda taşımak. Kod: `src/Lens.Core/Config/AppPaths.cs`.
+- [ ] **Panoramik/aşırı en-boy oranlı büyük görsel test edilmedi.**
+  `ImagePreprocessor.LoadForPreprocessing`'in ekonomik decode yolu
+  (`DecoderOptions.TargetSize = 448x448`) yalnızca kare/kareye-yakın büyük
+  bir sentetik görselle (8000×7500) test edildi (bkz. AiProof
+  `hardeningtest` Grup C). Çok geniş/dar en-boy oranlı (ör. 20000×1500
+  panoramik) büyük bir görselde decoder-seviyesi downsampling'in davranışı
+  ve sonraki shortest-edge/crop adımlarının bunu doğru ele alıp almadığı
+  **doğrulanmadı**.
+- [ ] **Türkçe locale'de "%100 tam eşleşme" vurgusu çalışmayabilir.**
+  `MainWindow.SearchButton_Click` içinde `IsPerfectMatch`,
+  `scoreText.EndsWith("100.0%", StringComparison.Ordinal)` ile hesaplanıyor
+  — burada `scoreText`, `{r.Score:P1}` (kullanıcının/işletim sisteminin
+  **o anki culture'ı** ile) formatlanıyor. Türkçe (`tr-TR`) culture'da
+  yüzde biçimlendirmesi ondalık ayırıcı olarak virgül kullanır ve sembol
+  yerleşimi farklı olabilir (ör. `"%100,0"`), bu yüzden İngilizce'ye özel
+  sabit `"100.0%"` dizesiyle eşleşmeyebilir — sonuç olarak **Türkçe
+  Windows'ta %100 eşleşmenin yeşil vurgusu hiç tetiklenmeyebilir**. Bu,
+  Türkçe konuşan bir fabrika kullanıcı kitlesi için gerçek bir risktir.
+  Düzeltme, ham `double`/`float` skor değerini (culture'dan bağımsız)
+  epsilon ile `1.0`'a karşılaştırmak olurdu — bu turda yapılmadı. Kod:
+  `src/Lens.Desktop/MainWindow.xaml.cs` (`SearchButton_Click`).
+- [ ] **Publish çıktısındaki `.pdb` dosyaları yerel kullanıcı yolunu
+  içeriyor.** `publish/Lens.Desktop-win-x64-manager-shared-index/` içindeki
+  `Lens.Core.pdb`/`Lens.Desktop.pdb` debug sembol dosyaları, derleme
+  makinesinin **mutlak yerel yolunu** (ör. geliştiricinin kullanıcı adını
+  içeren `C:\Users\...\Lens\...`) gömülü olarak taşıyabilir. Kaynak kodu,
+  gizli bilgi veya fabrika verisi İÇERMİYOR ama gereksiz bir bilgi sızıntısı
+  riskidir. Düzeltme: release publish için `<DebugType>none</DebugType>`
+  (veya `embedded`) ayarlamak ya da publish sonrası `.pdb` dosyalarını
+  elle silmek — bu turda yapılmadı. **Not:** `publish/` klasörünün kendisi
+  Git'e commit EDİLMEDİ (`.gitignore` ile hariç tutuluyor), bu yüzden bu
+  risk yalnızca dağıtılan çıktıyı elle paylaşan biri için geçerlidir.
+
 ## Karar Bekleyen Açık Sorular
 
 Kaynak: `docs/DECISIONS.md` "Not Yet Decided".
@@ -25,7 +92,11 @@ Kaynak: `docs/ROADMAP.md` FAZ 4E "bilerek ertelenenler".
 - [ ] Model/preprocessing cache versioning (model değişince cache'in
   otomatik geçersiz sayılması).
 - [ ] Cache içeriğinin SHA-256 ile doğrulanması.
-- [ ] Aynı anda birden fazla Lens örneğine karşı dosya kilidi/mutex.
+- [x] Aynı anda birden fazla Lens örneğine karşı dosya kilidi/mutex —
+  **Faz 1'de implement edildi** (`Lens.Core.Indexing.IndexLock`, tek-yazarlı
+  exclusive dosya kilidi, distributed lock/queue değil). Gerçek UNC share
+  üzerinde manuel acceptance hâlâ gerekiyor (aşağıdaki "Manuel Doğrulama"
+  bölümüne bakın).
 - [ ] Atomic-write'a ek "backup dosyası" geliştirmesi.
 - [ ] Dosya kimliği için boyut+zaman damgası yerine tam dosya hash'i.
 - [ ] Log gizliliği/redaction refactor'ü.
@@ -57,9 +128,17 @@ Kaynak: `docs/ROADMAP.md` FAZ 4E "bilerek ertelenenler".
   thumbnail yükleyicisi resource guard'ı çağırmıyor (bkz. `docs/ROADMAP.md`
   FAZ 4E, review notu).
 - [ ] Büyük önizleme/zoom (çift tık, tekerlek zoom, pan, ESC).
-- [ ] Top-10 seçim rengi + query/sonuç karşılaştırma akışı.
+- [ ] Sonuç kartı seçim rengi + query/sonuç karşılaştırma akışı (artık
+  Top-10 sabit değil — eşik + en fazla 15, bkz. `docs/DECISIONS.md` #60).
 - [ ] `publish/` klasörünü hedef makineye kopyalayıp çalıştırma,
   `appsettings.json`'a gerçek UNC path girme.
+- [ ] **[Faz 1]** Gerçek UNC/SMB paylaşımı üzerinde: iki farklı istasyondan
+  eşzamanlı "İndeksi Güncelle" (ikinci istasyon lock mesajını doğru
+  görmeli, hiçbir overwrite başlatmamalı); atomic save'in (`File.Replace`
+  → `Move(overwrite:true)` fallback) o spesifik dosya sunucusunda/SMB
+  sürümünde beklenen şekilde çalıştığının doğrulanması; `.lens` klasörü
+  için IT tarafından uygulanan yazma izinlerinin yeterliliği (bkz.
+  `docs/DEPLOYMENT.md` §5b).
 
 ## Ölçek Doğrulaması (FAZ 4F, henüz yapılmadı)
 

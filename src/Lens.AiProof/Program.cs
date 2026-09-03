@@ -261,8 +261,16 @@ static void RunHardeningTest()
 
     Console.WriteLine();
 
-    // ---- Grup C: buyuk/asiri cozunurluklu gorsel resource guard ----
-    Console.WriteLine("[C] Buyuk gorsel resource guard");
+    // ---- Grup C: buyuk/asiri cozunurluklu gorsel - HARD LIMIT KALDIRILDI ----
+    // [Faz 1 - kesin product karari] Onceki surumde bu grup 50MB/50MP
+    // ustundeki gorsellerin ImageTooLargeException ile REDDEDILDIGINI
+    // dogruluyordu. Bu limitler kaldirildi - gecerli bir fabrika deseni artik
+    // SADECE buyuk oldugu icin reddedilmiyor; bunun yerine esigin ustundeki
+    // dosyalar ekonomik (decoder-level downsampled) decode ile islenir (bkz.
+    // ImagePreprocessor.LoadForPreprocessing). Testler artik "reddedildi mi"
+    // yerine "artik basariyla embed ediliyor mu + eski davranis regresyonsuz
+    // mu" sorusunu dogruluyor.
+    Console.WriteLine("[C] Buyuk/asiri cozunurluklu gorsel - hard limit kaldirildi, ekonomik decode");
     string guardDir = Path.Combine(Path.GetTempPath(), "lens_guard_test_" + Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(guardDir);
     try
@@ -284,16 +292,16 @@ static void RunHardeningTest()
             {
                 using var embedder = new ClipEmbedder(modelPath);
 
-                // C1: normal kucuk gorsel -> guard hicbir sey yapmaz, embed calisir.
+                // C1: normal kucuk gorsel -> esigin ALTINDA, ONCEKI ile birebir
+                // ayni (tam cozunurluk) decode yolunu kullanir - regresyon yok.
                 try
                 {
-                    ImageResourceLimits.EnsureWithinLimits(normalImage);
                     embedder.Embed(normalImage);
-                    Check("C1 normal gorsel guard'dan gecer, embed calisir", true);
+                    Check("C1 normal gorsel sorunsuz embed edilir (regresyon yok)", true);
                 }
                 catch (Exception ex)
                 {
-                    Check("C1 normal gorsel guard'dan gecer, embed calisir", false, $"beklenmeyen exception: {ex.Message}");
+                    Check("C1 normal gorsel sorunsuz embed edilir (regresyon yok)", false, $"beklenmeyen exception: {ex.Message}");
                 }
 
                 // Sentetik/buyuk dosyalar ayri bir alt klasorde tutulur ki C4'un
@@ -301,75 +309,75 @@ static void RunHardeningTest()
                 string syntheticDir = Path.Combine(guardDir, "synthetic");
                 Directory.CreateDirectory(syntheticDir);
 
-                // C2: asiri yuksek piksel sayili (pixel-count) sentetik gorsel.
+                // C2: asiri yuksek piksel sayili (60MP) sentetik gorsel - eskiden
+                // ImageTooLargeException firlatiyordu, ARTIK KABUL EDILIYOR.
                 string hugePixelPath = Path.Combine(syntheticDir, "huge_pixels.jpg");
                 using (var huge = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgb24>(8000, 7500))
                 {
                     huge.SaveAsJpeg(hugePixelPath);
                 }
-                var hugeFileInfo = new FileInfo(hugePixelPath);
-                Check("C2a sentetik gorsel dosya boyutu limit ALTINDA (yalniz piksel testi icin)",
-                    hugeFileInfo.Length <= ImageResourceLimits.MaxFileSizeBytes,
-                    $"boyut={hugeFileInfo.Length} byte");
 
-                bool threwForPixels = false;
-                try { ImageResourceLimits.EnsureWithinLimits(hugePixelPath); }
-                catch (ImageTooLargeException) { threwForPixels = true; }
-                Check("C2b 60MP gorsel icin ImageTooLargeException firlatildi", threwForPixels);
+                Check("C2a 60MP gorsel LargeImagePixelHint UZERINDE (ekonomik decode tetiklenmeli)",
+                    ImageResourceLimits.TryGetPixelCount(hugePixelPath) > ImageResourceLimits.LargeImagePixelHint);
 
-                bool embedThrewForPixels = false;
-                try { embedder.Embed(hugePixelPath); }
-                catch (ImageTooLargeException) { embedThrewForPixels = true; }
-                Check("C2c ClipEmbedder.Embed de ayni guard'dan geciyor (bypass yok)", embedThrewForPixels);
+                bool hugePixelThrew = false;
+                Exception? hugePixelEx = null;
+                float[]? hugePixelEmbedding = null;
+                try { hugePixelEmbedding = embedder.Embed(hugePixelPath); }
+                catch (Exception ex) { hugePixelThrew = true; hugePixelEx = ex; }
+                Check("C2b 60MP gorsel ARTIK REDDEDILMEDEN embed edilir", !hugePixelThrew, hugePixelEx?.Message ?? "");
+                Check("C2c donen embedding beklenen boyutta (512, ekonomik decode CLIP ciktisini bozmuyor)",
+                    hugePixelEmbedding is not null && hugePixelEmbedding.Length == 512);
 
-                // C3: dosya-boyutu bazli limit - kucuk cozunurluklu ama > 50MB dosya
-                // (gecerli bir JPEG'in sonuna doldurma byte'lari eklenerek).
+                // C3: kucuk cozunurluklu ama >50MB dosya (gecerli bir JPEG'in
+                // sonuna doldurma byte'lari eklenerek) - eskiden dosya-boyutu
+                // limiti nedeniyle reddediliyordu, ARTIK KABUL EDILIYOR (dosya
+                // boyutuna dayali hicbir sabit esik kalmadi).
                 string hugeFilePath = Path.Combine(syntheticDir, "huge_filesize.jpg");
                 File.Copy(normalImage, hugeFilePath, overwrite: true);
                 using (var fs = new FileStream(hugeFilePath, FileMode.Append))
                 {
                     var padding = new byte[1024 * 1024];
-                    long targetExtra = ImageResourceLimits.MaxFileSizeBytes + (5 * 1024 * 1024) - new FileInfo(hugeFilePath).Length;
+                    const long TargetFileSize = 55L * 1024 * 1024;
+                    long targetExtra = TargetFileSize - new FileInfo(hugeFilePath).Length;
                     for (long written = 0; written < targetExtra; written += padding.Length)
                     {
                         fs.Write(padding, 0, (int)Math.Min(padding.Length, targetExtra - written));
                     }
                 }
-                bool threwForFileSize = false;
-                try { ImageResourceLimits.EnsureWithinLimits(hugeFilePath); }
-                catch (ImageTooLargeException) { threwForFileSize = true; }
-                Check("C3 >50MB dosya icin ImageTooLargeException firlatildi (dosya-boyutu kontrolu)", threwForFileSize);
+                bool hugeFileThrew = false;
+                Exception? hugeFileEx = null;
+                try { embedder.Embed(hugeFilePath); }
+                catch (Exception ex) { hugeFileThrew = true; hugeFileEx = ex; }
+                Check("C3 >50MB dosya ARTIK REDDEDILMEDEN embed edilir", !hugeFileThrew, hugeFileEx?.Message ?? "");
 
-                // C4: eski saglam entry + sonradan asiri buyuk hale gelen ayni dosya adi
-                // -> entry index'ten yanlislikla dusmemeli (mevcut generic catch yolu
-                // Aşama 1'deki gecici-hata korumasiyla AYNI mekanizmayi kullanir).
-                // Kendi izole klasorunde tutulur ki synthetic/ klasorundeki diger
-                // buyuk dosyalar taramaya karismasin.
+                // C4: gercekten BOZUK (corrupt) hale gelen bir urun - eskiden bu
+                // senaryo "asiri buyume" ile tetikleniyordu; artik boyut
+                // reddetmedigi icin GERCEK bir decode hatasiyla (gecersiz JPEG
+                // byte'lari) last-known-good preservation davranisi test edilir.
                 string productDirC4 = Path.Combine(guardDir, "producttest");
                 Directory.CreateDirectory(productDirC4);
                 try
                 {
                     string productImagePath = Path.Combine(productDirC4, "product.jpg");
                     File.Copy(normalImage, productImagePath, overwrite: true);
-                    var (entriesInit, statsInit) = ImageIndex.BuildOrUpdate(productDirC4, embedder);
+                    var (entriesInit, _) = ImageIndex.BuildOrUpdate(productDirC4, embedder);
                     ImageIndex.Save(productDirC4, entriesInit);
                     var originalProductEntry = entriesInit.FirstOrDefault(e => e.RelativePath == "product.jpg");
                     Check("C4a ilk indekslemede product.jpg saglam embed edildi", originalProductEntry is not null);
 
-                    File.Delete(productImagePath);
-                    File.Copy(hugePixelPath, productImagePath);
+                    File.WriteAllBytes(productImagePath, new byte[] { 0xFF, 0xD8, 0x00, 0x01, 0x02 }); // gecersiz/bozuk JPEG
                     File.SetLastWriteTimeUtc(productImagePath, DateTime.UtcNow.AddMinutes(10));
 
                     var (entriesAfter, statsAfter) = ImageIndex.BuildOrUpdate(productDirC4, embedder);
                     var preservedProductEntry = entriesAfter.FirstOrDefault(e => e.RelativePath == "product.jpg");
-                    Check("C4b asiri buyuk hale gelen product.jpg icin ESKI entry korundu (removed olmadi)",
+                    Check("C4b bozulan product.jpg icin ESKI entry korundu (removed olmadi)",
                         preservedProductEntry is not null);
-                    Check("C4c korunan entry orijinal (kucuk gorsel) embedding ile ayni",
+                    Check("C4c korunan entry orijinal embedding ile ayni",
                         preservedProductEntry is not null && originalProductEntry is not null
                         && preservedProductEntry.Embedding.SequenceEqual(originalProductEntry.Embedding));
-                    Check("C4d Issues icinde 'sinir asiyor' ifadesi geciyor (kullanici dostu mesaj)",
-                        statsAfter.Issues.Any(i => i.FileName == "product.jpg"
-                            && i.Reason.Contains("sınırı aşıyor", StringComparison.OrdinalIgnoreCase)));
+                    Check("C4d Issues icinde product.jpg icin SupportedImageButFailed var",
+                        statsAfter.Issues.Any(i => i.FileName == "product.jpg" && i.Kind == FileIssueKind.SupportedImageButFailed));
                     Check("C4e stats.Removed bu turda product.jpg'yi saymadi", statsAfter.Removed == 0);
                 }
                 finally
@@ -427,6 +435,196 @@ static void RunHardeningTest()
     finally
     {
         TryDeleteCacheAndFolder(nonImageDir);
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup E: Shared index (.lens) + tek-yazarli exclusive lock ----
+    Console.WriteLine("[E] Shared index (.lens) + exclusive writer lock");
+    string sharedDir = Path.Combine(Path.GetTempPath(), "lens_shared_test_" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(sharedDir);
+    try
+    {
+        var expectedPath = Path.Combine(sharedDir, ".lens", "index.json");
+        Check("E1 IndexPath == <ProductDir>/.lens/index.json", ImageIndex.IndexPath(sharedDir) == expectedPath);
+        Check("E2 IndexPath eski LocalAppData yolundan FARKLI (artik kullanilmiyor)",
+            ImageIndex.IndexPath(sharedDir) != Lens.Core.Config.AppPaths.CacheIndexFilePath(sharedDir));
+        Check("E3 IndexPath'i ogrenmek .lens klasoru olusturmaz (side-effect-free)",
+            !Directory.Exists(Path.Combine(sharedDir, ".lens")));
+
+        var emptyLoad = ImageIndex.Load(sharedDir);
+        Check("E4 Load (index yokken) bos liste doner ve .lens olusturmaz",
+            emptyLoad.Count == 0 && !Directory.Exists(Path.Combine(sharedDir, ".lens")));
+
+        var writerA = IndexLock.TryAcquire(sharedDir, out var failureA);
+        Check("E5 Writer A lock alabildi", writerA is not null && failureA is null);
+
+        var writerB = IndexLock.TryAcquire(sharedDir, out var failureB);
+        Check("E6 Writer A lock tutarken Writer B lock ALAMAZ", writerB is null);
+        Check("E7 Writer B basarisizligi 'baska yazar tutuyor' anlamina gelir (failure=null)", failureB is null);
+
+        var lockFileExistsWhileHeld = File.Exists(Path.Combine(sharedDir, ".lens", "index.lock"));
+        writerA?.Dispose();
+        var writerC = IndexLock.TryAcquire(sharedDir, out var failureC);
+        Check("E8 fiziksel index.lock VARKEN bile Writer A dispose sonrasi Writer C ALABILIR (fiziksel varlik != aktif kilit)",
+            lockFileExistsWhileHeld && writerC is not null && failureC is null);
+        writerC?.Dispose();
+
+        if (!File.Exists(modelPath) || !Directory.Exists(sourceImagesDir))
+        {
+            Console.WriteLine("  [ATLANDI] BuildOrUpdateWithLock uctan uca testi icin ONNX model/test gorselleri bulunamadi");
+        }
+        else
+        {
+            var sourceImage = Directory.EnumerateFiles(sourceImagesDir)
+                .FirstOrDefault(f => f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase));
+
+            if (sourceImage is null)
+            {
+                Console.WriteLine("  [ATLANDI] test gorseli bulunamadi");
+            }
+            else
+            {
+                using var embedder = new ClipEmbedder(modelPath);
+                File.Copy(sourceImage, Path.Combine(sharedDir, "urun.jpg"), overwrite: true);
+
+                var writeResult = ImageIndex.BuildOrUpdateWithLock(sharedDir, embedder);
+                Check("E9 BuildOrUpdateWithLock basarili (Updated) doner", writeResult.Outcome == IndexWriteOutcome.Updated);
+                Check("E10 kayit sonrasi index.json diskte var", File.Exists(ImageIndex.IndexPath(sharedDir)));
+
+                var (rescanEntries, rescanStats) = ImageIndex.BuildOrUpdate(sharedDir, embedder);
+                Check("E11 .lens klasoru scan'e girmiyor (TotalFilesScanned yalnizca urun.jpg)", rescanStats.TotalFilesScanned == 1);
+                Check("E12 .lens klasoru unsupported/skipped sayaclarina girmiyor",
+                    rescanStats.UnsupportedFormatCount == 0 && rescanStats.SkippedNonImageCount == 0);
+                _ = rescanEntries;
+
+                var writerD = IndexLock.TryAcquire(sharedDir, out _);
+                List<ImageIndexEntry> readerEntries = new();
+                Exception? readerEx = null;
+                try { readerEntries = ImageIndex.Load(sharedDir); }
+                catch (Exception ex) { readerEx = ex; }
+                Check("E13 writer lock tutarken reader stable index.json'u okuyabiliyor",
+                    readerEx is null && readerEntries.Count == 1);
+                writerD?.Dispose();
+
+                var writerE = IndexLock.TryAcquire(sharedDir, out _);
+                var blockedResult = ImageIndex.BuildOrUpdateWithLock(sharedDir, embedder);
+                Check("E14 baska writer lock tutarken BuildOrUpdateWithLock LockUnavailable doner",
+                    blockedResult.Outcome == IndexWriteOutcome.LockUnavailable);
+                Check("E15 LockUnavailable durumunda entries mevcut stable index'i icerir (scan/save yapilmadi)",
+                    blockedResult.Entries.Count == 1);
+                writerE?.Dispose();
+            }
+        }
+    }
+    finally
+    {
+        TryDeleteCacheAndFolder(sharedDir);
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup F: arama sozlesmesi (threshold inclusive + azalan sira + en fazla 15) ----
+    Console.WriteLine("[F] Arama sözleşmesi: threshold (inclusive) + azalan sıra + en fazla 15 sonuç");
+    {
+        static List<ImageIndexEntry> MakeEntries(params float[] scores)
+        {
+            var list = new List<ImageIndexEntry>();
+            for (int i = 0; i < scores.Length; i++)
+            {
+                // query=[1] ile dot product tam olarak scores[i] versin diye
+                // tek boyutlu embedding - model gerektirmeyen saf matematiksel test.
+                list.Add(new ImageIndexEntry { RelativePath = $"item{i}.jpg", Embedding = new[] { scores[i] } });
+            }
+
+            return list;
+        }
+
+        float[] query = { 1f };
+
+        var f1 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.80f), minSimilarityPercent: 80);
+        Check("F1 score == threshold -> dahil (inclusive boundary)", f1.Count == 1);
+
+        var f2 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.75f), minSimilarityPercent: 80);
+        Check("F2 score < threshold -> haric", f2.Count == 0);
+
+        var scores40 = Enumerable.Range(0, 40).Select(i => 1f - i * 0.01f).ToArray();
+        var f3 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores40), minSimilarityPercent: 0);
+        Check("F3 40 qualifying -> en fazla 15 sonuç", f3.Count == 15);
+        Check("F4 azalan sıralı", f3.SequenceEqual(f3.OrderByDescending(r => r.Score)));
+        Check("F5 en iyi 15 alındı (ilk 1.00, son ~0.86)",
+            Math.Abs(f3[0].Score - 1.0f) < 1e-5 && Math.Abs(f3[14].Score - 0.86f) < 1e-4);
+
+        var scores15 = Enumerable.Range(0, 15).Select(i => 0.9f - i * 0.01f).ToArray();
+        var f6 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores15), minSimilarityPercent: 0);
+        Check("F6 tam 15 qualifying -> 15", f6.Count == 15);
+
+        var scores6 = new[] { 0.9f, 0.85f, 0.7f, 0.5f, 0.3f, 0.1f };
+        var f7 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores6), minSimilarityPercent: 0);
+        Check("F7 6 qualifying -> 6 (hepsi)", f7.Count == 6);
+
+        var f8 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.1f, 0.2f), minSimilarityPercent: 99);
+        Check("F8 0 qualifying -> boş liste, exception yok", f8.Count == 0);
+
+        var f9 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.99995f), minSimilarityPercent: 100);
+        Check("F9 %100 eşiğinde küçük float farkı (0.99995) yine de DAHİL (epsilon toleransı)", f9.Count == 1);
+
+        var f10 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.9990f), minSimilarityPercent: 100);
+        Check("F10 %100 eşiğinde epsilon DIŞINDAKİ fark (0.9990) HARİÇ", f10.Count == 0);
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup G: threshold girdi validasyonu (SimilarityThreshold.TryParse) ----
+    Console.WriteLine("[G] Threshold girdi validasyonu (SimilarityThreshold.TryParse)");
+    {
+        bool Ok(string? input, double expected)
+        {
+            var ok = SimilarityThreshold.TryParse(input, out var value);
+            return ok && Math.Abs(value - expected) < 1e-9;
+        }
+
+        bool Rejects(string? input) => !SimilarityThreshold.TryParse(input, out _);
+
+        Check("G1 '80' -> geçerli, 80", Ok("80", 80));
+        Check("G2 '80,5' (TR virgül) -> geçerli, 80.5", Ok("80,5", 80.5));
+        Check("G3 '80.5' (nokta) -> geçerli, 80.5", Ok("80.5", 80.5));
+        Check("G4 '0' -> geçerli (alt sınır dahil)", Ok("0", 0));
+        Check("G5 '100' -> geçerli (üst sınır dahil)", Ok("100", 100));
+        Check("G6 boş string -> reddedilir", Rejects(""));
+        Check("G7 null -> reddedilir", Rejects(null));
+        Check("G8 'abc' (metin) -> reddedilir", Rejects("abc"));
+        Check("G9 '-5' (negatif) -> reddedilir", Rejects("-5"));
+        Check("G10 '100.1' (100'den büyük) -> reddedilir", Rejects("100.1"));
+        Check("G11 'NaN' -> reddedilir", Rejects("NaN"));
+        Check("G12 'Infinity' -> reddedilir", Rejects("Infinity"));
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup H: auto-index checkbox tercihi (UserSettings.AutoIndexBeforeSearch) ----
+    Console.WriteLine("[H] Auto-index checkbox tercihi (UserSettings.AutoIndexBeforeSearch)");
+    {
+        // Gercek %LocalAppData% dosyasini etkilememek icin, JSON semantigi
+        // dogrudan System.Text.Json ile (UserSettings'in kullandigi ayni
+        // serializer) izole biçimde test edilir - dosya sistemine dokunmaz.
+        var oldJsonWithoutField = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false}";
+        var loadedFromOld = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(oldJsonWithoutField);
+        Check("H1 eski (alani icermeyen) settings JSON'u -> AutoIndexBeforeSearch=true (geriye uyumlu varsayilan)",
+            loadedFromOld is not null && loadedFromOld.AutoIndexBeforeSearch);
+
+        var explicitFalseJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"AutoIndexBeforeSearch\":false}";
+        var loadedFalse = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(explicitFalseJson);
+        Check("H2 acik 'false' alanli JSON -> AutoIndexBeforeSearch=false (kullanicinin kapatma tercihi korunur)",
+            loadedFalse is not null && !loadedFalse.AutoIndexBeforeSearch);
+
+        var freshSettings = new Lens.Core.Config.UserSettings();
+        Check("H3 yeni olusturulan UserSettings -> varsayilan AutoIndexBeforeSearch=true", freshSettings.AutoIndexBeforeSearch);
+
+        var roundTripJson = JsonSerializer.Serialize(new Lens.Core.Config.UserSettings { AutoIndexBeforeSearch = false });
+        var roundTripped = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(roundTripJson);
+        Check("H4 false -> serialize -> deserialize round-trip false olarak korunur",
+            roundTripped is not null && !roundTripped.AutoIndexBeforeSearch);
     }
 
     Console.WriteLine();

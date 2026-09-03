@@ -9,10 +9,20 @@ ekip içi netlik için özetler.
 | Veri | Nerede tutulur | Dışarı çıkar mı? |
 |---|---|---|
 | Ürün görselleri (orijinal) | Kullanıcının seçtiği yerel klasör veya UNC ağ paylaşımı | **Hayır** — Lens bunları hiçbir zaman kopyalamaz/taşımaz/yüklemez |
-| Görsel embedding'leri (float[512]) | `%LocalAppData%\Lens\cache\<hash>\index.json` | **Hayır** — yalnızca yerel diskte |
-| Dosya adı + boyut + son değişiklik zamanı | Aynı cache dosyası (embedding ile birlikte) | **Hayır** |
-| İşlem logları (dosya adı, format, hata sebebi) | `%LocalAppData%\Lens\logs\lens-yyyyMMdd.log` | **Hayır** |
-| Query (sorgu) görseli | Kullanıcının diskte seçtiği dosya; yalnızca bellekte işlenir | **Hayır** — kaydedilmez, cache'e girmez |
+| Görsel embedding'leri (float[512]) | **[Faz 1, 2026-09-03] `<ProductDirectory>/.lens/index.json`** — yani ürün görselleriyle AYNI klasörde/paylaşımda | **Hayır bir dış servise** — ama artık yalnızca "yerel disk" değil: aynı paylaşılan klasöre erişimi olan HERKES (Lens kullanıp kullanmadığına bakılmaksızın) bu dosyayı okuyabilir. Embedding'ler görseli piksel piksel geri üretmez ama görselin bir sayısal temsilidir — paylaşım/erişim kontrolü ürün görsellerinin kendisiyle aynı seviyede olmalı |
+| Dosya adı + boyut + son değişiklik zamanı | Aynı `.lens/index.json` (embedding ile birlikte) | Aynı satırdaki not geçerli — artık paylaşılan klasörde |
+| İşlem logları (dosya adı, format, hata sebebi) | `%LocalAppData%\Lens\logs\lens-yyyyMMdd.log` | **Hayır** — bu hâlâ yalnızca yerel diskte (değişmedi) |
+| Query (sorgu) görseli | Kullanıcının diskte seçtiği dosya; yalnızca bellekte işlenir | **Hayır** — kaydedilmez, index'e girmez |
+
+**[Faz 1] Mimari not:** Eskiden (Faz 4A) her kullanıcının embedding'leri
+kendi `%LocalAppData%`'ında, yalnızca o makinede tutulurdu. Shared index
+kararıyla (bkz. `docs/DECISIONS.md` #61) bu artık ürün dizininin paylaşım
+izinlerine tabidir — bu **bilinçli bir trade-off**'tur (soğuk başlangıç
+maliyetinin istasyon başına tekrarlanmaması için), gizlilik profili
+değişikliği olarak değerlendirilmelidir. `.lens/` klasörü için ayrı,
+kısıtlı bir ACL uygulamak isteyen kurumlar bunu IT seviyesinde
+yapabilir (bkz. `docs/DEPLOYMENT.md` §5b) — Lens kendisi bir erişim
+kontrolü uygulamaz.
 
 ## Dış Servis Kullanımı
 

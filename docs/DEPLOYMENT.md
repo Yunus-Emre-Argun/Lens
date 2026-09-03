@@ -56,17 +56,49 @@ Kullanıcının kendi seçtiği klasör override'ı `%LocalAppData%\Lens\config\
 içindedir, publish klasörünün dışındadır — güncelleme bunu etkilemez (bkz.
 `docs/ARCHITECTURE.md`).
 
-## 5. Cache ve Top-10 Davranışı (güncelleme sonrası ne beklenir)
+## 5. Shared Index ve Arama Sonucu Davranışı (güncelleme sonrası ne beklenir)
 
-- Kullanıcının mevcut index/cache'i (`%LocalAppData%\Lens\cache\`) publish
-  klasörünün dışındadır — bir güncelleme bunu **silmez**. Model veya
-  preprocessing değişmediyse cache aynen kullanılmaya devam eder.
+**[Faz 1, 2026-09-03] Index artık `%LocalAppData%` DEĞİL, paylaşılan ürün
+dizininin kendi içinde** (`<ProductDirectory>/.lens/index.json`) — bkz.
+`docs/ARCHITECTURE.md`, `docs/DECISIONS.md` #61.
+
+- Kullanıcının mevcut shared index'i publish klasörünün dışındadır (ürün
+  dizininde) — bir uygulama güncellemesi bunu **silmez**. Model veya
+  preprocessing değişmediyse index aynen kullanılmaya devam eder.
 - Model dosyası değiştiyse (farklı `.onnx`), `docs/MODEL_CARD.md`'deki
-  "Model/Preprocessing Değiştiğinde Cache" talimatına göre cache'in elle
-  silinmesi gerekir — aksi halde eski embedding'ler yeni modelle karışabilir
-  (otomatik versiyon kontrolü yoktur).
-- UI, sonuçları her zaman **Top-10** olarak gösterir (Faz 4D'den beri;
-  eski "Top-5" referansları yalnızca tarihsel benchmark ölçümlerinde kalmıştır).
+  "Model/Preprocessing Değiştiğinde Cache" talimatına göre `.lens/index.json`
+  dosyasının elle silinmesi gerekir — aksi halde eski embedding'ler yeni
+  modelle karışabilir (otomatik versiyon kontrolü yoktur). **Dikkat:** bu
+  dosya artık paylaşılan bir klasördedir — silme işlemi TÜM kullanıcıları
+  etkiler, tek bir istasyonun local cache'i değildir.
+- UI artık sabit **Top-10 değil**; kullanıcının girdiği minimum benzerlik
+  eşiğini geçen sonuçlardan **en fazla 15**'i gösterir (Faz 1'den beri; eski
+  "Top-5"/"Top-10" referansları yalnızca tarihsel benchmark ölçümlerinde
+  kalmıştır). Bkz. `docs/DECISIONS.md` #60.
+- `.lens/index.json` yanında artık `.lens/index.lock` (tek-yazarlı exclusive
+  kilit dosyası) de bulunur — bu dosyanın **varlığı** aktif bir kilit
+  anlamına gelmez, yalnızca process çalışırken tuttuğu OS handle önemlidir;
+  silinmesi/elle müdahale gerekmez.
+- Eski `%LocalAppData%\Lens\cache\` altındaki local index dosyaları normal
+  operasyonda artık kullanılmıyor (otomatik silinmiyor da) — güncelleme bu
+  eski dosyalardan etkilenmez.
+
+## 5b. `.lens` Klasörü Yazma İzinleri (Faz 1)
+
+Shared index yazan her kullanıcı, paylaşılan ürün dizininde **`.lens` alt
+klasörü için** en az şu haklara ihtiyaç duyar:
+
+- Klasör/dosya oluşturma (ilk kullanımda `.lens` henüz yoksa)
+- Yazma
+- Değiştirme/yeniden adlandırma (atomic save: temp dosya → replace/move)
+- Temp dosya temizleme/silme
+
+Önerilen IT düzeni: ürün görselleri genel **read**, `.lens` teknik klasörü
+**kontrollü write** (yalnızca Lens kullanıcıları/servis hesabı). İzin
+yetersizse index güncellemesi başarısız olur ama uygulama çökmez — kullanıcı
+dostu bir hata gösterilir ve önceki (varsa) sağlam index korunur; gerçek bir
+paylaşılan (SMB) klasör üzerinde bu senaryonun **manuel kabul testi**
+gerekir (bkz. final rapor / `docs/PRODUCTION_CHECKLIST.md`).
 
 ## 6. Code Signing / Application Control
 
@@ -88,11 +120,13 @@ Otomatik bir rollback mekanizması yoktur. Önerilen yaklaşım:
    ayrı bir klasörde saklayın (örn. `publish/Lens.Desktop-win-x64-2026-09-02/`).
 2. Bir sorun çıkarsa, hedef makinedeki klasörü önceki sürümün publish
    klasörüyle **değiştirin** — `appsettings.json`'ı (madde 4'teki gibi) koruyun.
-3. `%LocalAppData%\Lens\cache\` ve `config\` klasörleri publish'ten bağımsız
-   olduğu için rollback sırasında etkilenmez; ancak yeni sürümde
-   model/preprocessing değişikliği yapıldıysa ve cache o sürümle
-   güncellendiyse, eski sürüme dönüldüğünde cache'in tutarlılığı
-   garanti değildir — şüpheli durumda cache'i silin.
+3. Shared index (`<ProductDirectory>/.lens/index.json`) ve
+   `%LocalAppData%\Lens\config\` klasörü publish'ten bağımsız olduğu için
+   rollback sırasında etkilenmez; ancak yeni sürümde model/preprocessing
+   değişikliği yapıldıysa ve index o sürümle güncellendiyse, eski sürüme
+   dönüldüğünde tutarlılık garanti değildir — şüpheli durumda
+   `.lens/index.json`'ı silin (paylaşılan dosya olduğu için bu TÜM
+   kullanıcıları etkiler, tek istasyonu değil).
 
 ## 8. Kaynak Commit ile Dağıtılan Exe'nin Eşleştirilmesi
 

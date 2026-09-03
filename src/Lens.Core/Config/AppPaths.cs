@@ -50,8 +50,34 @@ public static class AppPaths
         return cacheDir;
     }
 
+    /// <summary>
+    /// [Faz 4A - SUPERSEDED] Eski LocalAppData product index yolu. Normal
+    /// operasyonda artik OKUNMUYOR/YAZILMIYOR (bkz. SharedIndexFilePath) -
+    /// eski cache dosyalari OTOMATIK SILINMEZ, bu metod yalnizca gecmis
+    /// referans/manuel inceleme icin birakildi.
+    /// </summary>
     public static string CacheIndexFilePath(string productDirectory) =>
         Path.Combine(EnsureCacheDirectoryFor(productDirectory), CacheIndexFileName);
+
+    private const string SharedTechnicalFolderName = ".lens";
+    private const string SharedIndexFileName = "index.json";
+    private const string SharedLockFileName = "index.lock";
+
+    /// <summary>
+    /// Canonical (paylasilan) index artik urun dizininin kendi icinde:
+    /// &lt;ProductDirectory&gt;/.lens/index.json (bkz. proje talimati "Shared
+    /// server index"). Side-effect-free: bu yolu OGRENMEK ".lens" klasorunu
+    /// OLUSTURMAZ - klasor yalnizca yazan taraf (bkz. Indexing/IndexLock,
+    /// ImageIndex.Save) tarafindan gerektiginde olusturulur.
+    /// </summary>
+    public static string SharedIndexDirectory(string productDirectory) =>
+        Path.Combine(productDirectory, SharedTechnicalFolderName);
+
+    public static string SharedIndexFilePath(string productDirectory) =>
+        Path.Combine(SharedIndexDirectory(productDirectory), SharedIndexFileName);
+
+    public static string SharedIndexLockFilePath(string productDirectory) =>
+        Path.Combine(SharedIndexDirectory(productDirectory), SharedLockFileName);
 
     private static string HashProductDirectory(string productDirectory)
     {

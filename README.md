@@ -6,9 +6,10 @@ yarayan bir Windows masaüstü uygulaması.
 
 ## Amaç
 
-Kullanıcı bir ürün görseli verir (dosya seçerek veya sürükle-bırak ile).
-Sistem, seçilen ürün klasöründeki görseller arasından en benzer **10 adayı**
-(similarity score ile) listeler. Sistem kesin "bu üründür" kararı vermez;
+Kullanıcı bir ürün görseli verir (dosya seçerek veya sürükle-bırak ile) ve
+bir minimum benzerlik (%) eşiği girer. Sistem, seçilen ürün klasöründeki
+görseller arasından bu eşiği geçen (en fazla **15**) adayı (similarity
+score ile) azalan sırada listeler. Sistem kesin "bu üründür" kararı vermez;
 nihai kararı kullanıcı verir. Öncelik **recall**'dır — doğru ürünü kaçırmak,
 birkaç fazla aday göstermekten daha kötü kabul edilir.
 
@@ -16,8 +17,13 @@ birkaç fazla aday göstermekten daha kötü kabul edilir.
 
 **Bu proje henüz production onayı almamıştır.** FAZ 4A-4E (config/cache
 mimarisi, dosya tarama/hata toleransı, logging, UI, reliability hardening)
-tamamlandı; FAZ 4F (gerçek ~5000 görsellik veri setinde doğrulama) ve FAZ 4G
-(fabrika rollout) henüz yapılmadı. Detay: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+tamamlandı; ardından bir "manager requirement paketi" turu (2026-09-03)
+minimum benzerlik eşiği + en fazla 15 sonuç, shared/paylaşılan index +
+tek-yazarlı kilit, sabit 50MB/50MP reddinin kaldırılması ve auto-index
+checkbox'ını ekledi (detay: `docs/DECISIONS.md` #60-65). FAZ 4F (gerçek
+~5000 görsellik veri setinde doğrulama), FAZ 4G (fabrika rollout) ve gerçek
+UNC/SMB üzerinde manuel lock/atomic-save kabul testi henüz yapılmadı.
+Detay: [`docs/ROADMAP.md`](docs/ROADMAP.md), [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
 
 Final AI model seçimi (CLIP) hâlâ **provisional/reversible** bir karardır,
 production için kesin değildir — bkz. [`docs/DECISIONS.md`](docs/DECISIONS.md)
@@ -28,8 +34,8 @@ production için kesin değildir — bkz. [`docs/DECISIONS.md`](docs/DECISIONS.m
 ```
 WPF UI → Ürün klasörü (local / UNC) → ImageIndex (dosya tarama + hata toleransı)
        → ClipEmbedder (ImageSharp preprocessing → CLIP ONNX, CPU)
-       → %LocalAppData%\Lens\cache\ (kalıcı JSON index, atomic write)
-       → Cosine similarity (brute-force) → Top-10 sonuç
+       → <ÜrünKlasörü>\.lens\index.json (shared, atomic write, tek-yazarlı kilit)
+       → Cosine similarity (brute-force) → eşiği geçen en fazla 15 sonuç
 ```
 
 Detaylı veri akışı ve bileşen sorumlulukları için:
@@ -65,18 +71,20 @@ ayrıca değerlendirileceği için `.gitignore` ile commit dışı bırakılmı�
 (bkz. `docs/DECISIONS.md` #28). Model kaynağı, export yöntemi, giriş/çıkış
 boyutları, lisans ve doğrulama bilgileri için: [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md).
 
-## Config, Cache ve Log Konumları
+## Config, Index ve Log Konumları
 
-Uygulama hiçbir kalıcı veriyi ürün klasörünün içine yazmaz:
+**[Faz 1, 2026-09-03]** Embedding index'i artık ürün klasörünün kendi
+içindedir (paylaşılan, `.lens/index.json`) — config ve log dosyaları hâlâ
+`%LocalAppData%\Lens\` altındadır:
 
 | Ne | Nerede |
 |---|---|
 | Admin varsayılan ürün dizini | `appsettings.json` (exe yanında, salt-okunur şablon) |
-| Kullanıcı override / config | `%LocalAppData%\Lens\config\` |
-| Embedding index/cache | `%LocalAppData%\Lens\cache\<klasör-hash'i>\index.json` |
+| Kullanıcı override / config / auto-index tercihi | `%LocalAppData%\Lens\config\` |
+| **Embedding index (shared)** | `<Ürün Klasörü>\.lens\index.json` (+ `.lens\index.lock` — tek-yazarlı kilit dosyası) |
 | Log dosyaları | `%LocalAppData%\Lens\logs\lens-yyyyMMdd.log` (30 gün retention) |
 
-Detay: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) #39-45.
+Detay: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) #61-62.
 
 ## UNC Ürün Klasörü Kullanımı
 

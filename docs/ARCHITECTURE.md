@@ -40,8 +40,10 @@ gereksinim ayrımı için `docs/PROJECT_CONTEXT.md` ve `docs/PRODUCTION_REQUIREM
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │ 3. Embedding — ClipEmbedder.Embed                                    │
-│    ImageResourceLimits.EnsureWithinLimits (dosya boyutu/piksel       │
-│      sayısı guard, tam decode'dan ÖNCE)                              │
+│    ImageResourceLimits.TryGetPixelCount (header-only hint; artık     │
+│      REDDETMEZ) → esik ustundeyse ImagePreprocessor ekonomik         │
+│      (decoder-level downsampled) decode kullanir, altindaki          │
+│      gorseller ONCEKI ile birebir ayni tam-cozunurluk yolu kullanir  │
 │    → ImagePreprocessor (ImageSharp: resize 224 + center crop +      │
 │      normalize) → CHW float tensor                                  │
 │    → ONNX Runtime inference (CLIP vision encoder)                   │
@@ -50,54 +52,83 @@ gereksinim ayrımı için `docs/PROJECT_CONTEXT.md` ve `docs/PRODUCTION_REQUIREM
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ 4. Kalıcı cache — ImageIndex.Save / Load                             │
-│    %LocalAppData%\Lens\cache\<path-hash>\index.json                 │
-│    Atomic write (AtomicFileWriter: temp dosya + replace)             │
+│ 4. Kalıcı SHARED index — ImageIndex.Save / Load / BuildOrUpdateWithLock │
+│    <ProductDirectory>/.lens/index.json  (urun dizininin KENDI ICINDE, │
+│      UNC olabilir — ARTIK %LocalAppData% DEGIL, bkz. DECISIONS.md #61)│
+│    Writer: <ProductDirectory>/.lens/index.lock uzerinde exclusive    │
+│      (FileShare.None) OS handle — tek-yazarli lock, load→scan→       │
+│      update→save boyunca tutulur (Lens.Core.Indexing.IndexLock)      │
+│    Reader kilit ALMAZ; writer calisirken bile stable index.json'u    │
+│      okuyabilir                                                       │
+│    Atomic write (AtomicFileWriter: benzersiz GUID temp dosya adi +   │
+│      replace/move-overwrite fallback; hedef onceden silinmez)        │
 │    Load sırasında doğrulama: null/dimension≠512/NaN/Infinity        │
 │      → "hepsi ya da hiçbiri" ile reddedilir, güvenli rebuild'e      │
 │      düşülür (crash yok)                                             │
+│    Eski %LocalAppData%\Lens\cache\<hash>\index.json normal           │
+│      operasyonda kullanilmiyor (otomatik silinmiyor da)              │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ 5. Arama — SimilaritySearch.TopK                                     │
+│ 5. Arama — SimilaritySearch.SearchWithThreshold                      │
 │    Query görseli aynı ClipEmbedder/ImagePreprocessor pipeline'ından  │
-│      geçer (aynı guard, aynı preprocessing)                          │
+│      geçer (aynı ekonomik decode esigi, aynı preprocessing)          │
 │    Brute-force dot product (L2-normalize edilmiş vektörler için     │
-│      cosine similarity'ye eşdeğer) tüm cache üzerinde                │
-│    "Ara" öncesi search-before-refresh: DetectChanges (metadata-only, │
-│      30 saniye TTL) — gerekirse otomatik incremental BuildOrUpdate   │
+│      cosine similarity'ye eşdeğer) tüm index üzerinde                │
+│    Kullanıcının girdiği "Minimum benzerlik (%)" eşiği inclusive      │
+│      filtrelenir (float-epsilon toleranslı), azalan sıra, en fazla   │
+│      15 sonuç (bkz. DECISIONS.md #60)                                │
+│    "Ara" öncesi (auto-index checkbox açıksa) search-before-refresh:  │
+│      DetectChanges (metadata-only, 30 sn TTL) → gerekirse            │
+│      BuildOrUpdateWithLock; checkbox kapalıysa hiç scan/write yok    │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │ 6. UI — MainWindow                                                    │
-│    Top-10 sonuç grid'i + query/seçilen-sonuç karşılaştırma alanı     │
-│    Sorunlu/Atlanan Dosyalar penceresi (Issues listesi)               │
-│    Büyük önizleme/zoom penceresi (ImagePreviewWindow) — aynı         │
-│      ImageResourceLimits guard'ı burada da devrede                  │
+│    En fazla 15 sonuçluk grid (5x3) + query/seçilen-sonuç             │
+│      karşılaştırma alanı (merkez hizalı, dengeli iki sütun)          │
+│    Ayrıntılı son-başarılı-tarama sayaçları (yeni/güncellenen/        │
+│      değişmeyen/silinen/okunamayan/desteklenmeyen görsel/dosya)      │
+│    Sorunlu/Atlanan Dosyalar penceresi (Issues listesi, dosya bazlı)  │
+│    Büyük önizleme/zoom penceresi (ImagePreviewWindow) — esik         │
+│      ustundeki gorsellerde bounded DecodePixelWidth (reddetmez)     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Eşzamanlılık / Thread Modeli
 
-- Ağır işler (dizin tarama, embedding, arama) `Task.Run` ile arka plan
-  thread'inde çalışır; UI thread'i bloklanmaz.
+- Ağır işler (dizin tarama, embedding, arama, shared index load/save, kilit
+  alma denemesi) `Task.Run` ile arka plan thread'inde çalışır; UI thread'i
+  bloklanmaz — bu artık shared/UNC `.lens` I/O'sunu da kapsar (klasör
+  seçiminde/açılışta ve arama öncesi).
 - Hata durumları (UNC erişilemez, bozuk görsel, aşırı büyük görsel, bozuk
-  cache) her katmanda yakalanıp kullanıcı dostu bir mesaja çevrilir —
-  hiçbiri uygulamayı çökertmez veya "busy" durumunu kilitli bırakmaz.
-- Tek Lens örneği/tek kullanıcı varsayımı ile tasarlanmıştır; çoklu eşzamanlı
-  yazım koruması (mutex/lock) yoktur (bilinçli olarak ertelenmiş, bkz.
-  `docs/PRODUCTION_CHECKLIST.md`).
+  index, kilit alınamadı, kaydetme başarısız) her katmanda yakalanıp
+  kullanıcı dostu bir mesaja çevrilir — hiçbiri uygulamayı çökertmez veya
+  "busy" durumunu kilitli bırakmaz. Kaydetme başarısız olursa eski diskteki
+  index bozulmaz ve sahte "güncel" mesajı gösterilmez.
+- **Çoklu Lens örneği/kullanıcı artık desteklenir** (aynı paylaşılan ürün
+  dizinine karşı): tek-yazarlı exclusive dosya kilidi (`IndexLock`,
+  `.lens/index.lock`) eşzamanlı yazımı engeller; okuma kilitsizdir. Bu,
+  distributed lock/queue/servis GEREKTİRMEYEN minimal bir dosya-tabanlı
+  kilit — bkz. `docs/DECISIONS.md` #62.
 
 ## Depolama Modeli
 
 - **Vector database / SQLite yok** — embedding'ler düz bir JSON dosyasında
   tutulur, arama brute-force'tur. Bu ölçek (~5000 görsele kadar) için yeterli
   kabul edilmiştir (bkz. `docs/DECISIONS.md` #23, #32).
-- Her ürün dizini kendi cache dosyasına sahiptir (dizin yolundan türetilen
-  hash ile anahtarlanır) — aynı dizine dönüldüğünde cache yeniden kullanılır,
-  farklı dizinler birbirini etkilemez.
+- Canonical index artık **ürün dizininin kendi içinde**:
+  `<ProductDirectory>/.lens/index.json` — dizin yoluna göre türetilen
+  LocalAppData hash'li cache DEĞİL (bkz. `docs/DECISIONS.md` #61). Aynı
+  paylaşılan dizine bağlanan tüm kullanıcılar/PC'ler AYNI index dosyasını
+  görür.
+  `Lens.Core.Config.AppPaths.SharedIndexFilePath` yolun kendisini üretmek
+  side-effect-free'dir; `.lens` klasörü yalnızca yazan taraf tarafından
+  gerektiğinde oluşturulur.
+- Config (`appsettings.json`) ve user settings/logs hâlâ
+  `%LocalAppData%\Lens\` altında — yalnızca embedding index'i taşındı.
 - Cache, model/preprocessing sürümünü etiketlemez (bkz. `docs/MODEL_CARD.md`
   "Model/Preprocessing Değiştiğinde Cache").
 
@@ -109,4 +140,7 @@ değerlendirilir (bkz. `docs/PRODUCTION_CHECKLIST.md`):
 - Brute-force cosine similarity (ANN/vector DB yok).
 - Dosya kimliği: `RelativePath + FileSizeBytes + LastWriteTimeUtc` (tam
   içerik hash'i değil).
-- Tek makine/tek kullanıcı; merkezi bir index/servis yok.
+- Merkezi bir servis/veritabanı yok — "shared index" yalnızca paylaşılan
+  klasördeki bir JSON dosyası + basit dosya kilidi (Faz 1); gerçek bir
+  concurrency altyapısı (queue, distributed lock, DB) bilinçli olarak
+  kurulmadı.
