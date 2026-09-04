@@ -628,6 +628,48 @@ static void RunHardeningTest()
     }
 
     Console.WriteLine();
+
+    // ---- Grup I: tema tercihi (UserSettings.Theme) - JSON sozlesmesi ----
+    // NOT: AppTheme enum'u ve ParseTheme (bilinmeyen/gecersiz -> Normal
+    // guvenli donusu) Lens.Desktop projesindedir; Lens.AiProof (bu konsol
+    // araci) BILEREK yalnizca Lens.Core'a referans verir (bkz. csproj) - bu
+    // yuzden burada test edilen SADECE UserSettings.Theme'in JSON okuma/
+    // yazma sozlesmesidir (varsayilan deger, alan korunumu). ParseTheme'in
+    // kendisi ve gercek ekran gecisi manuel/UI Automation ile dogrulandi
+    // (bkz. CHANGELOG.md / final rapor).
+    Console.WriteLine("[I] Tema tercihi (UserSettings.Theme) - JSON sozlesmesi");
+    {
+        var oldJsonWithoutTheme = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"AutoIndexBeforeSearch\":true}";
+        var loadedFromOld = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(oldJsonWithoutTheme);
+        Check("I1 eski (Theme alanini icermeyen) settings JSON'u -> Theme='Normal' (geriye uyumlu varsayilan)",
+            loadedFromOld is not null && loadedFromOld.Theme == "Normal");
+
+        var explicitThemeJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"Theme\":\"Koyu\"}";
+        var loadedKoyu = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(explicitThemeJson);
+        Check("I2 acik 'Koyu' alanli JSON -> Theme='Koyu' (kullanicinin secimi korunur)",
+            loadedKoyu is not null && loadedKoyu.Theme == "Koyu");
+
+        var freshSettings = new Lens.Core.Config.UserSettings();
+        Check("I3 yeni olusturulan UserSettings -> varsayilan Theme='Normal'", freshSettings.Theme == "Normal");
+
+        var roundTripJson = JsonSerializer.Serialize(new Lens.Core.Config.UserSettings { Theme = "Lime" });
+        var roundTripped = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(roundTripJson);
+        Check("I4 'Lime' -> serialize -> deserialize round-trip korunur",
+            roundTripped is not null && roundTripped.Theme == "Lime");
+
+        // Tema kaydi diger alanlari (AutoIndexBeforeSearch, UserOverride) EZMEMELI -
+        // Load->degistir->Save akisinin (bkz. MainWindow.SetTheme) dayandigi sozlesme.
+        var combinedJson = "{\"UserOverrideProductDirectory\":\"C:\\\\urunler\",\"UseUserOverride\":true,\"AutoIndexBeforeSearch\":false,\"Theme\":\"AcikSepya\"}";
+        var loadedCombined = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(combinedJson);
+        Check("I5 Theme ile birlikte AutoIndexBeforeSearch/UserOverride alanlari da korunur",
+            loadedCombined is not null
+            && loadedCombined.Theme == "AcikSepya"
+            && !loadedCombined.AutoIndexBeforeSearch
+            && loadedCombined.UseUserOverride
+            && loadedCombined.UserOverrideProductDirectory == "C:\\urunler");
+    }
+
+    Console.WriteLine();
     Console.WriteLine($"=== Sonuc: {passed} PASS, {failed} FAIL ===");
     if (failed > 0)
     {

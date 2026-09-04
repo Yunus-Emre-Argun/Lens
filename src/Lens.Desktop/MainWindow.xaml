@@ -5,40 +5,37 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Lens.Desktop"
         mc:Ignorable="d"
-        Background="#FF64748B"
+        Background="{DynamicResource MainBackgroundBrush}"
         Title="Lens - Ürün Görsel Arama (MVP)" Height="840" Width="1060" MinHeight="680" MinWidth="860">
     <Window.Resources>
+        <!-- Sabit (temadan bagimsiz) renkler: mavi vurgu ve sorgu panelinin
+             notr/koyu cercevesi TUM temalarda ayni kalir (bkz. talimat "Query'nin
+             notr/koyu cercevesi ve secilen sonucun mavi vurgusu ayirt edilebilir
+             kalmali"). Kart/gorsel yuzeyleri de her zaman beyaz kaldigindan bu
+             renkler zeminden bagimsiz olarak calisir. -->
         <SolidColorBrush x:Key="AccentBrush" Color="#FF2F6FED" />
         <SolidColorBrush x:Key="AccentBrushLight" Color="#FFEAF1FE" />
-        <SolidColorBrush x:Key="SuccessBrush" Color="#FF2E7D32" />
-        <SolidColorBrush x:Key="WarningBrush" Color="#FFB00020" />
-        <SolidColorBrush x:Key="NeutralTextBrush" Color="#FF222222" />
-        <SolidColorBrush x:Key="SectionHeaderBrush" Color="#FF333333" />
-        <!-- Sorgu paneli icin sabit, koyu-notr "bu benim referansim" rengi -
-             AccentBrush (mavi) yalnizca Selected Result / secili Top-10 karti
-             icin kullanilir, boylece iki rol hicbir zaman karismaz. -->
         <SolidColorBrush x:Key="NeutralBorderBrush" Color="#FF3A3A3A" />
-        <!-- Ana pencere zemini artik koyu slate (#FF64748B) - beyaz/acik desenlerin
-             zeminden ayrisip belirginlesmesi icin. Ust kontrol/durum/sayac ve alt bilgi
-             satirlari bu acik panel rengi uzerinde tutulur ki okunabilirlik bozulmasin;
-             sonuc kartlari ve sorgu/secilen-sonuc gorsel alanlari ayrica saf beyaz kalir. -->
-        <SolidColorBrush x:Key="LightPanelBrush" Color="#FFF5F6F8" />
-        <!-- Koyu slate zemin uzerinde (Satir 4 karsilastirma etiketleri + Satir 5 sonuc
-             basligi - bilerek acik panelin DISINDA, boylece beyaz gorsel kartlari zeminden
-             ayrisir) okunabilirlik icin acik renkli metin - beyaz zeminli TextBox/TextBlock'lar
-             (dosya adlari vb.) etkilenmez, sadece bu iki satirdaki ilgili elemanlara lokal
-             Foreground override'i ile uygulanir. -->
-        <SolidColorBrush x:Key="OnDarkTextBrush" Color="White" />
-        <SolidColorBrush x:Key="OnDarkSecondaryTextBrush" Color="#FFDCE1E8" />
-        <!-- ComparisonScoreText (Satir 4, koyu zemin uzerinde) icin NeutralTextBrush/SuccessBrush'in
-             koyu-zemin-uyumlu karsiliklari - MainWindow.xaml.cs SelectResult/ClearComparison
-             icinde kullanilir, boylece %100 esleme vurgusu koyu zeminde de okunur kalir. -->
-        <SolidColorBrush x:Key="OnDarkSuccessBrush" Color="#FF7CE495" />
+
+        <!-- Tema-bagimli renkler: baslangic degerleri "Normal" temasidir (bkz.
+             Lens.Desktop.AppTheme/ThemePalette). MainWindow.SetTheme burada AYNI
+             anahtarlari YENI SolidColorBrush nesneleriyle degistirir (Resources[key]=...)
+             - DynamicResource kullanan her yerde (Style Setter'lari dahil) aninda
+             gunceller. NeutralBackgroundBrush/kart ici metinler BU KAYNAKLARI
+             KULLANMAZ (ayri, sabit kaynak - bkz. SelectableFileNameStyle varsayilan
+             Foreground'u), boylece "kart ici koyu yazi" ile "ana zemin uzerindeki
+             yazi" hep farkli kaynaklardan gelir. -->
+        <SolidColorBrush x:Key="MainBackgroundBrush" Color="#FF64748B" />
+        <SolidColorBrush x:Key="NeutralTextBrush" Color="White" />
+        <SolidColorBrush x:Key="SectionHeaderBrush" Color="White" />
+        <SolidColorBrush x:Key="SecondaryTextBrush" Color="#FFDCE1E8" />
+        <SolidColorBrush x:Key="SuccessBrush" Color="#FF7CE495" />
+        <SolidColorBrush x:Key="WarningBrush" Color="#FFFF8A80" />
 
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource SectionHeaderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SectionHeaderBrush}" />
             <Setter Property="Margin" Value="0,0,0,6" />
         </Style>
 
@@ -106,12 +103,6 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Ust kontrol + durum + sayaclar + sorgu/karsilastirma cubugu (Satir 0-3) icin
-             tek parca acik panel zemin - koyu slate ana zeminin uzerinde metin okunabilirligi
-             icin. Grid'de daha sonra eklenen kardesler ustunde cizildiginden sadece arka plan
-             gorevi gorur, mevcut satir/icerik yerlesimine dokunmaz. -->
-        <Border Grid.Row="0" Grid.RowSpan="4" Background="{StaticResource LightPanelBrush}" />
-
         <!-- Ust kontrol - Satir 1: klasor secimi + esneyen path + menu -->
         <Grid Grid.Row="0" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
@@ -128,6 +119,24 @@
                 <Button.ContextMenu>
                     <ContextMenu Placement="Bottom">
                         <MenuItem Header="Ayarlar" Click="SettingsMenuItem_Click" />
+                        <!-- [Tema turu] Alt menu Normal butondan ayri, "check" ile
+                             hangi temanin secili oldugu her zaman gorunur (bkz.
+                             MainWindow.UpdateThemeMenuChecks). Tag, ThemeMenuItem_Click
+                             icinde AppTheme'e cevrilen sabit string anahtar. -->
+                        <MenuItem Header="Arka Plan">
+                            <MenuItem x:Name="ThemeMenuItem_Acik" Header="Açık" Tag="Acik"
+                                      IsCheckable="True" Click="ThemeMenuItem_Click" />
+                            <MenuItem x:Name="ThemeMenuItem_Normal" Header="Normal" Tag="Normal"
+                                      IsCheckable="True" Click="ThemeMenuItem_Click" />
+                            <MenuItem x:Name="ThemeMenuItem_Koyu" Header="Koyu" Tag="Koyu"
+                                      IsCheckable="True" Click="ThemeMenuItem_Click" />
+                            <MenuItem x:Name="ThemeMenuItem_AcikSepya" Header="Açık Sepya" Tag="AcikSepya"
+                                      IsCheckable="True" Click="ThemeMenuItem_Click" />
+                            <MenuItem x:Name="ThemeMenuItem_KoyuSepya" Header="Koyu Sepya" Tag="KoyuSepya"
+                                      IsCheckable="True" Click="ThemeMenuItem_Click" />
+                            <MenuItem x:Name="ThemeMenuItem_Lime" Header="Lime (Deneme)" Tag="Lime"
+                                      IsCheckable="True" Click="ThemeMenuItem_Click" />
+                        </MenuItem>
                         <MenuItem Header="Log Klasörünü Aç" Click="OpenLogFolderMenuItem_Click" />
                         <Separator />
                         <MenuItem Header="Hakkında" Click="AboutMenuItem_Click" />
@@ -144,9 +153,10 @@
              pencerede gozlemlendi/duzeltildi). WrapPanel'de elemanlar asla sikismaz - yer kalmayinca
              sadece bir sonraki satira gecer. -->
         <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBlock x:Name="ProductCountText" Text="Klasör seçilmedi" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <TextBlock x:Name="ProductCountText" Text="Klasör seçilmedi" VerticalAlignment="Center" FontWeight="SemiBold"
+                       Margin="0,0,0,6" Foreground="{DynamicResource NeutralTextBrush}" />
             <TextBlock x:Name="DirectorySourceText" Text="" VerticalAlignment="Center"
-                       Margin="10,0,16,6" FontStyle="Italic" Foreground="#FF777777" />
+                       Margin="10,0,16,6" FontStyle="Italic" Foreground="{DynamicResource SecondaryTextBrush}" />
             <Button x:Name="SetDefaultButton" Content="Bu Klasörü Varsayılan Yap" Padding="8,2" VerticalAlignment="Center"
                     Margin="0,0,8,6" Click="SetDefaultButton_Click" IsEnabled="False" />
             <Button x:Name="ClearDefaultButton" Content="Varsayılanı Temizle" Padding="8,2" VerticalAlignment="Center"
@@ -155,15 +165,20 @@
             <Button x:Name="UpdateIndexButton" Content="İndeksi Güncelle / Klasörü Tara" Padding="10,4" VerticalAlignment="Center"
                     Margin="0,0,10,6" Click="UpdateIndexButton_Click" />
             <TextBlock x:Name="IndexStatusText" Text="—" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="380"
-                       Margin="0,0,10,6" Foreground="{StaticResource NeutralTextBrush}" />
+                       Margin="0,0,10,6" Foreground="{DynamicResource NeutralTextBrush}" />
+            <!-- ProblemFilesButton native (temadan bagimsiz, hep acik gri) buton
+                 yuzeyi uzerinde durur - WarningBrush artik tema-bagimli oldugundan
+                 buraya BILEREK sabit/hardcoded kirmizi kullanilir (aksi halde
+                 Normal/Koyu/Sepya temalarinda acik yuzeyli butonda solgun/okunmaz
+                 kalirdi). -->
             <Button x:Name="ProblemFilesButton" Content="Sorunlu / Atlanan Dosyalar (0)" Padding="6,2" VerticalAlignment="Center"
                     Margin="0,0,0,6" Click="ProblemFilesButton_Click" Visibility="Collapsed"
-                    Foreground="{StaticResource WarningBrush}" />
+                    Foreground="#FFB00020" />
         </WrapPanel>
 
         <!-- Ust kontrol - Satir 3: ayrintili son basarili tarama istatistikleri (sifir sayimlar dahil, manager tam ozet ister) -->
         <TextBlock Grid.Row="2" x:Name="DetailedStatsText" Text="Henüz başarılı bir tarama yapılmadı."
-                   TextWrapping="Wrap" FontSize="11" Foreground="#FF555555" Margin="0,0,0,14" />
+                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,14" />
 
         <!-- Sorgu aksiyon cubugu: threshold + auto-index kontrolu ayni arama grubunda, Ara butonunun yaninda -->
         <StackPanel Grid.Row="3" Margin="0,0,0,8">
@@ -184,20 +199,27 @@
                 <Button x:Name="NewSearchButton" Content="Yeni Arama" Style="{StaticResource QueryActionButtonStyle}"
                         Margin="0,0,0,6" Click="NewSearchButton_Click" />
             </WrapPanel>
-            <TextBlock x:Name="ThresholdValidationText" Text="" Foreground="{StaticResource WarningBrush}"
+            <TextBlock x:Name="ThresholdValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
                        FontSize="11" Margin="0,4,0,0" Visibility="Collapsed" />
         </StackPanel>
 
-        <!-- Karsilastirma alani: sorgu + secilen sonuc, iki esit sutunda MERKEZ hizali (dengeli, sol/sag bos alan yok) -->
-        <Grid Grid.Row="4" Margin="0,0,0,14">
+        <!-- Karsilastirma alani: sorgu + secilen sonuc TEK bir grup olarak pencerede
+             birlikte ortalanir (dis Grid'in kendisi HorizontalAlignment=Center ile
+             sadece grubun dogal genisligi (220+40+220) kadar yer kaplar - iki ayri
+             "*" sutunda BAGIMSIZ ortalama DEGIL, boylece pencere genisledikce
+             aradaki 40 DIP sabit kalir, fazla alan grubun disina/iki yanina esit
+             dagilir). Auto+sabit+Auto sutunlari: ortadaki bosluk sutunu icerik
+             tasimaz, sadece mesafe verir. -->
+        <Grid Grid.Row="4" Margin="0,0,0,14" HorizontalAlignment="Center">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="40" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+            <StackPanel Grid.Column="0">
                 <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" Margin="0,0,0,4" HorizontalAlignment="Center"
-                           Foreground="{StaticResource OnDarkTextBrush}" />
+                           Foreground="{DynamicResource NeutralTextBrush}" />
                 <Border x:Name="QueryDropZone" BorderBrush="{StaticResource NeutralBorderBrush}" BorderThickness="2" Width="220" Height="220"
                         Background="White" AllowDrop="True" Cursor="Hand"
                         DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragOver"
@@ -206,22 +228,22 @@
                     <Image x:Name="QueryPreviewImage" Stretch="Uniform" Margin="4" />
                 </Border>
                 <TextBox x:Name="QueryFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
-                         Foreground="{StaticResource OnDarkSecondaryTextBrush}" />
+                         Foreground="{DynamicResource SecondaryTextBrush}" />
                 <TextBlock x:Name="QueryDropHintText" Text="Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt" FontStyle="Italic"
-                           Foreground="{StaticResource OnDarkSecondaryTextBrush}" FontSize="11" Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" Width="220" />
+                           Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" Width="220" />
             </StackPanel>
 
-            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+            <StackPanel Grid.Column="2">
                 <TextBlock Text="Seçilen Sonuç" FontWeight="SemiBold" Margin="0,0,0,4" HorizontalAlignment="Center"
-                           Foreground="{StaticResource OnDarkTextBrush}" />
+                           Foreground="{DynamicResource NeutralTextBrush}" />
                 <Border x:Name="ComparisonResultBorder" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="220" Height="220"
                         Background="White" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
                     <Image x:Name="ComparisonResultImage" Stretch="Uniform" Margin="4" />
                 </Border>
                 <TextBox x:Name="ComparisonFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
-                         Foreground="{StaticResource OnDarkSecondaryTextBrush}" />
+                         Foreground="{DynamicResource SecondaryTextBrush}" />
                 <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" Margin="0,4,0,0" HorizontalAlignment="Center"
-                           Foreground="{StaticResource OnDarkTextBrush}" />
+                           Foreground="{DynamicResource NeutralTextBrush}" />
             </StackPanel>
         </Grid>
 
@@ -234,11 +256,25 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <TextBlock Grid.Row="0" Text="EN BENZER SONUÇLAR (EN FAZLA 15)" Style="{StaticResource SectionHeaderStyle}"
-                       Foreground="{StaticResource OnDarkTextBrush}" />
-            <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1" Background="White">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="ResultsItemsControl" Margin="4">
+            <TextBlock Grid.Row="0" Text="EN BENZER SONUÇLAR (EN FAZLA 15)" Style="{StaticResource SectionHeaderStyle}" />
+            <!-- Background BILEREK yok (transparan) - dolu/az sonuclu durumda kartlarin
+                 ALTINDAKI/ETRAFINDAKI bos alan artik ana pencere zemini ile birlesir
+                 (buyuk sabit beyaz blok kaldirildi). Kartlarin kendisi (ResultCardBorderStyle)
+                 hala saf beyaz - zeminden ayrisir. Ince BorderBrush yalnizca viewport'un
+                 sinirini gostermek icin kalir, tema-bagimsiz notr gri. -->
+            <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1">
+                <ScrollViewer x:Name="ResultsScrollViewer" VerticalScrollBarVisibility="Auto">
+                    <!-- VerticalAlignment=Top: ItemsControl/UniformGrid artik ScrollViewer'in
+                         verdigi TUM kalan yuksekligi doldurmaya ZORLANMIYOR - yalnizca
+                         kartlarin DOGAL (icerige gore) yuksekligini kaplar ve viewport'un
+                         USTUNE hizalanir. Bu, az sonucta (orn. 1-2 kart) secili kartin mavi
+                         cercevesinin/arka planinin bos alani doldurmak icin asagiya dogru
+                         gereksiz uzamasinin KOK NEDENIYDI (UniformGrid, kendisine verilen
+                         ARRANGE boyutunu satir sayisina bolerek hucre yuksekligini hesaplar -
+                         Stretch ile bu boyut viewport'un tamamiydi). Yatay eksen etkilenmez,
+                         5 sutun hala mevcut genisligi paylasir (kapsamli responsive redesign
+                         yapilmadi). -->
+                    <ItemsControl x:Name="ResultsItemsControl" Margin="4" VerticalAlignment="Top">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <UniformGrid Columns="5" />
@@ -269,10 +305,9 @@
             </Border>
         </Grid>
 
-        <!-- Alt bilgi: koyu slate zeminde okunabilirlik icin acik panel uzerinde -->
-        <Border Grid.Row="6" Margin="0,8,0,0" Background="{StaticResource LightPanelBrush}" Padding="6,3">
-            <TextBlock FontStyle="Italic" Foreground="#FF555555"
-                        Text="Sistem kesin eşleşme belirtmez; en yakın adaylar listelenir. Son kararı kullanıcı verir." />
-        </Border>
+        <!-- Alt bilgi: artik ayri bir acik panel/blok degil - ana pencere zeminiyle
+             birlesir, metin rengi DynamicResource ile temaya gore okunabilir kalir. -->
+        <TextBlock Grid.Row="6" Margin="0,8,0,0" FontStyle="Italic" Foreground="{DynamicResource SecondaryTextBrush}"
+                    Text="Sistem kesin eşleşme belirtmez; en yakın adaylar listelenir. Son kararı kullanıcı verir." />
     </Grid>
 </Window>

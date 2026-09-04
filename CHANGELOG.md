@@ -8,6 +8,60 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Görsel Güncelleme — Tema Seçenekleri, Kart Yerleşimi, Kaydırma Düzeltmesi] — 2026-09-04
+
+### Eklendi
+- **Arka plan teması menüsü** (⋮ → Arka Plan): Açık (`#F5F6F8`), Normal
+  (`#64748B`, varsayılan), Koyu (`#334155`), Açık Sepya (`#E8DCC8`), Koyu
+  Sepya (`#705C46`), Lime — Deneme (`#D4E157`). Seçili tema menüde
+  işaretli görünür, seçim anında uygulanır (yeniden başlatma gerekmez) ve
+  kullanıcının kendi `user-settings.json` dosyasında (`Theme` alanı)
+  kalıcı olur — shared index/ürün klasörüne yazılmaz, diğer kullanıcıları
+  etkilemez. Bilinmeyen/eski (alanı içermeyen) değer güvenle "Normal"e
+  döner. Tema değişimi query/sonuçlar/seçili kart/threshold/tarama
+  istatistiklerine dokunmaz, indeksleme tetiklemez.
+- Sorgu/seçilen sonuç görsel çifti artık pencerede **tek bir grup olarak
+  birlikte ortalanır** (aralarında sabit ~40 DIP boşluk), önceden iki
+  bağımsız `*` sütunda ayrı ayrı ortalanıp pencere büyüdükçe birbirinden
+  uzaklaşıyorlardı.
+
+### Düzeltildi
+- **Az sonuçlu aramada seçili kartın mavi çerçevesi artık sonuç alanının
+  sonuna kadar boşuna uzamıyor** — kök neden: `UniformGrid`, kendisine
+  `ScrollViewer` tarafından verilen (içerikten daha büyük olabilen)
+  ARRANGE boyutunu satır sayısına bölerek hücre yüksekliğini hesaplıyordu;
+  `ResultsItemsControl`'e `VerticalAlignment="Top"` eklenerek liste artık
+  yalnızca kendi doğal içerik yüksekliğini kaplıyor. Thumbnail boyutu
+  1-15 sonuç arasında tutarlı kalır, uzun dosya adları kesilmez.
+- **Yeni arama sonuç viewport'unu artık her zaman en baştan gösteriyor** —
+  önceden bir aramanın sonuçları aşağı kaydırıldıktan sonra yeni bir arama
+  (aynı sorgu + farklı eşik dahil), yeni sorgu görseli (dosya seçimi veya
+  sürükle-bırak), "Yeni Arama" veya ürün klasörü değişimi eski kaydırma
+  konumunu koruyordu; ilk satır/kart bazen kırpılmış görünüyordu. Adı artık
+  `ResultsScrollViewer` olan viewport, bu dört durumda `Dispatcher.Loaded`
+  önceliğiyle tek seferlik `ScrollToTop()` ile sıfırlanır (sürekli bir
+  olay aboneliği DEĞİLDİR — kullanıcının sonradan yaptığı manuel kaydırmayı
+  geri almaz). Geçersiz girdi (klasör/görsel/threshold eksik) veya arama
+  sırasında hata oluşması mevcut ekranı/kaydırmayı etkilemez; kart seçimi,
+  önizleme, tema değişimi ve pencere yeniden boyutlandırma kaydırmayı
+  sıfırlamaz.
+
+### Değişti (mimari, salt UI)
+- Ana pencerenin boş çalışma alanları (üst kontrol/durum/sayaç şeridi,
+  sorgu-eşik çubuğu, sonuç viewport'unun boş kısımları, alt bilgi) artık
+  ayrı sabit açık panel blokları DEĞİL — doğrudan seçili temanın zemin
+  rengiyle bütünleşir. Sonuç kartları, thumbnail yüzeyleri ve sorgu/
+  seçilen-sonuç görsel kutuları her temada nötr beyaz kalır. Renk
+  kaynakları (`NeutralTextBrush`, `SectionHeaderBrush`, `SecondaryTextBrush`,
+  `SuccessBrush`, `WarningBrush`, `MainBackgroundBrush`) artık tema
+  değişiminde `DynamicResource` ile canlı güncellenir; mavi vurgu (`AccentBrush`)
+  ve sorgu panelinin nötr/koyu çerçevesi (`NeutralBorderBrush`) temadan
+  bağımsız sabit kalır. Yeni `Lens.Desktop.AppTheme`/`ThemePalette` (yalnızca
+  UI katmanı) ve `UserSettings.Theme` (Lens.Core, varsayılan `"Normal"`)
+  eklendi.
+
+Detay: `docs/DECISIONS.md` #67-#69.
+
 ## [Görsel Güncelleme — Zemin Rengi Kontrastı] — 2026-09-04
 
 ### Değişti

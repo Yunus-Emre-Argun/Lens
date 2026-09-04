@@ -23,6 +23,20 @@ public sealed class UserSettings
     /// </summary>
     public bool AutoIndexBeforeSearch { get; set; } = true;
 
+    /// <summary>
+    /// [Görsel güncelleme - tema turu] Kullanicinin ana pencere arka plan
+    /// tercihi ("Acik"/"Normal"/"Koyu"/"AcikSepya"/"KoyuSepya"/"Lime" - bkz.
+    /// Lens.Desktop.AppTheme). Salt UI tercihidir, shared index/urun
+    /// klasorune YAZILMAZ ve baska bir kullaniciyi etkilemez - yalnizca bu
+    /// bilgisayarin LocalAppData'sindaki bu dosyada tutulur. Varsayilan
+    /// "Normal"; eski (bu alani icermeyen) bir dosya yuklendiginde de
+    /// AutoIndexBeforeSearch ile ayni geriye-uyumlu mantikla "Normal" kabul
+    /// edilir. Bilinmeyen/gecersiz bir deger MainWindow.ParseTheme
+    /// tarafindan guvenle "Normal"e cevrilir - bu alanin kendisi hicbir
+    /// dogrulama yapmaz (dumduz string).
+    /// </summary>
+    public string Theme { get; set; } = "Normal";
+
     public static UserSettings Load(ILensLogger? logger = null)
     {
         try

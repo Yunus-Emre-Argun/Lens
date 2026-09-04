@@ -8,6 +8,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Lens.Core.Ai;
 using Lens.Core.Config;
 using Lens.Core.Indexing;
@@ -48,6 +49,15 @@ public partial class MainWindow : Window
     /// <summary>[Faz 1] Son BAŞARILI taramanın istatistikleri - başarısız bir tarama bunu değiştirmez (bkz. RunIndexUpdateAsync / UpdateStatsUi, Faz 2).</summary>
     private IndexUpdateStats? _lastSuccessfulStats;
 
+    /// <summary>[Tema turu] Aktif tema - menu check-state'i ve tema degisiminde ekranda zaten
+    /// gorunen (imperatif atanmis) renklerin yeniden uygulanmasi icin tutulur.</summary>
+    private AppTheme _currentTheme = AppTheme.Normal;
+
+    /// <summary>[Tema turu] SetIndexStatus'un en son success parametresi - tema degistiginde
+    /// IndexStatusText.Foreground'u METNE DOKUNMADAN yeniden hesaplamak icin (bkz.
+    /// RefreshThemeDependentForegrounds).</summary>
+    private bool? _lastIndexStatusSuccess;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -56,6 +66,10 @@ public partial class MainWindow : Window
 
         var userSettings = UserSettings.Load(_logger);
         AutoIndexCheckBox.IsChecked = userSettings.AutoIndexBeforeSearch;
+        // [Tema turu] persist:false - acilista SADECE kayitli tercih uygulanir, tekrar
+        // diske YAZILMAZ (bkz. talimat "acilista tema yukleme olaylari yanlislikla
+        // varsayilani kaydedip mevcut tercihi ezmemeli").
+        SetTheme(ParseTheme(userSettings.Theme), persist: false);
         UpdateStatsUi();
 
         // [Reliability] Varsayilan dizin bir UNC yol olabilir ve erisim
@@ -81,12 +95,116 @@ public partial class MainWindow : Window
     private void SetIndexStatus(string text, bool? success = null)
     {
         IndexStatusText.Text = text;
-        IndexStatusText.Foreground = success switch
+        _lastIndexStatusSuccess = success;
+        ApplyIndexStatusForeground();
+    }
+
+    private void ApplyIndexStatusForeground()
+    {
+        IndexStatusText.Foreground = _lastIndexStatusSuccess switch
         {
             true => (Brush)FindResource("SuccessBrush"),
             false => (Brush)FindResource("WarningBrush"),
             null => (Brush)FindResource("NeutralTextBrush"),
         };
+    }
+
+    /// <summary>[Tema turu] user-settings.json'daki serbest string'i guvenle AppTheme'e
+    /// cevirir - bos/bilinmeyen/gecersiz deger her zaman Normal'e duser, hicbir istisna
+    /// firlatmaz (diger ayarlari etkilemez).</summary>
+    private static AppTheme ParseTheme(string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)
+            && Enum.TryParse<AppTheme>(value, ignoreCase: true, out var parsed)
+            && Enum.IsDefined(typeof(AppTheme), parsed))
+        {
+            return parsed;
+        }
+
+        return AppTheme.Normal;
+    }
+
+    /// <summary>
+    /// [Tema turu] Temayi UYGULAR (Resources[...] icindeki renk kaynaklarini degistirir,
+    /// menudeki check isaretini gunceller, ekranda ZATEN gorunen imperatif renkleri
+    /// yeniden hesaplar) ve istenirse KALICI hale getirir. Arama/threshold/indeksleme/
+    /// urun klasoru/tarama istatistiklerine KESINLIKLE dokunmaz - sadece renk.
+    /// </summary>
+    private void SetTheme(AppTheme theme, bool persist)
+    {
+        _currentTheme = theme;
+
+        var colors = ThemePalette.For(theme);
+        Resources["MainBackgroundBrush"] = new SolidColorBrush(colors.MainBackground);
+        Resources["NeutralTextBrush"] = new SolidColorBrush(colors.NeutralText);
+        Resources["SectionHeaderBrush"] = new SolidColorBrush(colors.SectionHeader);
+        Resources["SecondaryTextBrush"] = new SolidColorBrush(colors.SecondaryText);
+        Resources["SuccessBrush"] = new SolidColorBrush(colors.Success);
+        Resources["WarningBrush"] = new SolidColorBrush(colors.Warning);
+
+        UpdateThemeMenuChecks(theme);
+        RefreshThemeDependentForegrounds();
+
+        if (persist)
+        {
+            // [Tema turu] Load->degistir->Save: AutoIndexBeforeSearch ve kullanici
+            // klasoru override'i gibi diger alanlar bu sayede KAYBOLMAZ. Bu, salt
+            // kullanicinin KENDI bilgisayarindaki LocalAppData dosyasidir - shared
+            // index/urun klasorune hicbir sey yazilmaz.
+            var settings = UserSettings.Load(_logger);
+            settings.Theme = theme.ToString();
+            settings.Save(_logger);
+        }
+    }
+
+    private void UpdateThemeMenuChecks(AppTheme theme)
+    {
+        ThemeMenuItem_Acik.IsChecked = theme == AppTheme.Acik;
+        ThemeMenuItem_Normal.IsChecked = theme == AppTheme.Normal;
+        ThemeMenuItem_Koyu.IsChecked = theme == AppTheme.Koyu;
+        ThemeMenuItem_AcikSepya.IsChecked = theme == AppTheme.AcikSepya;
+        ThemeMenuItem_KoyuSepya.IsChecked = theme == AppTheme.KoyuSepya;
+        ThemeMenuItem_Lime.IsChecked = theme == AppTheme.Lime;
+    }
+
+    /// <summary>
+    /// [Tema turu] Ekranda ZATEN gorunen, kod-arkasindan imperatif atanmis renkleri
+    /// (DynamicResource'un otomatik guncelleyemeyecegi degerleri) mevcut durumdan
+    /// (secili sonuc/son index durumu) yeniden hesaplar. Metni/secimi/state'i
+    /// DEGISTIRMEZ - yalnizca Foreground.
+    /// </summary>
+    private void RefreshThemeDependentForegrounds()
+    {
+        ApplyIndexStatusForeground();
+
+        ComparisonScoreText.Foreground = _selectedResult is { IsPerfectMatch: true }
+            ? (Brush)FindResource("SuccessBrush")
+            : (Brush)FindResource("NeutralTextBrush");
+    }
+
+    private void ThemeMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string tag })
+        {
+            SetTheme(ParseTheme(tag), persist: true);
+        }
+    }
+
+    /// <summary>
+    /// [Scroll fix] Yeni bir sonuc kumesi/karsilastirma durumu goruntulendiginde sonuc
+    /// viewport'unu en basa dondurur. ScrollToTop hedefi (offset 0) her zaman gecerlidir
+    /// (mevcut extent'e gore clamp gerekmez), ama WPF'in ItemsControl icerik degisikliginden
+    /// sonraki layout gecisini guvenle bekleyebilmek icin Dispatcher.Loaded onceligiyle
+    /// TEK SEFERLIK planlanir. Bu bir LayoutUpdated/ScrollChanged ABONELIGI DEGILDIR -
+    /// kullanicinin sonradan yaptigi manuel kaydirmayi asla geri almaz.
+    /// </summary>
+    private void ResetResultsScroll()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            ResultsScrollViewer.ScrollToTop();
+            ResultsScrollViewer.ScrollToHorizontalOffset(0);
+        }));
     }
 
     /// <summary>
@@ -177,6 +295,7 @@ public partial class MainWindow : Window
         FolderPathTextBox.Text = _productFolder;
         _results.Clear();
         ClearComparison();
+        ResetResultsScroll();
         _lastFreshnessCheckUtc = null;
         _lastSuccessfulStats = null;
         UpdateStatsUi();
@@ -641,6 +760,7 @@ public partial class MainWindow : Window
         QueryFileNameText.Text = string.Empty;
         _results.Clear();
         ClearComparison();
+        ResetResultsScroll();
     }
 
     private void SelectQueryButton_Click(object sender, RoutedEventArgs e)
@@ -687,6 +807,7 @@ public partial class MainWindow : Window
 
         _results.Clear();
         ClearComparison();
+        ResetResultsScroll();
     }
 
     private void QueryDropZone_DragEnter(object sender, DragEventArgs e)
@@ -1021,12 +1142,11 @@ public partial class MainWindow : Window
         ComparisonFileNameText.Text = result.FileName;
         ComparisonScoreText.Text = result.ScoreText;
         // [Faz 4D polish] Yalnizca goruntulenen deger tam %100 oldugunda
-        // basari/yesil vurgusu - diger skorlar notr kalir.
-        // [Gorsel guncelleme] ComparisonScoreText koyu slate zemin uzerinde durdugu icin
-        // koyu-zemin-uyumlu karsiliklar kullanilir (OnDarkSuccessBrush/OnDarkTextBrush).
+        // basari/yesil vurgusu - diger skorlar notr kalir. SuccessBrush/NeutralTextBrush
+        // artik tema-bagimli (bkz. SetTheme) - ayrica bir "OnDark..." varyanti gerekmez.
         ComparisonScoreText.Foreground = result.IsPerfectMatch
-            ? (Brush)FindResource("OnDarkSuccessBrush")
-            : (Brush)FindResource("OnDarkTextBrush");
+            ? (Brush)FindResource("SuccessBrush")
+            : (Brush)FindResource("NeutralTextBrush");
     }
 
     private void ClearComparison()
@@ -1040,7 +1160,7 @@ public partial class MainWindow : Window
         ComparisonResultImage.Source = null;
         ComparisonFileNameText.Text = string.Empty;
         ComparisonScoreText.Text = string.Empty;
-        ComparisonScoreText.Foreground = (Brush)FindResource("OnDarkTextBrush");
+        ComparisonScoreText.Foreground = (Brush)FindResource("NeutralTextBrush");
     }
 
     /// <summary>
@@ -1117,6 +1237,11 @@ public partial class MainWindow : Window
             }
 
             searchStopwatch.Stop();
+            // [Scroll fix] Her GERCEK yeni arama (esik degisimi/ayni sorgu tekrar dahil)
+            // sonuc listesini en basa dondurur - eski kaydirma konumu bir sonraki
+            // aramaya TASINMAZ. Validasyon hatasinda (yukarida erken return) bu satira
+            // hic ulasilmaz, dolayisiyla gecersiz girdi mevcut ekrani kaydirmaz.
+            ResetResultsScroll();
 
             if (_results.Count > 0)
             {
