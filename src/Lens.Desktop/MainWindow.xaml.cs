@@ -309,6 +309,7 @@ public partial class MainWindow : Window
         _productFolder = dialog.FolderName;
         FolderPathTextBox.Text = _productFolder;
         _results.Clear();
+        UpdateResultsHeaderText();
         ClearComparison();
         ResetResultsScroll();
         _lastFreshnessCheckUtc = null;
@@ -783,6 +784,7 @@ public partial class MainWindow : Window
         QueryPreviewImage.Source = null;
         QueryFileNameText.Text = string.Empty;
         _results.Clear();
+        UpdateResultsHeaderText();
         ClearComparison();
         ResetResultsScroll();
     }
@@ -830,6 +832,7 @@ public partial class MainWindow : Window
         }
 
         _results.Clear();
+        UpdateResultsHeaderText();
         ClearComparison();
         ResetResultsScroll();
     }
@@ -1188,6 +1191,20 @@ public partial class MainWindow : Window
             : (Brush)FindResource("NeutralTextBrush");
     }
 
+    /// <summary>
+    /// [Sonuç sayısı başlıkta] Başlıktaki "(N)" - _results.Count'un DOĞRUDAN
+    /// yansımasıdır: eşik VE kullanıcının "en fazla sonuç" limiti zaten
+    /// uygulanmış, ekranda GERÇEKTEN listelenen kart sayısı (bkz.
+    /// SearchButton_Click - IndexStatusText'teki "N sonuç gösteriliyor." ile
+    /// AYNI kaynak). Yalnızca _results degistigi (Clear/Add) noktalarda
+    /// cagrilir - gecersiz girdide (erken return) hic cagrilmadigindan
+    /// baslik AYNEN kalir.
+    /// </summary>
+    private void UpdateResultsHeaderText()
+    {
+        ResultsHeaderText.Text = $"EN BENZER SONUÇLAR ({_results.Count})";
+    }
+
     private void ClearComparison()
     {
         foreach (var r in _results)
@@ -1263,6 +1280,7 @@ public partial class MainWindow : Window
         // yeni sorgunun sonucuymus gibi ekranda kalmasin. Sorgu gorseli, threshold girdisi,
         // tema ve kullanici ayarlari (AutoIndexBeforeSearch vb.) buradan ETKILENMEZ.
         _results.Clear();
+        UpdateResultsHeaderText();
         ClearComparison();
         ResetResultsScroll();
         SetIndexStatus("Aranıyor...");
@@ -1337,6 +1355,12 @@ public partial class MainWindow : Window
             {
                 _results.Add(vm);
             }
+
+            // [Sonuç sayısı başlıkta] Arama TAMAMLANDIĞINDA (bu satıra kadar hata
+            // olmadan gelindiyse) başlıktaki "(N)" güncellenir - eşik VE kullanıcının
+            // "en fazla sonuç" limiti zaten uygulanmış, ekranda gerçekten listelenen
+            // sayıyı yansıtır (viewModels.Count == _results.Count).
+            UpdateResultsHeaderText();
 
             searchStopwatch.Stop();
             // [Scroll fix] Her GERCEK yeni arama (esik degisimi/ayni sorgu tekrar dahil)

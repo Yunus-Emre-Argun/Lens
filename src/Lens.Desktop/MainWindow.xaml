@@ -261,7 +261,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <TextBlock Grid.Row="0" Text="EN BENZER SONUÇLAR" Style="{StaticResource SectionHeaderStyle}" />
+            <TextBlock Grid.Row="0" x:Name="ResultsHeaderText" Text="EN BENZER SONUÇLAR (0)" Style="{StaticResource SectionHeaderStyle}" />
             <!-- Background BILEREK yok (transparan) - dolu/az sonuclu durumda kartlarin
                  ALTINDAKI/ETRAFINDAKI bos alan artik ana pencere zemini ile birlesir
                  (buyuk sabit beyaz blok kaldirildi). Kartlarin kendisi (ResultCardBorderStyle)

@@ -8,6 +8,22 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Başlıkta Gerçek Sonuç Sayısı] — 2026-09-04
+
+### Eklendi
+- **"EN BENZER SONUÇLAR" başlığı artık parantez içinde ekranda gerçekten
+  listelenen kart sayısını gösteriyor** — ör. "EN BENZER SONUÇLAR (32)".
+  Sayı doğrudan `_results.Count`'tan gelir: eşik VE kullanıcının "en fazla
+  sonuç" limiti (bkz. bir önceki girdi) zaten uygulanmış, ekrandaki gerçek
+  kart sayısıdır (`IndexStatusText`'teki "N sonuç gösteriliyor." ile AYNI
+  kaynak) — ör. 80 eşleşmeden limit nedeniyle 15'i listeleniyorsa "(15)"
+  yazar, toplam eşleşme sayısı gibi sunulmaz. İlk açılışta ve liste
+  temizlendiğinde ("Yeni Arama", yeni sorgu görseli, ürün klasörü değişimi,
+  yeni aramanın BAŞLANGICI) "(0)" gösterilir; arama tamamlandığında
+  güncellenir. Geçersiz girdide (threshold veya "en fazla sonuç" hatalı)
+  liste zaten dokunulmadığı için başlıktaki sayı da AYNEN kalır. Tema, kart
+  seçimi ve kaydırma davranışına dokunulmadı.
+
 ## [Sorgu Kilidi ve Kullanıcının Sonuç Sayısını Belirlemesi] — 2026-09-04
 
 ### Eklendi
