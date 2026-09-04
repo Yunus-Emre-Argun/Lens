@@ -8,6 +8,118 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 **Open Question** = henüz netleşmedi, karar bekliyor.
 **Later Phase** = ilk PoC/MVP kapsamı dışında, ileride değerlendirilecek.
 
+## Güncel Devir Notu — 2026-09-04 (Dokümantasyon Kontrol Noktası)
+
+**Kapsam:** Kullanıcının açık talimatıyla bu tur yalnızca dokümantasyon
+commit/push işlemidir. Claude bu kayıt hazırlanırken tasarım kodunu bitirip
+görsel onaya geçti; aşağıdaki yeni kaynak kod değişiklikleri bu doküman commit'ine
+DAHİL DEĞİLDİR. Bu kayıt, kod yedeği veya yeni bir teslim paketi değildir.
+Sonraki tur başlamadan `git status` ve son commit geçmişi tekrar okunmalıdır.
+
+### Tamamlanan / devam eden iş ayrımı
+
+- **Git geçmişindeki son uygulama değişikliği:** `c1f15ab` — sonuç başlığında
+  gerçekten listelenen kart sayısı. Önceki turlarda altı tema, içeriğe göre
+  kart yüksekliği, yeni sorguda kaydırmanın başa dönmesi, eski sonuçların
+  erken temizlenmesi, arama sırasında sorgu kilidi ve kullanıcı tarafından
+  seçilen 1-200 sonuç sınırı eklendi (kararlar #67-74).
+- **Çalışma kopyasında, henüz kaynak kod commit'i yapılmamış:** ilk yerleşim
+  düzenlemesi; başarılı tarama yokken istatistik satırının gizlenmesi;
+  yeni Ayarlar penceresi; adres kutusunda taslak/Enter/Esc akışı; arama
+  varsayılanlarının 80/20 olması (kararlar #75-76). Bunlar bu dokümanların
+  GitHub'a gönderilmesiyle uygulama kaynağının parçası hâline GELMEZ.
+- **Görsel onay bekliyor:** ilk yerleşim kullanıcı taslağını yeterince
+  karşılamadığı için yapılan ikinci tasarım düzenlemesini Claude tamamladığını
+  raporladı (karar #77). Aşağıdaki ölçüler onaylı HEDEFTİR; bu turda
+  uygulamanın bunlara görsel olarak uyduğu bağımsız doğrulanmadı.
+- **Doğrulama:** Claude'un ikinci tasarım turundan ÖNCEKİ raporunda
+  `Lens.AiProof hardeningtest` **158/158 PASS**, Debug/Release **0 warning /
+  0 error**. Son tasarım raporunda ayrıca Release **0 warning / 0 error**
+  ve **158/158 PASS** bildirildi; Debug açık uygulama nedeniyle kilitli,
+  henüz doğrulanamadı. Bu sonuçlar görsel kabulü veya aşağıdaki ertelenen
+  sorunların çözüldüğünü kanıtlamaz. Bu dokümantasyon turunda yeni
+  uygulama derlemesi, model testi veya canlı ekran otomasyonu yapılmadı.
+
+### Confirmed — son tasarım hedefi (karar #77)
+
+- Yalnızca yerleşim düzenlenecek. Referans çizimde kısa yazılmış buton
+  adları yeni gereksinim değildir. Tek açık isim değişikliği:
+  **"Ürün Klasörü Seç" → "Tarama Klasörünü Seç"**; Ayarlar'daki aynı butona
+  yönlendiren metin de tutarlı olacak. "SORGU VE KARŞILAŞTIRMA" başlığı yok.
+- Üst alan iki satır: klasör seçimi + yaklaşık 340 DIP adres kutusu
+  (en fazla 360) + ürün sayısı/kaynak; altında indeksleme ve durum bilgisi.
+  Varsayılan klasör kontrolleri pencerenin en sağ ucuna itilmeden dengeli
+  yerleşecek. "Sorunlu / Atlanan Dosyalar", "Bu Klasörü Varsayılan Yap"
+  butonunun doğrudan altında, aynı SOL kenar hizasında olacak; koşullu
+  görünürlük korunacak. Ortak sütunlarla hizalama tercih edilecek.
+- Orta alan TEK grup olarak ortalanacak: **sorgulanan görsel → dikey arama
+  ayarları → Ara/Yeni Arama → seçilen sonuç**. İki görsel ne birbirine
+  yapışacak ne de pencerenin iki ucuna gidecek. Fazla genişlik dış yanlara
+  dengeli dağılacak; orta ayarlar rahat okunur ve ferah olacak.
+- İki çerçeve eşit ve **KARE**, geniş pencerede yaklaşık **300×300 DIP**.
+  Taslaktaki yatay görünüm, yatay çerçeve uygulama talimatı DEĞİLDİR.
+  Görselin kendi en-boy oranı korunacak (`Uniform`); kırpma, esnetme,
+  döndürme yok. Beyaz görsel yüzeyleri, seçim vurgusu, sürükle-bırak ve
+  çift tıklayarak büyütme davranışı korunacak.
+- Geniş pencere için hedefler: ayar sütunu yaklaşık 260 DIP, girişler
+  84×36, sorgu seçme butonu 260×42, Ara/Yeni Arama 120×42, form yazıları
+  yaklaşık 14 DIP. Gruplar arası boşluklar yaklaşık 40 / 32 / 40 DIP.
+  Sorgu seçimi görsellerin üst kenarına yakın başlayacak; **Ara minimum
+  benzerlik satırıyla, Yeni Arama en fazla sonuç satırıyla hizalanacak**.
+  Ayarlar ve eylemler ortak satırları paylaşacak.
+- Üst alan ile karşılaştırma arasında yaklaşık 28-36 DIP, karşılaştırma
+  ile sonuç listesi arasında 16-24 DIP boşluk hedefleniyor. Durum metinleri
+  12-13 DIP civarında okunabilir kalacak. Bunlar geniş pencere hedefleri;
+  dar pencerede taşmaya sebep olacak sabit zorlamalar yapılmayacak.
+- Açılış boyutu 1060×840 ve minimum 860×680 korunacak. Dar görünümde
+  görseller yaklaşık 200-220 DIP'e, boşluklar 16-24 DIP'e küçülebilecek;
+  ayar sütunu yaklaşık 240, eylem sütunu 104 DIP olacak. Kontroller
+  kesilmeyecek, sonuçların kaydırılabilir alanı kullanılabilir kalacak.
+- Tema renkleri, beş sütunlu sonuç kartları, başlıktaki gerçek sayı,
+  arama/indeksleme mantığı, kilitler, doğrulama ve kaydırma sözleşmeleri
+  değiştirilmeyecek. Minimum benzerlik varsayılanı 80; sonuç tercihi yoksa
+  20, mevcut geçerli kayıtlı tercih varsa o değer; boş alanlarda 80/20.
+  Otomatik indeksleme yeni/eksik ayarda açık; kayıtlı kapalı tercih korunur.
+
+### Kullanıcı kararıyla ertelenenler — ÇÖZÜLDÜ DEĞİL
+
+Tasarım önceliklendirildiği için aşağıdakilere bu turda kod müdahalesi
+yapılmayacak; sonraki görevde ele alınacak:
+
+1. **Ayarlar:** mevcut `SettingsWindow`, teknik yolları kapalı bir "Teknik
+   ayrıntılar" bölümünde hâlâ gösteriyor. Bu, teknik ayrıntı bölümü olmadan
+   sade Ayarlar beklentisiyle uyuşmuyor; gizli başlaması sorunu kapatmıyor.
+2. **Adres normalizasyonu:** tam adres denetimi ve sürücü kökünün korunması
+   ayrıca düzeltilip test edilmeli. Mevcut biçim testleri tüm kök/göreli
+   adres sınır durumlarını kapsamıyor; "tüm göreli yollar reddedilir"
+   şeklinde kesin güvence verilmemeli.
+3. **Klasör değişiminde durum tutarlılığı:** yükleme başarısızlığında önceki
+   klasör/index/sonuçların korunması ve aynı klasör yeniden uygulandığında
+   varsayılan kaynağının değişmemesi henüz sağlanmış kabul edilemez.
+   Başlangıç yüklemesiyle yarış durumları da uçtan uca doğrulanmalı.
+
+### Devralan için sonraki adım / teslim sınırı
+
+Önce son tasarımın farkları gözden geçirilecek; kullanıcı uygulamayı uygun
+olduğunda kapattıktan sonra Debug derlemesi doğrulanacak. Kaynak tekrar
+değişirse build ve ilgili headless testler yeniden raporlanacak. Görsel
+onay kullanıcıda: normal/minimum boyut, hizalar, büyük iki görsel, taşma ve
+sürükle-bırak/büyütme kontrolü. **Kullanıcı bilgisayarı aktif kullanırken
+uygulama açma/kapatma, tıklama/klavye otomasyonu yapılmayacak**; canlı test
+gerekirse kullanıcıdan kontrol istenecek. Kullanıcı onayı olmadan mevcut
+ayarları veya test dışı ürün dosyalarını değiştirmek yok.
+
+Bu tur publish/ZIP/Drive yüklemesi içermez. Mevcut publish paketlerinin
+devam eden değişiklikleri içerdiği varsayılmamalı. Kaynak, test, commit ve
+yeniden üretilen teslim paketi eşleştirilmeden "son sürüm hazır" denmeyecek.
+Gerçek ölçek/fabrika kabulü ve lisans/model doğrulaması gibi mevcut açık
+konular ayrıca `docs/PRODUCTION_CHECKLIST.md` ve `docs/MODEL_CARD.md`'de
+izlenmeye devam eder; bu tasarım turu onları kapatmaz.
+
+**Tarihsel kayıt notu:** Aşağıdaki ilk dönem gereksinimleri korunmuştur.
+Eski sonuç sayısı/index konumu gibi kararların güncel karşılıkları için
+`docs/DECISIONS.md` ve `CHANGELOG.md` esas alınmalıdır.
+
 ---
 
 ## 1. Problem Tanımı

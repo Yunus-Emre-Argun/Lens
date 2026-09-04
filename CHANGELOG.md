@@ -8,6 +8,225 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Onaylı Taslağa Göre Görsel Yerleşim Düzeltmesi] — 2026-09-04
+
+**Durum:** Claude'un kaynak kod düzenlemesi tamamlandı raporu; görsel
+onay, Debug doğrulaması ve kaynak commit/publish bekliyor. Bu doküman
+commit'ine uygulama kaynakları dahil değildir.
+
+### Değişti
+- **Orta blok tek dengeli grup:** Sorgu görseli → arama ayarları → Ara/Yeni
+  Arama → seçilen sonuç artık tek bir grup olarak pencerede ortalanıyor.
+  Arama ayarları ve işlem butonları artık İKİ bağımsız sütun/StackPanel
+  değil, ortak satırlara sahip TEK bir alt `Grid` (`SettingsButtonsGrid`) —
+  "Ara" ile "Minimum benzerlik (%)" satırı, "Yeni Arama" ile "En fazla
+  sonuç" satırı AYNI paylaşılan Grid satırında, dikey merkezleri pencere/
+  yazı tipi/doğrulama mesajı durumundan bağımsız olarak hizalı kalıyor
+  (tahmini `Margin` değil).
+- **İki karşılaştırma görseli eşit kare oldu** (geniş pencere hedefi
+  300×300, önceki turdaki 260 yerine) — `Stretch="Uniform"` korunuyor,
+  kırpma/esnetme yok. Boyut artık sabit değil; `MainWindow.
+  UpdateResponsiveLayout` pencere genişliğine göre (200–300 DIP arası) tek
+  bir hesapla ayarlıyor — bir `RenderTransform`/`Viewbox` KULLANILMADI ki
+  sürükle-bırak ve çift-tık büyütme davranışı etkilenmesin.
+- **Ayar sütunu artık ferah:** "Sorgu Görseli Seç" üstten (~28 DIP payla)
+  başlıyor, eşik/sonuç-limiti satırları arasında ~20 DIP, ikinci satır ile
+  otomatik indeks kutucuğu arasında ~24 DIP boşluk var. Sayısal kutular
+  ~84×36 DIP, sol/sağ kenarları hizalı. Doğrulama uyarıları (Threshold/
+  MaxResultsValidationText) gizliyken sıfır yer kaplıyor, görünürken
+  yalnızca KENDİ satırından sonrasını aşağı itiyor — "Ara" hiçbir zaman
+  yanlış satırla hizalanmıyor.
+- **"Ürün Klasörü Seç" → "Tarama Klasörünü Seç"** (buton metni, dialog
+  başlığı ve Ayarlar'daki doğrudan atıf). Kontrolün adı/olay işleyicisi ve
+  işlevi değişmedi; ilgisiz "ürün" ifadeleri (genel uyarı mesajları vb.)
+  toplu değiştirilmedi.
+- **Üst iki satır artık TEK bir Grid** (`TopAreaGrid`) — "Bu Klasörü
+  Varsayılan Yap" ve "Sorunlu / Atlanan Dosyalar" ARTIK ortak bir sütunu
+  paylaşıyor, bu yüzden sol kenarları kesin olarak aynı (iki bağımsız
+  Grid'de "ikisi de sağda" yaklaşımıyla garanti edilemeyecek bir şart).
+  Varsayılan buton grubunun sol başlangıcı, karşılaştırma satırındaki sağ
+  görselin sol kenarı civarında tutuluyor (ölçülen bir boşluk sütunu ile,
+  pencerenin ham sağ köşesine yapışmıyor).
+- **Dar pencerede birlikte uyarlanan tek bir hesap:** gap'ler (40→16 DIP),
+  görsel boyutu (300→200 DIP), ayar sütunu (260→240 DIP) ve buton genişliği
+  (120→104 DIP) AYNI pencere-genişliği oranına göre lineer değişiyor —
+  hedef 860×680 minimuma sığması ve 1060×840 başlangıçta ferah görünmesi;
+  bu iki boyutta canlı kabul henüz yapılmadı.
+  Giriş yükseklikleri (36/42/34 DIP) sabit kalıyor, daraldıkça tekrar ince
+  kutulara dönüşmüyor. Sonuç listesi kartları/küçük resimler/kart seçim
+  stilleri değişmedi.
+
+### Not
+Bu tur yalnızca kod/yerleşim düzenlemesidir — canlı ekranda görsel
+doğrulama yapılmadı (kullanıcı bilgisayarı aktif kullanıyordu, uygulama
+açılmadı). Ertelenmiş konular (Ayarlar'daki "Teknik ayrıntılar", adres
+normalizasyonu, klasör geçişindeki durum koruma) bu turda ELE ALINMADI.
+
+### Test
+Claude raporu: `dotnet build` Release **0 warning/0 error** (Debug, kullanıcının açık
+uygulaması tarafından kilitliydi, tamamlanamadı). `Lens.AiProof
+hardeningtest` **158/158 PASS** (bu tur Lens.Core'a dokunmadı, etkilenmedi
+— yalnızca WPF yerleşimi/görsel doğrulama gerektirir, headless test
+kapsamı dışındadır). Detay: `docs/DECISIONS.md` #77.
+
+## [Dokümantasyon Kontrol Noktası — Tasarım Görsel Onayda] — 2026-09-04
+
+### Eklendi
+- `docs/PROJECT_CONTEXT.md` başına güncel devir notu: Git'teki son uygulama
+  değişikliği (`c1f15ab`), henüz kaynak commit'i yapılmamış işler, son
+  tasarım hedefleri ve kullanıcı kararıyla ertelenen sorunlar ayrıldı.
+- Karar #77: büyük/eşit kare görseller, ferah ve birlikte ortalanmış orta
+  grup, ortak satır/sütun hizaları, "Tarama Klasörünü Seç" adı ve dar
+  pencere uyumu. Bunlar onaylı hedef; canlı kabul henüz tamamlanmadı.
+
+### Düzeltildi
+- Minimum benzerlik varsayılanı hakkındaki eski açık soru #76 ile kapatıldı.
+  #75'in önceki kayıtlarında kesin ifade edilen adres/yükleme/kopyalama
+  davranışları, mevcut doğrulamanın sınırlarına göre düzeltildi.
+
+### Not
+- **Bu tur yalnızca doküman commit/push işlemidir.** Bu tarihteki 80/20,
+  Ayarlar/adres ve iki yerleşim çalışması çalışma kopyasındaki ilerlemeyi
+  anlatır; uygulama kaynakları bu commit'e dahil değildir. Claude'un yeni
+  tasarım çalışması yedeklenmiş veya yayımlanmış sayılmaz.
+- İlk yerleşim turunda genel karşılaştırma başlığı kaldırıldı, adres
+  kutusu kısaltıldı, sorgu/ayarlar/eylemler/sonuç birlikte ortalandı ve
+  görseller 160-260 DIP kare olacak şekilde düzenlendi. Başarılı tarama
+  yokken istatistik satırını gizleyen mevcut düzeltme korundu. Kullanıcı
+  bu yerleşimi görsel hedefe yeterince yakın bulmadığı için #77 turu yapıldı.
+  Bu kayıt hazırlanırken Claude kod düzenlemesini bitirdiğini raporladı;
+  görsel kabul hâlâ bekliyor.
+- Aşağıdaki **158/158 PASS / Debug-Release 0 warning-0 error** bilgisi,
+  Claude'un ikinci tasarım düzenlemesinden önceki test raporudur; bu
+  dokümantasyon turunda uygulama testleri yeniden çalıştırılmadı. Son
+  tasarımın Release/158 test raporu yukarıda ayrıca kaydedildi; o turdaki
+  Debug doğrulaması ve kullanıcı görsel kontrolü bekliyor.
+- Yeni publish/ZIP üretilmedi; Drive'a yükleme yapılmadı. Uygulama ekranına
+  veya Claude'un üzerinde çalıştığı kaynak dosyalara müdahale edilmedi.
+
+## [Arama Varsayılanları — 80/20] — 2026-09-04
+
+**Durum:** Kaynak commit'i bekleyen çalışma kopyası; yukarıdaki kontrol
+noktası ve `docs/PROJECT_CONTEXT.md` devir notuyla birlikte okunmalıdır.
+
+### Eklendi
+- **Açılışta "Minimum benzerlik (%)" 80; "En fazla sonuç", geçerli kayıtlı
+  tercih varsa o değer, yoksa 20 ile dolu geliyor** (önceki 15 varsayılanı
+  yerine). Bir alan boş/yalnızca boşluk bırakılıp "Ara"ya
+  basılırsa o alan için AYNI varsayılan kullanılır — ama mevcut sıkı
+  doğrulama kuralları değişmedi: metin, negatif, 100 üstü, NaN/Infinity
+  benzerlikte hâlâ reddedilir; metin, ondalık, 0, negatif, 200 üstü sonuç
+  sayısında hâlâ reddedilir (benzerlikte 0 geçerlidir, sonuç sayısında 0
+  geçersizdir — bu ayrım korunuyor). Yeni `SimilarityThreshold.
+  ResolveOrDefault` / `MaxResultsPreference.ResolveOrDefault`, mevcut katı
+  `TryParse`'ları DEĞİŞTİRMEDEN yalnızca gerçekten boş girdiyi varsayılana
+  çevirir. Doğrulama sonrası kullanılan değer, yalnızca kutu BOŞSA geri
+  yazılır — kullanıcının kendi geçerli girdisi (ör. "65", "80,5") asla
+  dokunulmaz/yeniden biçimlendirilmez. Boş girdiden çözülen "en fazla
+  sonuç" değeri de diğer geçerli değerler gibi kalıcı tercihe kaydedilir.
+  Mevcut geçerli kayıtlı tercihler (15, 50, 200 vb.) yeni varsayılana
+  ÇEVRİLMEZ — yalnızca "tercih hiç yok/geçersiz/boş girdi" durumunda
+  devreye girer. Benzerlik için kalıcı bir ayar alanı eklenmedi. "Yeni
+  Arama", tema değişimi ve klasör değişimi bu iki kutuya dokunmuyor.
+  Otomatik indeksleme varsayılanı zaten `true` idi, değiştirilmedi; mevcut
+  kayıtlı `false` tercihi de korunur. Detay:
+  `docs/DECISIONS.md` #76.
+
+### Test
+- `Lens.AiProof hardeningtest` Grup K (26 kontrol) eklendi; Grup J'deki
+  yalnızca eski varsayılanı (15) sınayan senaryolar 20'ye güncellendi,
+  geçerli kayıtlı 15'i sınayan kontrol bilerek değiştirilmedi, kayıtlı
+  15/200'ün 20'ye topluca çevrilmediğini doğrulayan 2 yeni kontrol eklendi
+  — toplam **158/158 PASS**. `dotnet build` Debug/Release **0 warning/0
+  error**. **Canlı doğrulanamayan:** açılış görünümü ve "Ara" sonrası
+  kutulara yazılan 80/20 — kullanıcı ekranı aktif kullandığı için yalnızca
+  kod incelemesiyle doğrulandı.
+
+## [Ayarlar Sadeleştirme ve Klasör Adresini Elle Girme] — 2026-09-04
+
+**Durum:** Kaynak commit'i bekleyen çalışma kopyası. Aşağıdaki uygulama
+kaydı, tüm kullanıcı beklentilerinin karşılandığı anlamına GELMEZ; açık
+uyuşmazlıklar karar #75 ve `docs/PROJECT_CONTEXT.md` devir notunda izlenir.
+
+### Değişti
+- **Ayarlar penceresi sadeleştirildi.** Eski salt-metin "Ayarlar" mesajı
+  (ürün klasörünün tam yolu + yönetici config/kullanıcı ayar dosyası
+  yollarını serbestçe gösteriyordu) kaldırıldı; yerine yeni `SettingsWindow`
+  geldi. Klasörün tam yolu artık burada tekrar gösterilmiyor (zaten ana
+  ekranda var) — yalnızca kısa bir durum cümlesi ("Geçici seçim/Kullanıcı
+  varsayılanı/Yönetici varsayılanı/Klasör seçilmedi"). Teknik dosya yolları
+  (yönetici config, kullanıcı ayarları, log klasörü, önbellek klasörü,
+  model dosyası) varsayılan olarak **kapalı** bir "Teknik ayrıntılar"
+  bölümünde — hiçbir silme/temizleme/klasör açma komutu yok, yalnızca
+  kopyalanabilir salt-okunur metin. Klasör işlemleri hâlâ ana ekrandaki
+  mevcut butonlarla, tema hâlâ ⋮ → "Arka Plan" ile yönetiliyor. Ayarlar
+  açmak/kapatmak hiçbir tercihi değiştirmez/kaydetmez. **Açık uyuşmazlık:**
+  teknik ayrıntı bölümünün tamamen kaldırılması beklentisi henüz
+  karşılanmadı; kullanıcı düzeltmeyi tasarım sonrasına erteledi.
+- **"Log Klasörünü Aç" menü seçeneği kaldırıldı.** Normal kullanıcıya
+  log/indeks/cache/model açma/silme/temizleme komutu sunulmuyor. Normal
+  loglama, indeksleme (manuel ve otomatik) ve "Sorunlu / Atlanan Dosyalar"
+  davranışı değişmedi.
+- **Ürün klasörü adres kutusu artık düzenlenebilir.** Kullanıcı adresi
+  yazabilir/yapıştırabilir; fareyle seçim, imleç, Ctrl+A/C/X/V/Z,
+  Delete/Backspace, sağ-tık metin menüsü ve yatay gezinme için normal
+  düzenlenebilir TextBox kullanılır; gerçek ekranda doğrulama bekleniyor.
+  Yazılan adres bir **taslaktır** — her tuşta aktif klasör
+  değişmez, disk kontrolü/indeksleme başlamaz. **Enter**: adres biçim
+  olarak doğrulanır (boş ve testlerde kapsanan göreli/sözdizimsel geçersiz
+  girdiler reddedilir; tam adres denetimi ve kök adresin korunması için
+  açık düzeltme vardır). Dış çift tırnak/baş-son boşluk temizliği, yoldaki
+  boşluk ve Türkçe karakterlerin korunması testlerde kapsanır. Ardından
+  arka planda dosya/klasör kontrolü
+  yapılır; başarılıysa uygulanır. Aynı Enter aramayı **başlatmaz**. **Esc**:
+  taslağı iptal edip aktif klasöre döner. Odak kaybı tek başına hiçbir şeyi
+  uygulamaz. Kutunun altında kısa bir ipucu ("Adresi uygulamak için Enter,
+  iptal etmek için Esc.") ve gerektiğinde anlaşılır hata mesajları
+  gösterilir. Mevcut kompakt/esnek genişlik korundu, "Ürün Klasörü Seç"
+  butonu alternatif olarak çalışmaya devam ediyor.
+- **Taslak/aktif klasör tutarlılığı.** Adres kutusunda uygulanmamış bir
+  değişiklik varken "Ara", "İndeksi Güncelle" veya "Bu Klasörü Varsayılan
+  Yap" artık durur ve kullanıcıyı Enter/Esc'e yönlendirir (yalnızca buton
+  görünümüne değil, olay işleyicisinin kendisine dayanan bir kontrol).
+  İlk biçim/varlık doğrulamasında reddedilen giriş uygulanmaz. Ancak
+  yükleme başarısızlığında eski aktif klasör/index/sonuçların korunması
+  ve aynı klasör yeniden uygulandığında varsayılan kaynağının değişmemesi
+  henüz sağlanmış kabul edilemez; bu iki durum için düzeltme ertelendi.
+  Farklı klasöre geçiş akışında eski sonuç/istatistik/sorunlu dosya listesi
+  temizlenir; bunun yükleme başarısıyla tutarlı yapılması ayrıca ele alınacak.
+  Hem "Ürün Klasörü Seç" (dialog) hem elle adres uygulama artık AYNI paylaşılan
+  geçiş mantığını (`ApplyNewProductFolderAsync`) kullanıyor. Yeni klasör
+  seçimi/adres oturumluktur — kalıcılaştırma yalnızca "Bu Klasörü Varsayılan
+  Yap" ile olur.
+- **Başlangıç yüklemesine yarış durumu kontrolleri eklendi.** Gecikmiş
+  varsayılan klasör yüklemesinin kullanıcının daha yeni seçimini/taslağını
+  ezmesini önlemek amaçlanıyor. Tüm zamanlama ve başarısızlık senaryoları
+  uçtan uca doğrulanmadı; "yarış durumu tamamen çözüldü" kabulü yapılmamalı.
+- Arama/indeksleme/klasör yükleme sırasında adres kutusu artık `IsEnabled`
+  ile değil `IsReadOnly` ile kilitleniyor — böylece meşgulken de mevcut
+  adresi seçmek ve kopyalamak mümkün kalıyor (disabled bir WPF kutusunda
+  seçim/kopyalama çalışmaz, salt-okunur kutuda çalışmaya devam eder).
+
+### Not
+Kullanıcının daha önce bildirdiği "adresi kopyalayamıyorum" şikâyetinin
+kesin nedeni doğrulanamadı — `IsReadOnly` tek başına WPF'te metin
+seçimini/kopyalamayı engellemez, bu yüzden başka bir etken de olabilir.
+Kutunun artık tam düzenlenebilir olması istenen düzenleme davranışını
+sağlamayı amaçlıyor; ilk kopyalama şikâyetinin giderildiği kullanıcının
+gerçek ekran kontrolünden önce kesinleştirilemez.
+
+### Test
+- `Lens.AiProof hardeningtest` Grup L (13 kontrol: tam yerel/UNC yol, boşluk,
+  Türkçe karakter, dış tırnak, baş/son boşluk, sondaki ayırıcı, boş/null/
+  yalnızca-boşluk reddi, göreli yol reddi, geçersiz sözdizimi reddi) eklendi
+  — toplam **158/158 PASS**. `dotnet build` Debug/Release **0 warning/0
+  error**. **Canlı doğrulanamayan:** taslak/uygula/iptal/kilit/yarış-durumu
+  akışının ve yeni Ayarlar penceresinin gerçek ekranda görünümü/davranışı —
+  kullanıcı ekranı aktif kullandığı için yalnızca kod incelemesi yapıldı;
+  disk erişimi gerektiren senaryolar (dosyaya işaret eden/
+  erişilemeyen adres) headless test edilmedi (`Directory.Exists`/
+  `File.Exists`'in kendisi değil, MainWindow'daki çağıran kod test edilmedi).
+
 ## [Başlıkta Gerçek Sonuç Sayısı] — 2026-09-04
 
 ### Eklendi
