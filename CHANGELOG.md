@@ -8,6 +8,73 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Düzeltme — Eski Sonuçların Erken Temizlenmesi] — 2026-09-04
+
+### Düzeltildi
+- **Bir önceki aramanın sonuçları artık yeni bir arama BAŞLAR BAŞLAMAZ
+  temizleniyor** (index hazırlığı/otomatik indeksleme/model yükleme dahil
+  uzun süren işlemlerden ÖNCE), sadece yeni arama BAŞARIYLA bittiğinde
+  değil. Önceki davranışta, girdi geçerliyse ama arama index hazırlığı
+  sırasında hata verirse veya embed adımında istisna oluşursa (ör. sorgu
+  görseli aramalar arasında silinmiş/taşınmışsa), önceki aramaya ait
+  sonuç kartları/karşılaştırma paneli/kaydırma konumu ekranda kalıp yeni
+  sorgunun sonucuymuş gibi görünebiliyordu — bir önceki turun scroll-reset
+  düzeltmesi (bkz. aşağıdaki "Kaydırma Düzeltmesi" girdisi, `#69`) bu
+  senaryoyu KAPSAMIYORDU çünkü temizleme kodu hâlâ aramanın SONUNDA
+  çalışıyordu. Artık `SearchButton_Click`'te klasör/görsel/threshold
+  validasyonu başarılı olur olmaz eski sonuçlar/karşılaştırma/kaydırma
+  temizlenir ve durum metni "Aranıyor..." olur; sorgu görseli, threshold
+  girdisi, tema ve kullanıcı ayarları bundan ETKİLENMEZ. Geçersiz/eksik
+  girdide (klasör/görsel seçilmemiş, threshold 0-100 dışı veya sayısal
+  değil) bu temizleme koduna hiç ulaşılmadığından mevcut ekran ve
+  kaydırma konumu AYNEN korunur — kullanıcı hatalı bir değeri düzeltip
+  tekrar deneyebilir. Model yüklenemezse veya arama sırasında bir istisna
+  oluşursa (ör. silinmiş sorgu dosyası) artık zaten boşaltılmış ekranda
+  açıklayıcı bir durum mesajı ("Model yüklenemedi, arama yapılamadı." /
+  "Arama başarısız oldu.") gösterilir. Detay: `docs/DECISIONS.md` #71.
+
+### Doğrulama
+Gerçek (derlenmiş Debug) uygulama, UI Automation (`System.Windows.Automation`)
+ile canlı çalışırken uçtan uca test edildi — kod incelemesiyle sınırlı
+kalınmadı:
+- Sonuç listesi aşağı kaydırıldıktan sonra aynı sorgu görseliyle farklı bir
+  eşikle tekrar arandığında, YENİ sonuç kümesinin de (15 sonuç, görünür
+  alanın ~%43'ü) gerçekten kaydırma gerektirdiği doğrulandı ve kaydırma
+  konumunun başa döndüğü ölçüldü (`ScrollPattern.VerticalScrollPercent`
+  60 → 0) — tek başına `ScrollPercent=-1` (kaydırılacak içerik yok)
+  görülmesiyle YETİNİLMEDİ.
+- Başarılı bir aramanın ardından sorgu görseli diskten silinip tekrar
+  "Ara"ya basıldığında: önceki 15 sonuç/karşılaştırma panelinin arama
+  butonuna tıklandıktan ~100ms içinde (sonuç TAMAMLANMADAN) zaten
+  temizlendiği, ardından gerçek bir `FileNotFoundException`'ın log
+  dosyasına ve kullanıcıya gösterilen hata penceresine yansıdığı
+  doğrulandı.
+- Geçerli 15 sonuçlu bir arama ekranı kaydırılmış haldeyken geçersiz bir
+  eşik ("150") girilip "Ara"ya basıldığında: sonuç sayısının, karşılaştırma
+  panelinin VE kaydırma konumunun (ör. %45) DEĞİŞMEDİĞİ, yalnızca
+  threshold doğrulama mesajının göründüğü doğrulandı.
+- "Yeni Arama", yeni bir sorgu görseli seçimi ve ürün klasörü değişiminin
+  her biri sonuçları/karşılaştırmayı temizlediği ve (içerik varsa) kaydırmayı
+  başa döndürdüğü doğrulandı.
+- Tema değişiminin ve halihazırda GÖRÜNÜR olan bir sonuç kartına
+  tıklamanın kaydırma konumunu bozmadığı doğrulandı (ekran dışındaki bir
+  karta programatik tıklamanın WPF'in doğal "odaklanılan öğeyi görünür
+  kıl" davranışıyla kaydırmayı hareket ettirdiği de ayrıca gözlemlendi —
+  bu, gerçek bir fare tıklamasıyla oluşamayacak bir test artefaktıdır,
+  koddaki bir regresyon değildir).
+- Sonuç/sorgu dosya adı kutularından birinde metin seçilip gerçek bir
+  Ctrl+C (pencere gerçekten ön plana alınıp `SendKeys` ile) denendi;
+  pano içeriğinin ekrandaki dosya adıyla birebir eşleştiği doğrulandı.
+
+**Build/test:** `dotnet build` Debug ve Release'de 0 warning/0 error.
+Bu tur için ayrı bir otomatik/birim test eklenmedi (mevcut kapsam UI
+davranışı; `Lens.AiProof` konsol test aracının kapsamı değişmedi).
+**Canlı doğrulanamayan noktalar:** gerçek OS sürükle-bırak ile yeni sorgu
+görseli seçiminin kaydırmayı sıfırlaması (bu turda dosya diyaloğu üzerinden
+test edildi, sürükle-bırak yolu ayrıca denenmedi — kod yolu aynı
+`LoadQueryImage` metodunu kullanıyor); çoklu monitör/DPI kombinasyonlarında
+kaydırma/tema davranışı.
+
 ## [Görsel Güncelleme — Tema Seçenekleri, Kart Yerleşimi, Kaydırma Düzeltmesi] — 2026-09-04
 
 ### Eklendi

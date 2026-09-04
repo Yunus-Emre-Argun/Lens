@@ -1191,8 +1191,20 @@ public partial class MainWindow : Window
 
         HideThresholdValidationError();
 
+        // [Stale-results fix] Buraya kadar gelindiyse girdi gecerli - "gecerli bir arama
+        // baslatildi" sayilir. Index hazirligi/model yukleme gibi uzun suren islemler
+        // BASLAMADAN once eski sonuclar/karsilastirma/sonuc sayisi temizlenir ki bu
+        // islemler basarisiz olur veya beklenenden uzun surerse eski sonuclar YANLISLIKLA
+        // yeni sorgunun sonucuymus gibi ekranda kalmasin. Sorgu gorseli, threshold girdisi,
+        // tema ve kullanici ayarlari (AutoIndexBeforeSearch vb.) buradan ETKILENMEZ.
+        _results.Clear();
+        ClearComparison();
+        ResetResultsScroll();
+        SetIndexStatus("Aranıyor...");
+
         if (!TryEnsureEmbedder(out var modelError))
         {
+            SetIndexStatus("Model yüklenemedi, arama yapılamadı.", success: false);
             AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
             return;
         }
@@ -1204,7 +1216,9 @@ public partial class MainWindow : Window
             if (!ready)
             {
                 // Kullanicidan aksiyon isteyen uygun mesaj EnsureIndexReadyForSearchAsync
-                // icinde zaten gosterildi - burada sessizce durulur.
+                // icinde zaten gosterildi - burada sessizce durulur. Eski sonuclar/
+                // karsilastirma yukarida zaten temizlendigi icin ekranda yaniltici bir
+                // "onceki arama" gorunumu KALMAZ.
                 return;
             }
 
