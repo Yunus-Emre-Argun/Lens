@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lens.Core.Ai;
+using Lens.Core.Config;
 using Lens.Core.Indexing;
 using Lens.Core.Search;
 using SixLabors.ImageSharp;
@@ -718,20 +719,34 @@ static void RunHardeningTest()
         Check("J12i IsAboveMaxAllowed('') -> false", !MaxResultsPreference.IsAboveMaxAllowed(""));
         Check("J12j IsAboveMaxAllowed(null) -> false", !MaxResultsPreference.IsAboveMaxAllowed(null));
 
-        Check("J13 ValidateOrDefault(15) geçerli değeri aynen döner", MaxResultsPreference.ValidateOrDefault(15) == 15);
-        Check("J14 ValidateOrDefault(0) -> güvenli varsayılan 15", MaxResultsPreference.ValidateOrDefault(0) == 15);
-        Check("J15 ValidateOrDefault(500) (aralık dışı, bozuk kayıtlı değer) -> güvenli varsayılan 15", MaxResultsPreference.ValidateOrDefault(500) == 15);
-        Check("J16 ValidateOrDefault(-3) -> güvenli varsayılan 15", MaxResultsPreference.ValidateOrDefault(-3) == 15);
+        // [Arama varsayılanları] Default 15 -> 20 oldu (yönetici kararı). GEÇERLİ
+        // kayıtlı bir değer olarak 15'i sınayan J13 BİLEREK DEĞİŞTİRİLMEDİ - 15
+        // hâlâ geçerli bir tercih, yalnızca ARTIK varsayılan DEĞİL.
+        Check("J13 ValidateOrDefault(15) geçerli değeri aynen döner (15 hâlâ geçerli bir tercih, varsayılan DEĞİL)", MaxResultsPreference.ValidateOrDefault(15) == 15);
+        Check("J14 ValidateOrDefault(0) -> güvenli varsayılan 20", MaxResultsPreference.ValidateOrDefault(0) == 20);
+        Check("J15 ValidateOrDefault(500) (aralık dışı, bozuk kayıtlı değer) -> güvenli varsayılan 20", MaxResultsPreference.ValidateOrDefault(500) == 20);
+        Check("J16 ValidateOrDefault(-3) -> güvenli varsayılan 20", MaxResultsPreference.ValidateOrDefault(-3) == 20);
         Check("J17 ValidateOrDefault(200) (üst sınır) geçerli, aynen döner", MaxResultsPreference.ValidateOrDefault(200) == 200);
 
         // ---- UserSettings.PreferredMaxResults - JSON sözleşmesi (Grup I ile aynı desen) ----
         var oldJsonWithoutField = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"AutoIndexBeforeSearch\":true,\"Theme\":\"Normal\"}";
         var loadedFromOld = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(oldJsonWithoutField);
-        Check("J18 eski (PreferredMaxResults alanını içermeyen) settings JSON'u -> 15 (geriye uyumlu varsayılan)",
-            loadedFromOld is not null && loadedFromOld.PreferredMaxResults == 15);
+        Check("J18 eski (PreferredMaxResults alanını içermeyen) settings JSON'u -> 20 (geriye uyumlu varsayılan)",
+            loadedFromOld is not null && loadedFromOld.PreferredMaxResults == 20);
 
         var freshSettings = new Lens.Core.Config.UserSettings();
-        Check("J19 yeni oluşturulan UserSettings -> varsayılan PreferredMaxResults=15", freshSettings.PreferredMaxResults == 15);
+        Check("J19 yeni oluşturulan UserSettings -> varsayılan PreferredMaxResults=20", freshSettings.PreferredMaxResults == 20);
+
+        // [Arama varsayılanları] Kayıtlı GEÇERLİ bir tercih (ör. 15/50/200) yeni
+        // varsayılana ASLA topluca çevrilmemeli - yalnızca "tercih hiç yok/geçersiz"
+        // durumunda 20 kullanılır.
+        var savedFifteenJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"PreferredMaxResults\":15}";
+        var loadedFifteen = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(savedFifteenJson);
+        Check("J19b kayıtlı GEÇERLİ 15 -> 20'ye ÇEVRİLMEZ, 15 olarak kalır", loadedFifteen is not null && loadedFifteen.PreferredMaxResults == 15);
+
+        var saved200Json = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"PreferredMaxResults\":200}";
+        var loaded200 = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(saved200Json);
+        Check("J19c kayıtlı GEÇERLİ 200 -> 20'ye ÇEVRİLMEZ, 200 olarak kalır", loaded200 is not null && loaded200.PreferredMaxResults == 200);
 
         var explicitJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"PreferredMaxResults\":50}";
         var loadedExplicit = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(explicitJson);
@@ -800,6 +815,96 @@ static void RunHardeningTest()
         Check("J28 çekirdek katman: maxResults=0 -> ArgumentOutOfRangeException (sessizce başka sayıya çevrilmez)", ThrowsOutOfRange(0));
         Check("J29 çekirdek katman: maxResults=201 -> ArgumentOutOfRangeException", ThrowsOutOfRange(201));
         Check("J30 çekirdek katman: maxResults=-5 -> ArgumentOutOfRangeException", ThrowsOutOfRange(-5));
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup K: Arama varsayılanları - boş girdi çözümleme (ResolveOrDefault) ----
+    // [Yönetici kararı] Açılışta "Minimum benzerlik (%)" 80, "En fazla sonuç" 20
+    // ile dolu gelir. Kullanıcı bir alanı SİLİP boş/yalnızca-boşluk bırakarak
+    // "Ara"ya basarsa o alan için varsayılan kullanılır - ama TryParse'in KATI
+    // sözleşmesi (metin/negatif/aralık-dışı/NaN/Infinity reddi) HİÇ DEĞİŞMEDİ;
+    // ResolveOrDefault yalnızca GERÇEKTEN boş/yalnızca-boşluklu girdiyi
+    // varsayılana çevirir, diğer HER ŞEYİ olduğu gibi TryParse'e devreder.
+    Console.WriteLine("[K] Arama varsayılanları: boş girdi çözümleme (ResolveOrDefault)");
+    {
+        bool TOk(string? input, double expected)
+        {
+            var ok = SimilarityThreshold.ResolveOrDefault(input, out var value);
+            return ok && Math.Abs(value - expected) < 1e-9;
+        }
+
+        bool TRejects(string? input) => !SimilarityThreshold.ResolveOrDefault(input, out _);
+
+        Check("K1 threshold: '' (boş) -> 80 (DefaultPercent)", TOk("", SimilarityThreshold.DefaultPercent));
+        Check("K2 threshold: null -> 80", TOk(null, SimilarityThreshold.DefaultPercent));
+        Check("K3 threshold: '   ' (yalnızca boşluk) -> 80", TOk("   ", SimilarityThreshold.DefaultPercent));
+        Check("K4 threshold: '0' -> GEÇERLİ, 0 (varsayılana ÇEVRİLMEZ)", TOk("0", 0));
+        Check("K5 threshold: '65' -> GEÇERLİ, 65 (varsayılana ÇEVRİLMEZ)", TOk("65", 65));
+        Check("K6 threshold: '80,5' (TR virgül) -> GEÇERLİ, 80.5 (80'e ÇEVRİLMEZ)", TOk("80,5", 80.5));
+        Check("K7 threshold: '100' (üst sınır) -> GEÇERLİ, 100", TOk("100", 100));
+        Check("K8 threshold: 'abc' (metin) -> HÂLÂ reddedilir (varsayılana çevrilmez)", TRejects("abc"));
+        Check("K9 threshold: '-5' (negatif) -> HÂLÂ reddedilir", TRejects("-5"));
+        Check("K10 threshold: '150' (100 üstü) -> HÂLÂ reddedilir", TRejects("150"));
+        Check("K11 threshold: 'NaN' -> HÂLÂ reddedilir", TRejects("NaN"));
+        Check("K12 threshold: 'Infinity' -> HÂLÂ reddedilir", TRejects("Infinity"));
+        Check("K13 DefaultPercent sabiti 80", Math.Abs(SimilarityThreshold.DefaultPercent - 80) < 1e-9);
+
+        bool MOk(string? input, int expected)
+        {
+            var ok = MaxResultsPreference.ResolveOrDefault(input, out var value);
+            return ok && value == expected;
+        }
+
+        bool MRejects(string? input) => !MaxResultsPreference.ResolveOrDefault(input, out _);
+
+        Check("K14 maxResults: '' (boş) -> 20 (Default)", MOk("", MaxResultsPreference.Default));
+        Check("K15 maxResults: null -> 20", MOk(null, MaxResultsPreference.Default));
+        Check("K16 maxResults: '   ' (yalnızca boşluk) -> 20", MOk("   ", MaxResultsPreference.Default));
+        Check("K17 maxResults: '15' -> GEÇERLİ, 15 (20'ye ÇEVRİLMEZ)", MOk("15", 15));
+        Check("K18 maxResults: '50' -> GEÇERLİ, 50 (20'ye ÇEVRİLMEZ)", MOk("50", 50));
+        Check("K19 maxResults: '1' (alt sınır) -> GEÇERLİ, 1", MOk("1", 1));
+        Check("K20 maxResults: '200' (üst sınır) -> GEÇERLİ, 200", MOk("200", 200));
+        Check("K21 maxResults: '0' -> HÂLÂ reddedilir (benzerlikteki 0'ın aksine, sonuç sayısında 0 GEÇERSİZ)", MRejects("0"));
+        Check("K22 maxResults: '-5' (negatif) -> HÂLÂ reddedilir", MRejects("-5"));
+        Check("K23 maxResults: '201' (200 üstü) -> HÂLÂ reddedilir", MRejects("201"));
+        Check("K24 maxResults: '15.5' (ondalık) -> HÂLÂ reddedilir", MRejects("15.5"));
+        Check("K25 maxResults: 'abc' (metin) -> HÂLÂ reddedilir", MRejects("abc"));
+        Check("K26 Default sabiti 20", MaxResultsPreference.Default == 20);
+    }
+
+    Console.WriteLine();
+
+    // ---- Grup L: Klasör adresi elle girme - biçim doğrulaması (ProductFolderPathInput) ----
+    // [Disk erişimi GEREKTİRMEZ] Yalnızca biçim/sözdizimi düzeyinde doğrulama -
+    // gerçek Directory.Exists/File.Exists kontrolü MainWindow'da (UI, arka planda)
+    // yapılır, bu yüzden burada test edilmez (bkz. proje talimatı "arayüzü
+    // bloke etmesin"). Göreli bir yolun çalışma dizinine göre BAŞKA bir klasöre
+    // YÖNLENDİRİLMEDİĞİ özellikle doğrulanır (bkz. L5/L6).
+    Console.WriteLine("[L] Klasör adresi elle girme: biçim doğrulaması (ProductFolderPathInput)");
+    {
+        bool FOk(string? input, string expectedNormalized)
+        {
+            var ok = ProductFolderPathInput.TryNormalizeFormat(input, out var normalized, out _);
+            return ok && string.Equals(normalized, expectedNormalized, StringComparison.OrdinalIgnoreCase);
+        }
+
+        bool FRejects(string? input) => !ProductFolderPathInput.TryNormalizeFormat(input, out _, out _);
+
+        Check("L1 'C:\\Ürünler' (tam yerel yol, Türkçe karakter) -> geçerli", FOk("C:\\Ürünler", "C:\\Ürünler"));
+        Check("L2 'C:\\Ürün Klasörü' (boşluklu) -> geçerli, boşluk korunur", FOk("C:\\Ürün Klasörü", "C:\\Ürün Klasörü"));
+        Check("L3 '\\\\Sunucu\\Paylaşım' (UNC) -> geçerli", FOk("\\\\Sunucu\\Paylaşım", "\\\\Sunucu\\Paylaşım"));
+        Check("L4 '  C:\\Ürünler  ' (baş/son boşluk) -> temizlenir, geçerli", FOk("  C:\\Ürünler  ", "C:\\Ürünler"));
+        Check("L5 '\"C:\\Ürünler\"' (eşleşen dış çift tırnak) -> güvenle temizlenir", FOk("\"C:\\Ürünler\"", "C:\\Ürünler"));
+        Check("L6 'C:\\Ürünler\\' (sondaki ayırıcı) -> temizlenir", FOk("C:\\Ürünler\\", "C:\\Ürünler"));
+        Check("L7 '' (boş) -> reddedilir", FRejects(""));
+        Check("L8 null -> reddedilir", FRejects(null));
+        Check("L9 '   ' (yalnızca boşluk) -> reddedilir", FRejects("   "));
+        Check("L10 'Ürünler' (göreli yol) -> reddedilir (çalışma dizinine göre BAŞKA klasöre YÖNLENDİRİLMEZ)", FRejects("Ürünler"));
+        Check("L11 '..\\Ürünler' (göreli, üst dizin) -> reddedilir", FRejects("..\\Ürünler"));
+        Check("L12 '.\\Ürünler' (göreli, mevcut dizin) -> reddedilir", FRejects(".\\Ürünler"));
+        Check("L13 geçersiz sözdizimi (kontrol karakteri) -> reddedilir, exception fırlatmaz",
+            FRejects("C:\\Ürünler\\" + '\u0000' + "x"));
     }
 
     Console.WriteLine();

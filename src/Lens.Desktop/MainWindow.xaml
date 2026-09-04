@@ -96,26 +96,72 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Ust kontrol - Satir 1: klasor secimi + esneyen path + menu -->
-        <Grid Grid.Row="0" Margin="0,0,0,8">
+        <!-- [Yerlesim - Eylul 2026 taslak duzeltmesi] Ust iki satir ARTIK TEK bir Grid
+             (TopAreaGrid) - iki ayri Grid yerine ORTAK sutun tanimlari kullanilir ki
+             "Bu Klasoru Varsayilan Yap" (satir0, sutun4) ile "Sorunlu / Atlanan Dosyalar"
+             (satir1, sutun4) sol kenarlari HER ZAMAN garanti ayni olsun - bu, iki bagimsiz
+             Grid'de "ikisi de sagda" tahminiyle YAPILAMAYACAK kadar kesin bir sart oldugu
+             icin BILEREK boyle kuruldu. Sutun3 (bosluk) genisligi MainWindow.
+             UpdateResponsiveLayout tarafindan KOD ILE ayarlanir - sabit "*" DEGIL, boylece
+             sag buton grubunun sol baslangici genis pencerede karsilastirma satirindaki
+             sag gorselin sol kenari CIVARINDA kalir (pencerenin ham sag kösesine
+             yapismaz) - olculen deger, tahmin edilen sabit bir margin DEGILDIR. FolderPathTextBox
+             artik TUM pencere genisligine uzayan bir "*" sutunu DEGIL - ~340 DIP (MinWidth/
+             MaxWidth ile sinirli) baslar, dar pencerede bu ARALIKTA kisalir; kisalan buton
+             degil, kutunun kendisidir. Sag taraftaki butonlar HER ZAMAN Auto (dogal boyut) -
+             hicbir kosulda kirpilmaz/kucculmez. -->
+        <Grid Grid.Row="0" x:Name="TopAreaGrid" Margin="0,0,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="100*" MinWidth="180" MaxWidth="360" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="TopAreaSpacerColumn" Width="1*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" x:Name="SelectFolderButton" Content="Ürün Klasörü Seç" Padding="10,4"
-                    Margin="0,0,8,0" Click="SelectFolderButton_Click" />
-            <TextBox Grid.Column="1" x:Name="FolderPathTextBox" IsReadOnly="True"
-                     VerticalContentAlignment="Center" Margin="0,0,8,0" Text="" />
-            <Button Grid.Column="2" x:Name="MenuButton" Content="⋮" Padding="10,4" FontWeight="Bold"
-                    Click="MenuButton_Click" ToolTip="Menü">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <!-- [Klasor adresi elle girme] Varsayilan Collapsed - taslak/hata YOKKEN sifir
+                     yukseklik kaplar, mevcut onaylanmis davranisi ETKILEMEZ. -->
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Satir 0: tarama klasoru secimi + adres + urun sayisi/kaynak solda, varsayilan
+                 islemleri + menu sagda. Kontroller ~34 DIP yukseklikte (MinHeight) okunakli
+                 ve hizali. -->
+            <Button Grid.Row="0" Grid.Column="0" x:Name="SelectFolderButton" Content="Tarama Klasörünü Seç" Padding="10,4" MinHeight="34"
+                    VerticalAlignment="Center" Margin="0,0,10,10" Click="SelectFolderButton_Click" />
+            <!-- [Klasor adresi elle girme] Gercek adres degeri hicbir sekilde kesilmez/
+                 degistirilmez - TextBox'in GORUNTULENEN genisligi kutu boyudur, metnin
+                 kendisi (Text/kopyalama/duzenleme) etkilenmez. IsReadOnly artik SABIT
+                 True DEGIL - MainWindow.SetBusy tarafindan yalnizca islem surerken
+                 (arama/indeksleme/klasor yukleme) gecici olarak acilir (bkz. o metot -
+                 IsEnabled BILEREK kullanilmadi, boylece mesgulken de secim/kopyalama
+                 calismaya devam eder). Enter: taslagi dogrula/uygula (ayni Enter aramayi
+                 BASLATMAZ). Esc: aktif klasore don. -->
+            <TextBox Grid.Row="0" Grid.Column="1" x:Name="FolderPathTextBox" MinHeight="34"
+                     VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,10" Text=""
+                     TextChanged="FolderPathTextBox_TextChanged" PreviewKeyDown="FolderPathTextBox_PreviewKeyDown"
+                     ToolTip="Klasör adresini yazabilir veya yapıştırabilirsiniz. Uygulamak için Enter, iptal etmek için Esc." />
+            <WrapPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
+                <TextBlock x:Name="ProductCountText" Text="Klasör seçilmedi" VerticalAlignment="Center" FontWeight="SemiBold" FontSize="13"
+                           Foreground="{DynamicResource NeutralTextBrush}" />
+                <TextBlock x:Name="DirectorySourceText" Text="" VerticalAlignment="Center" FontSize="13"
+                           Margin="10,0,0,0" FontStyle="Italic" Foreground="{DynamicResource SecondaryTextBrush}" />
+            </WrapPanel>
+            <!-- Sutun 3: bosluk - genisligi kod ile ayarlanir (bkz. yukaridaki not). -->
+            <Button Grid.Row="0" Grid.Column="4" x:Name="SetDefaultButton" Content="Bu Klasörü Varsayılan Yap" Padding="8,2" MinHeight="34"
+                    VerticalAlignment="Center" Margin="0,0,8,10" Click="SetDefaultButton_Click" IsEnabled="False" />
+            <Button Grid.Row="0" Grid.Column="5" x:Name="ClearDefaultButton" Content="Varsayılanı Temizle" Padding="8,2" MinHeight="34"
+                    VerticalAlignment="Center" Margin="0,0,8,10" Click="ClearDefaultButton_Click" Visibility="Collapsed" />
+            <Button Grid.Row="0" Grid.Column="6" x:Name="MenuButton" Content="⋮" Padding="10,4" FontWeight="Bold" MinHeight="34"
+                    VerticalAlignment="Center" Margin="0,0,0,10" Click="MenuButton_Click" ToolTip="Menü">
                 <Button.ContextMenu>
                     <ContextMenu Placement="Bottom">
                         <MenuItem Header="Ayarlar" Click="SettingsMenuItem_Click" />
@@ -137,116 +183,183 @@
                             <MenuItem x:Name="ThemeMenuItem_Lime" Header="Lime (Deneme)" Tag="Lime"
                                       IsCheckable="True" Click="ThemeMenuItem_Click" />
                         </MenuItem>
-                        <MenuItem Header="Log Klasörünü Aç" Click="OpenLogFolderMenuItem_Click" />
                         <Separator />
                         <MenuItem Header="Hakkında" Click="AboutMenuItem_Click" />
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
-        </Grid>
 
-        <!-- Ust kontrol - Satir 2: urun sayisi/kaynak + varsayilan islemleri + index islemleri/status.
-             WrapPanel BILEREK kullanildi (Grid Auto/Star DEGIL): iki taraftan biri (orn. uzun bir
-             IndexStatusText) genislik istediginde Grid star-sutunu neredeyse sifira sikisip metni asiri
-             sayida dar satira sarabiliyor, bu da butonlarin (varsayilan Stretch dikey hizalamayla)
-             satir yuksekligine gore devasa kutulara donusmesine yol aciyordu (Faz 2 sirasinda dar
-             pencerede gozlemlendi/duzeltildi). WrapPanel'de elemanlar asla sikismaz - yer kalmayinca
-             sadece bir sonraki satira gecer. -->
-        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBlock x:Name="ProductCountText" Text="Klasör seçilmedi" VerticalAlignment="Center" FontWeight="SemiBold"
-                       Margin="0,0,0,6" Foreground="{DynamicResource NeutralTextBrush}" />
-            <TextBlock x:Name="DirectorySourceText" Text="" VerticalAlignment="Center"
-                       Margin="10,0,16,6" FontStyle="Italic" Foreground="{DynamicResource SecondaryTextBrush}" />
-            <Button x:Name="SetDefaultButton" Content="Bu Klasörü Varsayılan Yap" Padding="8,2" VerticalAlignment="Center"
-                    Margin="0,0,8,6" Click="SetDefaultButton_Click" IsEnabled="False" />
-            <Button x:Name="ClearDefaultButton" Content="Varsayılanı Temizle" Padding="8,2" VerticalAlignment="Center"
-                    Margin="0,0,24,6" Click="ClearDefaultButton_Click" Visibility="Collapsed" />
+            <!-- Satir 1 (Grid.ColumnSpan=4, sutun 0-3'u kapsar): adres taslak/hata ipucu -
+                 Collapsed iken SIFIR yukseklik, mevcut yerlesimi ETKILEMEZ. -->
+            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" x:Name="FolderPathHintText" Text="" Visibility="Collapsed"
+                       FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"
+                       Foreground="{DynamicResource SecondaryTextBrush}" />
 
-            <Button x:Name="UpdateIndexButton" Content="İndeksi Güncelle / Klasörü Tara" Padding="10,4" VerticalAlignment="Center"
-                    Margin="0,0,10,6" Click="UpdateIndexButton_Click" />
-            <TextBlock x:Name="IndexStatusText" Text="—" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="380"
-                       Margin="0,0,10,6" Foreground="{DynamicResource NeutralTextBrush}" />
+            <!-- Satir 2: indeksleme islemi + durum/istatistik solda (sutun 0-3'u kapsar),
+                 "Sorunlu / Atlanan Dosyalar" sagda - SetDefaultButton (satir0, sutun4) ile
+                 AYNI sutunda, dolayisiyla sol kenarlari HER ZAMAN AYNI (KESIN sart, bkz.
+                 yukaridaki not). VerticalAlignment="Top" acikca belirtildi: IndexStatusText/
+                 DetailedStatsText uzun metinde birden fazla satira sarabilir - bu satir Auto
+                 yukseklikte oldugunda, varsayilan Stretch hizalamayla ProblemFilesButton/
+                 UpdateIndexButton satir yuksekligine gore devasa bir kutuya donusebilirdi
+                 (Faz 2'de WrapPanel'e gecisin asil nedeni buydu); Top hizalama bu riski Grid
+                 kullanirken de ortadan kaldirir. Mevcut gorunurluk kurallari DEGISMEDI:
+                 ProblemFilesButton sorun yoksa Collapsed kalir (UpdateProblemFilesUi),
+                 DetailedStatsText henuz basarili tarama yoksa Collapsed kalir (UpdateStatsUi). -->
+            <WrapPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button x:Name="UpdateIndexButton" Content="İndeksi Güncelle / Klasörü Tara" Padding="10,4" MinHeight="34" VerticalAlignment="Center"
+                        Margin="0,0,10,6" Click="UpdateIndexButton_Click" />
+                <TextBlock x:Name="IndexStatusText" Text="—" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" MaxWidth="380"
+                           Margin="0,0,10,6" Foreground="{DynamicResource NeutralTextBrush}" />
+                <!-- Ayrintili son basarili tarama istatistikleri (sifir sayimlar dahil, manager tam
+                     ozet ister). Bu oturumda secili klasor icin henuz basarili bir tarama yoksa
+                     Collapsed (bkz. MainWindow.UpdateStatsUi) - Collapsed, WrapPanel icinde gercekten
+                     SIFIR yer kaplar, bos bir mesaj/bosluk BIRAKMAZ. -->
+                <TextBlock x:Name="DetailedStatsText" Text="" Visibility="Collapsed" VerticalAlignment="Center"
+                           TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,6" />
+            </WrapPanel>
             <!-- ProblemFilesButton native (temadan bagimsiz, hep acik gri) buton
                  yuzeyi uzerinde durur - WarningBrush artik tema-bagimli oldugundan
                  buraya BILEREK sabit/hardcoded kirmizi kullanilir (aksi halde
                  Normal/Koyu/Sepya temalarinda acik yuzeyli butonda solgun/okunmaz
                  kalirdi). -->
-            <Button x:Name="ProblemFilesButton" Content="Sorunlu / Atlanan Dosyalar (0)" Padding="6,2" VerticalAlignment="Center"
-                    Margin="0,0,0,6" Click="ProblemFilesButton_Click" Visibility="Collapsed"
+            <Button Grid.Row="2" Grid.Column="4" x:Name="ProblemFilesButton" Content="Sorunlu / Atlanan Dosyalar (0)" Padding="6,2" MinHeight="30"
+                    VerticalAlignment="Top" Click="ProblemFilesButton_Click" Visibility="Collapsed"
                     Foreground="#FFB00020" />
-        </WrapPanel>
+        </Grid>
 
-        <!-- Ust kontrol - Satir 3: ayrintili son basarili tarama istatistikleri (sifir sayimlar dahil, manager tam ozet ister) -->
-        <TextBlock Grid.Row="2" x:Name="DetailedStatsText" Text="Henüz başarılı bir tarama yapılmadı."
-                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,14" />
-
-        <!-- Sorgu aksiyon cubugu: threshold + auto-index kontrolu ayni arama grubunda, Ara butonunun yaninda -->
-        <StackPanel Grid.Row="3" Margin="0,0,0,8">
-            <TextBlock Text="SORGU VE KARŞILAŞTIRMA" Style="{StaticResource SectionHeaderStyle}" />
-            <WrapPanel Orientation="Horizontal">
-                <Button x:Name="SelectQueryButton" Content="Sorgu Görseli Seç" Style="{StaticResource QueryActionButtonStyle}"
-                        Margin="0,0,16,6" Click="SelectQueryButton_Click" />
-                <Border BorderBrush="#FFD8D8D8" BorderThickness="1" Background="White" Padding="10,6" Margin="0,0,16,6">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Minimum benzerlik (%)" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <TextBox x:Name="ThresholdTextBox" Width="60" VerticalContentAlignment="Center" Margin="0,0,16,0" />
-                        <TextBlock Text="En fazla sonuç" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <TextBox x:Name="MaxResultsTextBox" Width="60" VerticalContentAlignment="Center" Margin="0,0,16,0" />
-                        <CheckBox x:Name="AutoIndexCheckBox" Content="Arama öncesi indeksi otomatik kontrol et ve güncelle"
-                                  VerticalAlignment="Center" Checked="AutoIndexCheckBox_CheckedChanged" Unchecked="AutoIndexCheckBox_CheckedChanged" />
-                    </StackPanel>
-                </Border>
-                <Button x:Name="SearchButton" Content="Ara" Style="{StaticResource PrimaryButtonStyle}"
-                        Margin="0,0,16,6" Click="SearchButton_Click" />
-                <Button x:Name="NewSearchButton" Content="Yeni Arama" Style="{StaticResource QueryActionButtonStyle}"
-                        Margin="0,0,0,6" Click="NewSearchButton_Click" />
-            </WrapPanel>
-            <TextBlock x:Name="ThresholdValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
-                       FontSize="11" Margin="0,4,0,0" Visibility="Collapsed" />
-            <TextBlock x:Name="MaxResultsValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
-                       FontSize="11" Margin="0,4,0,0" Visibility="Collapsed" />
-        </StackPanel>
-
-        <!-- Karsilastirma alani: sorgu + secilen sonuc TEK bir grup olarak pencerede
-             birlikte ortalanir (dis Grid'in kendisi HorizontalAlignment=Center ile
-             sadece grubun dogal genisligi (220+40+220) kadar yer kaplar - iki ayri
-             "*" sutunda BAGIMSIZ ortalama DEGIL, boylece pencere genisledikce
-             aradaki 40 DIP sabit kalir, fazla alan grubun disina/iki yanina esit
-             dagilir). Auto+sabit+Auto sutunlari: ortadaki bosluk sutunu icerik
-             tasimaz, sadece mesafe verir. -->
-        <Grid Grid.Row="4" Margin="0,0,0,14" HorizontalAlignment="Center">
+        <!-- [Yerlesim - Eylul 2026 taslak duzeltmesi] Orta blok: sorgu gorseli -> arama
+             ayarlari+islem butonlari (SettingsButtonsGrid, tek alt Grid) -> secilen sonuc
+             gorseli, TEK bir grup olarak pencerede birlikte ortalanir (dis Grid'in kendisi
+             HorizontalAlignment=Center ile sadece grubun dogal genisligi kadar yer kaplar,
+             boylece pencere genisledikce fazla alan grubun İKİ YANINA esit dagilir - eski
+             220+40+220 ikili duzenin AYNI ilkesi). "SORGU VE KARŞILAŞTIRMA" genel basligi
+             BILEREK YOK (kullanici talimati) - "Sorgulanan Görsel"/"Seçilen Sonuç" alt
+             basliklari korunuyor. Bes sutun: [0]gorsel [1]ComparisonGapLeftColumn(bosluk)
+             [2]SettingsButtonsGrid [3]ComparisonGapRightColumn(bosluk) [4]gorsel - hepsi
+             x:Name ile ADLANDIRILDI (INDEKS DEGIL) ki Grid yapisi ileride tekrar degisirse
+             MainWindow.UpdateResponsiveLayout yanlis sutunu OLCMESIN/AYARLAMASIN. Gorsel
+             kutularinin Width/Height'i, iki bosluk sutununun genisligi, SettingsColumn'un
+             genisligi ve Ara/Yeni Arama butonlarinin genisligi ARTIK SABIT DEGIL - hepsi
+             UpdateResponsiveLayout tarafindan TEK bir pencere-genisligi hesabiyla (200-300 DIP
+             gorsel, 240-260 DIP ayar sutunu, 104-120 DIP buton, 16-40 DIP bosluk araligi)
+             KOD ILE ayarlanir; bir RenderTransform/Viewbox KULLANILMADI ki surukle-birak
+             hit-testing ve cift-tik buyutme davranisi hicbir sekilde etkilenmesin. -->
+        <Grid x:Name="ComparisonRowGrid" Grid.Row="1" Margin="0,32,0,20" HorizontalAlignment="Center">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="40" />
+                <ColumnDefinition x:Name="ComparisonGapLeftColumn" Width="40" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="ComparisonGapRightColumn" Width="40" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
+            <!-- Sorgulanan görsel - 300x300 (genis pencere hedefi), MainWindow.UpdateResponsiveLayout
+                 tarafindan pencere genisligine gore (200-300 DIP arasinda, en-boy orani hep 1:1) KOD ILE
+                 ayarlanir; bir RenderTransform/Viewbox KULLANILMAZ ki surukle-birak hit-testing ve
+                 cift-tik buyutme davranisi hicbir sekilde etkilenmesin. -->
             <StackPanel Grid.Column="0">
-                <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" Margin="0,0,0,4" HorizontalAlignment="Center"
+                <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" HorizontalAlignment="Center"
                            Foreground="{DynamicResource NeutralTextBrush}" />
-                <Border x:Name="QueryDropZone" BorderBrush="{StaticResource NeutralBorderBrush}" BorderThickness="2" Width="220" Height="220"
+                <Border x:Name="QueryDropZone" BorderBrush="{StaticResource NeutralBorderBrush}" BorderThickness="2" Width="300" Height="300"
                         Background="White" AllowDrop="True" Cursor="Hand"
                         DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragOver"
                         DragLeave="QueryDropZone_DragLeave"
                         Drop="QueryDropZone_Drop" MouseLeftButtonDown="QueryDropZone_MouseLeftButtonDown">
                     <Image x:Name="QueryPreviewImage" Stretch="Uniform" Margin="4" />
                 </Border>
-                <TextBox x:Name="QueryFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
+                <TextBox x:Name="QueryFileNameText" Text="" Width="300" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
                          Foreground="{DynamicResource SecondaryTextBrush}" />
                 <TextBlock x:Name="QueryDropHintText" Text="Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt" FontStyle="Italic"
-                           Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" Width="220" />
+                           Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" Width="300" />
             </StackPanel>
 
-            <StackPanel Grid.Column="2">
-                <TextBlock Text="Seçilen Sonuç" FontWeight="SemiBold" Margin="0,0,0,4" HorizontalAlignment="Center"
+            <!-- Sutun 1: bosluk (~40 DIP genis pencerede, dar pencerede kucculur - bkz. UpdateResponsiveLayout) -->
+
+            <!-- [Yerlesim - Eylul 2026 taslak duzeltmesi] Arama ayarlari + Ara/Yeni Arama butonlari
+                 ARTIK TEK bir alt Grid (SettingsButtonsGrid) - iki bagimsiz StackPanel/tahmini
+                 Margin DEGIL: "Ara" ile esik satiri, "Yeni Arama" ile sonuc-limiti satiri AYNI
+                 paylasilan Grid satirinda, boylece dikey merkezleri GARANTI hizali kalir (pencere/
+                 font/dogrulama-mesaji degisse bile). Ust kenari, gorsel basliginin (~20 DIP) hemen
+                 altina ~8 DIP payla baslamasi icin VerticalAlignment=Top + Margin ile konumlanir
+                 (tum blogun dikey ORTALANMASI degil - aksi halde "Sorgu Görseli Seç" pencere/
+                 dogrulama durumuna gore yukari-asagi ZIPLARDI). -->
+            <Grid x:Name="SettingsButtonsGrid" Grid.Column="2" VerticalAlignment="Top" Margin="0,28,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="SettingsColumn" Width="260" />
+                    <ColumnDefinition x:Name="SettingsButtonsGapColumn" Width="32" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="22" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="20" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="24" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Satir 0: Sorgu Görseli Seç - ayar sütunu genişliğinde (Stretch), ~42 DIP yükseklik. -->
+                <Button Grid.Row="0" Grid.Column="0" x:Name="SelectQueryButton" Content="Sorgu Görseli Seç" Style="{StaticResource QueryActionButtonStyle}"
+                        Height="42" FontSize="14" HorizontalAlignment="Stretch" Click="SelectQueryButton_Click" />
+                <!-- Satir 1: sabit ~22 DIP bosluk (icerik yok). -->
+
+                <!-- Satir 2: Minimum benzerlik satırı + "Ara" (AYNI satır - dikey merkez hizası garanti). -->
+                <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Minimum benzerlik (%)" VerticalAlignment="Center" FontSize="14"
+                               Foreground="{DynamicResource NeutralTextBrush}" />
+                    <TextBox x:Name="ThresholdTextBox" Width="84" MinHeight="36" VerticalContentAlignment="Center"
+                             HorizontalAlignment="Right" Margin="10,0,0,0" />
+                </StackPanel>
+                <Button Grid.Row="2" Grid.Column="2" x:Name="SearchButton" Content="Ara" Style="{StaticResource PrimaryButtonStyle}"
+                        Width="120" Height="42" FontSize="14" VerticalAlignment="Center" Click="SearchButton_Click" />
+                <!-- Uyarı: gizliyken SIFIR yükseklik (mevcut satır aralığını bozmaz), görünürken
+                     satıra sararak alanın altında belirir - "Ara" (satır 2, YUKARIDA) etkilenmez,
+                     yalnızca satır 4 (sonuç limiti) ve altındakiler aşağı kayar (bkz. talimat
+                     "işlem butonları yanlış satırla hizalanmasın"). -->
+                <TextBlock Grid.Row="3" Grid.Column="0" x:Name="ThresholdValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
+                           FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
+
+                <!-- Satir 4: sabit ~20 DIP bosluk. -->
+
+                <!-- Satir 5: En fazla sonuç satırı + "Yeni Arama" (AYNI satır). -->
+                <StackPanel Grid.Row="5" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="En fazla sonuç" VerticalAlignment="Center" FontSize="14"
+                               Foreground="{DynamicResource NeutralTextBrush}" />
+                    <TextBox x:Name="MaxResultsTextBox" Width="84" MinHeight="36" VerticalContentAlignment="Center"
+                             HorizontalAlignment="Right" Margin="10,0,0,0" />
+                </StackPanel>
+                <Button Grid.Row="5" Grid.Column="2" x:Name="NewSearchButton" Content="Yeni Arama" Style="{StaticResource QueryActionButtonStyle}"
+                        Width="120" Height="42" FontSize="14" VerticalAlignment="Center" Click="NewSearchButton_Click" />
+                <TextBlock Grid.Row="6" Grid.Column="0" x:Name="MaxResultsValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
+                           FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
+
+                <!-- Satir 7: sabit ~24 DIP bosluk. -->
+
+                <!-- Satir 8: otomatik indeks kutucuğu - gerektiğinde iki satıra sarar, kesilmez. -->
+                <CheckBox Grid.Row="8" Grid.Column="0" x:Name="AutoIndexCheckBox" VerticalAlignment="Center"
+                          Checked="AutoIndexCheckBox_CheckedChanged" Unchecked="AutoIndexCheckBox_CheckedChanged">
+                    <TextBlock Text="Arama öncesi indeksi otomatik kontrol et ve güncelle" TextWrapping="Wrap" Width="230" FontSize="14"
+                               Foreground="{DynamicResource NeutralTextBrush}" />
+                </CheckBox>
+            </Grid>
+
+            <!-- Sutun 3: bosluk (~40 DIP genis pencerede, dar pencerede kucculur) -->
+
+            <!-- Seçilen sonuç - 300x300, sorgu görseliyle EŞİT (bkz. yukarıdaki not). -->
+            <StackPanel Grid.Column="4">
+                <TextBlock Text="Seçilen Sonuç" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" HorizontalAlignment="Center"
                            Foreground="{DynamicResource NeutralTextBrush}" />
-                <Border x:Name="ComparisonResultBorder" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="220" Height="220"
+                <Border x:Name="ComparisonResultBorder" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="300" Height="300"
                         Background="White" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
                     <Image x:Name="ComparisonResultImage" Stretch="Uniform" Margin="4" />
                 </Border>
-                <TextBox x:Name="ComparisonFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
+                <TextBox x:Name="ComparisonFileNameText" Text="" Width="300" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
                          Foreground="{DynamicResource SecondaryTextBrush}" />
-                <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" Margin="0,4,0,0" HorizontalAlignment="Center"
+                <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" FontSize="14" Margin="0,4,0,0" HorizontalAlignment="Center"
                            Foreground="{DynamicResource NeutralTextBrush}" />
             </StackPanel>
         </Grid>
@@ -256,7 +369,7 @@
              tarafindan gorsel olarak kirpilirdi, gercek scroll calismazdi). Grid'in "*" satiri
              ScrollViewer'a kalan tum yuksekligi verir, boylece tekerlek ile TUM karta (en fazla
              SimilaritySearch.MaxResults kadar) erisilebilir. -->
-        <Grid Grid.Row="5">
+        <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -312,7 +425,7 @@
 
         <!-- Alt bilgi: artik ayri bir acik panel/blok degil - ana pencere zeminiyle
              birlesir, metin rengi DynamicResource ile temaya gore okunabilir kalir. -->
-        <TextBlock Grid.Row="6" Margin="0,8,0,0" FontStyle="Italic" Foreground="{DynamicResource SecondaryTextBrush}"
+        <TextBlock Grid.Row="3" Margin="0,8,0,0" FontStyle="Italic" Foreground="{DynamicResource SecondaryTextBrush}"
                     Text="Sistem kesin eşleşme belirtmez; en yakın adaylar listelenir. Son kararı kullanıcı verir." />
     </Grid>
 </Window>

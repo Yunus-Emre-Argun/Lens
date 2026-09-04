@@ -8,6 +8,14 @@ içinde tartışılır.
 
 ## Confirmed (Alınmış Kararlar)
 
+> **2026-09-04 kaynak kontrol noktası:** `d4866f1` sonrasında kullanıcının
+> açık talimatıyla #75-77'nin kaynak değişiklikleri de commit kapsamına
+> alındı. Bu kararlardaki "kaynak commit'i bekliyor / yalnızca doküman"
+> ifadeleri önceki kontrol noktasına aittir. Bu kaynakta Release tekrar
+> 0 warning / 0 error, hardeningtest 158 PASS / 0 FAIL. Debug/görsel kabul,
+> ertelenen #75 sorunları ve publish hâlâ bekliyor. Detay: `CHANGELOG.md`
+> ve `docs/PROJECT_CONTEXT.md` son durum kaydı.
+
 | # | Karar | Not |
 |---|-------|-----|
 | 1 | Proje klasörü git ile versiyonlanacak | `git init` proje başlangıcında yapıldı |

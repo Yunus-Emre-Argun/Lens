@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -69,6 +70,17 @@ public partial class MainWindow : Window
 
     private bool IsBusy => _busyDepth > 0;
 
+    /// <summary>
+    /// [Klasör adresi elle girme - yarış durumu önlemi] Kullanıcı KENDİ klasör
+    /// seçimini/adresini uygulamaya başlar başlamaz (bkz. ApplyNewProductFolderAsync)
+    /// true olur ve bir daha asla false'a dönmez. Bu noktadan sonra
+    /// LoadDefaultProductDirectoryAsync'in gecikmiş herhangi bir devamı, kendi
+    /// sonucunu (varsayılan klasör) sessizce UYGULAMADAN durur - kullanıcının
+    /// daha yeni seçimini veya o sırada yazmakta olduğu taslağı EZMEZ (bkz.
+    /// ShouldSkipStartupDefaultLoad).
+    /// </summary>
+    private bool _userInitiatedFolderChange;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -78,9 +90,14 @@ public partial class MainWindow : Window
         var userSettings = UserSettings.Load(_logger);
         AutoIndexCheckBox.IsChecked = userSettings.AutoIndexBeforeSearch;
         // [Sonuç sınırı] Kayıtlı deger bozuk/aralik disiysa (ör. elle duzenlenmis
-        // JSON'da 0 veya 500) guvenle varsayilana (15) donulur - bu alanin kendisi
+        // JSON'da 0 veya 500) guvenle varsayilana (20) donulur - bu alanin kendisi
         // hicbir dogrulama yapmadigi icin kontrol burada yapiliyor (bkz. UserSettings.PreferredMaxResults).
         MaxResultsTextBox.Text = MaxResultsPreference.ValidateOrDefault(userSettings.PreferredMaxResults).ToString();
+        // [Arama varsayilanlari] Acilista kutu SimilarityThreshold.DefaultPercent (80)
+        // ile dolu gelir - bu deger icin kalici bir UserSettings alani YOK (bilerek,
+        // bkz. talimat); "Ara" sirasinda kutu bos/yalnizca-bosluklu birakilirsa AYNI
+        // sabit tekrar kullanilir (bkz. SearchButton_Click -> SimilarityThreshold.ResolveOrDefault).
+        ThresholdTextBox.Text = SimilarityThreshold.DefaultPercent.ToString(CultureInfo.InvariantCulture);
         // [Tema turu] persist:false - acilista SADECE kayitli tercih uygulanir, tekrar
         // diske YAZILMAZ (bkz. talimat "acilista tema yukleme olaylari yanlislikla
         // varsayilani kaydedip mevcut tercihi ezmemeli").
@@ -92,6 +109,103 @@ public partial class MainWindow : Window
         // (dolayisiyla pencerenin ilk gorunmesini) BLOKLAMAMASI icin arka
         // planda calistirilir. Fire-and-forget ama kendi ici try/catch'li.
         _ = LoadDefaultProductDirectoryAsync();
+
+        // [Yerlesim - Eylul 2026 taslak duzeltmesi] Gorsel kutulari + ayar/buton
+        // sutunlari + bosluklar + ust satirdaki varsayilan-buton-grubunun konumu
+        // artik TEK bir yerlesim hesabiyla (bkz. UpdateResponsiveLayout) pencere
+        // genisligine gore ayarlanir. Loaded, ilk tam layout gectikten SONRA
+        // (butun sutunlarin ActualWidth'i guvenilir oldugunda) bir kez cagirir;
+        // SizeChanged sonraki her pencere yeniden boyutlandirmasinda gunceller.
+        Loaded += (_, _) => UpdateResponsiveLayout();
+        RootGrid.SizeChanged += (_, _) => UpdateResponsiveLayout();
+    }
+
+    /// <summary>
+    /// [Yerlesim - Eylul 2026 taslak duzeltmesi] Genis pencere hedefleri (300 DIP
+    /// gorsel, 260 DIP ayar sutunu, 120 DIP buton, 40/32 DIP bosluklar) ile dar
+    /// pencere hedefleri (200 DIP gorsel, 240 DIP ayar sutunu, 104 DIP buton, 16
+    /// DIP bosluklar - bkz. talimat tablosu) arasinda PENCERE GENISLIGINE gore
+    /// DOGRUSAL (lineer) interpolasyon yapar - t=0 Window.MinWidth'te (860),
+    /// t=1 "tam genis hedef" toplam genisliginde (~1136, asagida hesaplanir),
+    /// ikisinin disinda CLAMP edilir (pencere buyudukce gorseller/ayarlar/
+    /// butonlar SINIRSIZ buyumez - fazla alan disariya, ComparisonRowGrid'in
+    /// HorizontalAlignment=Center'i sayesinde esit dagilir). AYNI t, TUM
+    /// olculere UYGULANIR - farkli yerlerde celiskili sabitler TEKRARLANMAZ.
+    /// Bir RenderTransform/Viewbox KULLANILMAZ ki surukle-birak hit-testing
+    /// (QueryDropZone_DragEnter/Over/Drop) ve cift-tik buyutme
+    /// (TryOpenImagePreview) davranisi hicbir sekilde degismesin. Girislerin
+    /// YUKSEKLIGI (36/42/34 DIP) BILEREK sabit kalir - yalnizca GENISLIKLER
+    /// (gorsel/ayar-sutunu/buton/bosluk) daralir (bkz. talimat "daraldi diye
+    /// tekrar ince kutulara donusturme").
+    /// </summary>
+    private void UpdateResponsiveLayout()
+    {
+        if (RootGrid.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        const double narrowWindowWidth = 860; // Window.MinWidth
+        const double narrowImage = 200, wideImage = 300;
+        const double narrowSettingsColumn = 240, wideSettingsColumn = 260;
+        const double narrowButtonWidth = 104, wideButtonWidth = 120;
+        const double narrowGap = 16, wideGapOuter = 40, wideGapInner = 32;
+
+        // "Tam genis hedef" toplam genislik: iki gorsel + iki dis bosluk +
+        // (ayar sutunu + ic bosluk + buton) + RootGrid kenar bosluklari (12+12)
+        // + pencere cercevesi icin kabaca bir pay. Bu SABIT, asagidaki lerp'in
+        // ust ucudur (t=1) - baska hicbir yerde farkli bir "genis pencere"
+        // sayisi TEKRARLANMAZ.
+        const double wideSettingsButtonsGroup = wideSettingsColumn + wideGapInner + wideButtonWidth;
+        const double wideTotalContent = wideImage + wideGapOuter + wideSettingsButtonsGroup + wideGapOuter + wideImage;
+        const double wideWindowWidth = wideTotalContent + 24 /*RootGrid Margin*/ + 20 /*pencere cercevesi payi*/;
+
+        var t = Math.Clamp((RootGrid.ActualWidth - narrowWindowWidth) / (wideWindowWidth - narrowWindowWidth), 0, 1);
+
+        static double Lerp(double a, double b, double t) => a + (b - a) * t;
+
+        var imageSize = Lerp(narrowImage, wideImage, t);
+        var settingsColumnWidth = Lerp(narrowSettingsColumn, wideSettingsColumn, t);
+        var buttonWidth = Lerp(narrowButtonWidth, wideButtonWidth, t);
+        var gapOuter = Lerp(narrowGap, wideGapOuter, t);
+        var gapInner = Lerp(narrowGap, wideGapInner, t);
+
+        QueryDropZone.Width = imageSize;
+        QueryDropZone.Height = imageSize;
+        ComparisonResultBorder.Width = imageSize;
+        ComparisonResultBorder.Height = imageSize;
+        QueryFileNameText.Width = imageSize;
+        ComparisonFileNameText.Width = imageSize;
+        QueryDropHintText.Width = imageSize;
+
+        ComparisonGapLeftColumn.Width = new GridLength(gapOuter);
+        ComparisonGapRightColumn.Width = new GridLength(gapOuter);
+        SettingsColumn.Width = new GridLength(settingsColumnWidth);
+        SettingsButtonsGapColumn.Width = new GridLength(gapInner);
+        SearchButton.Width = buttonWidth;
+        NewSearchButton.Width = buttonWidth;
+
+        // [Talimat - KESIN sart DEGIL ama acikca istendi] Ust satirdaki varsayilan
+        // buton grubunun (SetDefaultButton'dan baslayarak) sol baslangicini,
+        // karsilastirma satirindaki SAG gorselin sol kenari CIVARINDA tutar -
+        // pencerenin ham sag kösesine YAPISMAZ. Deger OLCULUR (yukaridaki
+        // analitik toplamlar + TopAreaGrid'in sol sutunlarinin GERCEK ActualWidth'i),
+        // tahmini sabit bir margin DEGILDIR.
+        var settingsButtonsGroupWidth = settingsColumnWidth + gapInner + buttonWidth;
+        var comparisonTotalWidth = imageSize + gapOuter + settingsButtonsGroupWidth + gapOuter + imageSize;
+        var comparisonLeftEdgeX = Math.Max(0, (RootGrid.ActualWidth - comparisonTotalWidth) / 2);
+        var rightImageStartX = comparisonLeftEdgeX + imageSize + gapOuter + settingsButtonsGroupWidth + gapOuter;
+
+        var leftContentWidth = TopAreaGrid.ColumnDefinitions[0].ActualWidth
+            + TopAreaGrid.ColumnDefinitions[1].ActualWidth
+            + TopAreaGrid.ColumnDefinitions[2].ActualWidth;
+        var rightGroupNaturalWidth = TopAreaGrid.ColumnDefinitions[4].ActualWidth
+            + TopAreaGrid.ColumnDefinitions[5].ActualWidth
+            + TopAreaGrid.ColumnDefinitions[6].ActualWidth;
+
+        var targetSpacer = Math.Max(0, rightImageStartX - leftContentWidth);
+        var maxAvailableSpacer = Math.Max(0, RootGrid.ActualWidth - leftContentWidth - rightGroupNaturalWidth);
+        TopAreaSpacerColumn.Width = new GridLength(Math.Min(targetSpacer, maxAvailableSpacer));
     }
 
     /// <summary>[Faz 1] Checkbox tercihi degistiginde aninda kalicilastirilir (bkz. UserSettings.AutoIndexBeforeSearch).</summary>
@@ -243,9 +357,23 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            if (ShouldSkipStartupDefaultLoad())
+            {
+                return;
+            }
+
             SetIndexStatus("Varsayılan ürün dizinine ulaşılamadı. Lütfen bir klasör seçin.", success: false);
             _logger.Error("ProductDirectory", reason: ex.Message);
             UpdateDirectoryOriginUi();
+            return;
+        }
+
+        // [Yarış durumu önlemi] İlk await'in ("ResolveDefault") sürdüğü sürede
+        // kullanıcı KENDİ klasör seçimini/adresini uygulamış veya yazmaya
+        // başlamışsa, gecikmiş varsayılan yükleme burada sessizce durur - ne
+        // aktif klasörü/adres kutusunu ne de sonraki hiçbir UI durumunu EZMEZ.
+        if (ShouldSkipStartupDefaultLoad())
+        {
             return;
         }
 
@@ -278,6 +406,17 @@ public partial class MainWindow : Window
         // arka planda calistirilmali (bkz. proje talimati madde 7).
         var (hadCacheFile, loadedEntries) = await Task.Run(() =>
             (File.Exists(ImageIndex.IndexPath(folder)), ImageIndex.Load(folder, _logger)));
+
+        // [Yarış durumu önlemi] İkinci await ("index yükleme") sürerken de
+        // kullanıcı araya girmiş olabilir - _productFolder/FolderPathTextBox
+        // yukarıda zaten değişmişti, ama kullanıcının KENDİ işlemi bu arada
+        // tamamlanmışsa (ApplyNewProductFolderAsync) zaten KENDİ doğru
+        // değerlerini yazmış olacaktır; burada geriye bir şey YAPILMAZ.
+        if (ShouldSkipStartupDefaultLoad())
+        {
+            return;
+        }
+
         _indexEntries = loadedEntries;
         _lastFreshnessCheckUtc = null;
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
@@ -300,29 +439,82 @@ public partial class MainWindow : Window
 
     private async void SelectFolderButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = "Ürün Klasörünü Seçin" };
-        if (dialog.ShowDialog() != true)
+        if (IsBusy)
         {
             return;
         }
 
-        _productFolder = dialog.FolderName;
-        FolderPathTextBox.Text = _productFolder;
-        _results.Clear();
-        UpdateResultsHeaderText();
-        ClearComparison();
-        ResetResultsScroll();
-        _lastFreshnessCheckUtc = null;
-        _lastSuccessfulStats = null;
-        UpdateStatsUi();
+        var dialog = new OpenFolderDialog { Title = "Tarama Klasörünü Seçin" };
+        if (dialog.ShowDialog() != true)
+        {
+            // [Talimat] Iptal, mevcut taslagi/uygulanmis durumu BOZMAZ - hicbir
+            // sey degismeden erken donulur.
+            return;
+        }
 
         SetBusy(true);
+        try
+        {
+            await ApplyNewProductFolderAsync(dialog.FolderName, DirectoryOrigin.Manual);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>
+    /// [Klasör adresi elle girme - PAYLAŞILAN geçiş yolu] Hem "Tarama Klasörünü Seç"
+    /// (dialog) hem de elle adres uygulama (Enter) AYNI bu metodu kullanır -
+    /// iki farklı davranış geliştirilmedi (bkz. talimat). Çağrıdan ÖNCE
+    /// candidateFolder'ın var/erişilebilir olduğu ZATEN doğrulanmış olmalıdır.
+    /// Gerçekten FARKLI bir klasöre geçişte eski sonuçlar/seçili sonuç/kaydırma/
+    /// istatistikler/sorunlu dosya listesi YENİ klasöre TAŞINMAZ; AYNI klasörün
+    /// tekrar uygulanması (normalize edilmiş karşılaştırma, büyük/küçük harf
+    /// duyarsız) hiçbirini gereksiz yere temizlemez/varsayılan kaynağını
+    /// değiştirmez - yalnızca index sessizce tazelenir. Çağıran taraf SetBusy
+    /// (try/finally) ile sarmalamalıdır.
+    /// </summary>
+    private async Task ApplyNewProductFolderAsync(string candidateFolder, DirectoryOrigin origin)
+    {
+        // [Yarış durumu önlemi] Kullanıcı KENDİ işlemini başlattığı andan
+        // itibaren gecikmiş bir varsayılan-yükleme devamı asla araya giremez
+        // (bkz. ShouldSkipStartupDefaultLoad) - bu bayrak bir daha false OLMAZ.
+        _userInitiatedFolderChange = true;
+
+        var normalizedCandidate = Path.GetFullPath(candidateFolder)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (normalizedCandidate.Length == 0)
+        {
+            normalizedCandidate = candidateFolder;
+        }
+
+        var isDifferentFolder = _productFolder is null
+            || !string.Equals(_productFolder, normalizedCandidate, StringComparison.OrdinalIgnoreCase);
+
+        _productFolder = normalizedCandidate;
+        FolderPathTextBox.Text = normalizedCandidate;
+
+        if (isDifferentFolder)
+        {
+            // [Talimat] Eski klasore ait sonuclar/secili sonuc/kaydirma/
+            // istatistikler/sorunlu dosya listesi YENI klasore TASINMAZ.
+            _results.Clear();
+            UpdateResultsHeaderText();
+            ClearComparison();
+            ResetResultsScroll();
+            _lastFreshnessCheckUtc = null;
+            _lastSuccessfulStats = null;
+            _lastIssues = Array.Empty<IndexFileIssue>();
+            UpdateStatsUi();
+            UpdateProblemFilesUi();
+        }
+
         SetIndexStatus("Paylaşılan index yükleniyor...");
-        var folder = _productFolder;
+        var folder = normalizedCandidate;
         // [Faz 1 - shared index network safety] bkz. LoadDefaultProductDirectoryAsync.
         var (hadCacheFile, loadedEntries) = await Task.Run(() =>
             (File.Exists(ImageIndex.IndexPath(folder)), ImageIndex.Load(folder, _logger)));
-        SetBusy(false);
 
         _indexEntries = loadedEntries;
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
@@ -332,15 +524,158 @@ public partial class MainWindow : Window
                 ? "Kayıtlı index okunamadı (bozuk veya uyumsuz). 'İndeksi Güncelle' ile yeniden oluşturabilirsiniz."
                 : "Klasör seçildi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
 
-        // [Faz 4A] Manuel secim varsayilan olarak GECICIDIR (session-only) -
+        // [Faz 4A] Manuel secim/adres varsayilan olarak GECICIDIR (session-only) -
         // burada hicbir ayar dosyasina yazilmaz. Kalici hale getirmek icin
         // kullanici "Bu Klasoru Varsayilan Yap" butonuna basmali.
-        _directoryOrigin = DirectoryOrigin.Manual;
+        _directoryOrigin = origin;
         UpdateDirectoryOriginUi();
+        _logger.Info("ProductDirectory", file: normalizedCandidate, reason: origin.ToString());
+    }
+
+    // ---- [Klasör adresi elle girme] FolderPathTextBox artık salt-görüntüleme
+    // değil - kullanıcı yazabilir/yapıştırabilir. Enter: taslağı doğrula ve
+    // başarılıysa uygula (aynı Enter aramayı BAŞLATMAZ - e.Handled=true).
+    // Esc: düzenlemeyi iptal et, aktif klasöre dön. Odak kaybı TEK BAŞINA
+    // hiçbir şeyi uygulamaz (kasıtlı olarak bir LostFocus-apply handler'ı YOK).
+
+    private void FolderPathTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true; // Enter'in baska bir varsayilan butona (Ara) gitmesini engelle.
+            _ = TryApplyFolderPathDraftAsync();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CancelFolderPathEdit();
+        }
+    }
+
+    private void FolderPathTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateFolderPathHint();
+    }
+
+    /// <summary>[Klasör adresi elle girme] Kutuda aktif _productFolder'dan FARKLI, henüz Enter ile onaylanmamış bir taslak varsa true döner.</summary>
+    private bool HasUnappliedFolderPathEdit() => FolderPathTextBox.Text != (_productFolder ?? string.Empty);
+
+    /// <summary>
+    /// [Yarış durumu önlemi] bkz. _userInitiatedFolderChange. Kullanıcı KENDİ
+    /// bir işlemi zaten başlattıysa (bayrak true) VEYA o anda kutuda henüz
+    /// uygulanmamış bir taslak varsa (bayrak henüz false olsa bile - ör.
+    /// kullanıcı Enter'a basmadan önce yazmaya başlamışsa), gecikmiş
+    /// LoadDefaultProductDirectoryAsync devamı durur.
+    /// </summary>
+    private bool ShouldSkipStartupDefaultLoad() => _userInitiatedFolderChange || HasUnappliedFolderPathEdit();
+
+    private void UpdateFolderPathHint()
+    {
+        if (!HasUnappliedFolderPathEdit())
+        {
+            FolderPathHintText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        FolderPathHintText.Text = "Adresi uygulamak için Enter, iptal etmek için Esc.";
+        FolderPathHintText.Foreground = (Brush)FindResource("SecondaryTextBrush");
+        FolderPathHintText.Visibility = Visibility.Visible;
+    }
+
+    private void ShowFolderPathValidationError(string message)
+    {
+        FolderPathHintText.Text = message;
+        FolderPathHintText.Foreground = (Brush)FindResource("WarningBrush");
+        FolderPathHintText.Visibility = Visibility.Visible;
+    }
+
+    private void CancelFolderPathEdit()
+    {
+        FolderPathTextBox.Text = _productFolder ?? string.Empty;
+        FolderPathTextBox.CaretIndex = FolderPathTextBox.Text.Length;
+        UpdateFolderPathHint();
+    }
+
+    /// <summary>
+    /// [Klasör adresi elle girme] Enter'da çağrılır. Biçim doğrulaması
+    /// (ProductFolderPathInput.TryNormalizeFormat, disk erişimi GEREKTİRMEZ)
+    /// senkron yapılır; disk erişimi (dosya mı/klasör var mı) arka planda
+    /// (Task.Run) yapılır ki arayüz bloke OLMASIN. Başarısızlıkta _productFolder/
+    /// sonuçlar/index'e HİÇ DOKUNULMAZ - eski çalışan durum AYNEN korunur.
+    /// </summary>
+    private async Task TryApplyFolderPathDraftAsync()
+    {
+        if (IsBusy)
+        {
+            // [Sorgu kilidi benzeri] Arama/indeksleme/klasor yukleme surerken
+            // adres uygulanamaz - kutu zaten IsReadOnly, ama bu bagimsiz bir
+            // guvenlik agidir (bkz. talimat "ilgili olay isleyicileri de korunsun").
+            return;
+        }
+
+        if (!ProductFolderPathInput.TryNormalizeFormat(FolderPathTextBox.Text, out var candidate, out var formatError))
+        {
+            ShowFolderPathValidationError(formatError);
+            return;
+        }
+
+        SetBusy(true);
+        try
+        {
+            bool isFile;
+            bool dirExists;
+            try
+            {
+                (isFile, dirExists) = await Task.Run(() => (File.Exists(candidate), Directory.Exists(candidate)));
+            }
+            catch (Exception ex)
+            {
+                ShowFolderPathValidationError($"Klasöre erişilemiyor: {ex.Message}");
+                _logger.Warning("ManualFolderPath", file: candidate, reason: ex.Message);
+                return;
+            }
+
+            if (isFile)
+            {
+                ShowFolderPathValidationError("Bu bir dosya adresi - lütfen bir klasör adresi girin.");
+                return;
+            }
+
+            if (!dirExists)
+            {
+                ShowFolderPathValidationError("Bu klasöre erişilemiyor veya klasör bulunamadı.");
+                return;
+            }
+
+            await ApplyNewProductFolderAsync(candidate, DirectoryOrigin.Manual);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>[Klasör adresi elle girme] Bkz. talimat: "kullanıcı ekranı taslak/aktif klasör karışmasın" - Ara/İndeksi Güncelle/Varsayılan Yap'tan önce çağrılır.</summary>
+    private bool WarnIfUnappliedFolderPathEdit()
+    {
+        if (!HasUnappliedFolderPathEdit())
+        {
+            return false;
+        }
+
+        ShowFolderPathValidationError(
+            "Klasör adresinde uygulanmamış bir değişiklik var. Uygulamak için Enter'a, vazgeçmek için Esc'e basın.");
+        FolderPathTextBox.Focus();
+        return true;
     }
 
     private void SetDefaultButton_Click(object sender, RoutedEventArgs e)
     {
+        if (WarnIfUnappliedFolderPathEdit())
+        {
+            return;
+        }
+
         if (_productFolder is null)
         {
             return;
@@ -379,6 +714,11 @@ public partial class MainWindow : Window
 
     private async void UpdateIndexButton_Click(object sender, RoutedEventArgs e)
     {
+        if (WarnIfUnappliedFolderPathEdit())
+        {
+            return;
+        }
+
         if (_productFolder is null)
         {
             AlertWindow.Show(this, "Önce bir ürün klasörü seçin.", "Klasör seçilmedi", AlertKind.Warning);
@@ -733,11 +1073,17 @@ public partial class MainWindow : Window
     {
         if (_lastSuccessfulStats is null)
         {
-            DetailedStatsText.Text = "Henüz başarılı bir tarama yapılmadı.";
+            // [Kullanıcı talimatı] Bu oturumda seçili klasör için henüz başarılı bir
+            // tarama yoksa alan tamamen GİZLENİR (Collapsed) - eski "Henüz başarılı
+            // bir tarama yapılmadı." metni KALDIRILDI. Collapsed, Grid.Row="2"'nin
+            // Auto yüksekliğinde gerçekten sıfır yer kaplar, boşluk BIRAKMAZ.
+            DetailedStatsText.Text = string.Empty;
+            DetailedStatsText.Visibility = Visibility.Collapsed;
             return;
         }
 
         var s = _lastSuccessfulStats;
+        DetailedStatsText.Visibility = Visibility.Visible;
         DetailedStatsText.Text =
             $"Son başarılı tarama — Yeni: {s.Added}   Güncellenen: {s.Updated}   Değişmeyen: {s.Unchanged}   "
             + $"Silinen: {s.Removed}   Okunamayan: {s.FailedCount}   Desteklenmeyen görsel: {s.UnsupportedFormatCount}   "
@@ -1129,39 +1475,40 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// [Faz 4D polish] Ayarlar bilinçli olarak SALT-OKUNUR bir ozet: Faz 4A'nin
-    /// admin-default/user-override mimarisini/UI'ini degistirmiyoruz - klasor
-    /// degistirme/varsayilan yapma islemleri hala ana ekrandaki mevcut
-    /// butonlarla yapiliyor (menude tekrarlanmiyor, state senkronizasyonu
-    /// karmasikligi eklemeye gerek yok).
+    /// [Ayarlar sadeleştirme] Sade, kullanıcı odaklı bir durum özeti - ayrı bir
+    /// SettingsWindow'da gösterilir (bkz. o dosya). Ürün klasörünün TAM YOLU
+    /// burada TEKRAR gösterilmez (zaten ana ekrandaki adres kutusunda var) -
+    /// yalnızca kısa bir durum metni ("Geçici seçim/Kullanıcı varsayılanı/
+    /// Yönetici varsayılanı/Klasör seçilmedi"). Teknik dosya yolları (yönetici
+    /// config/kullanıcı ayarları/log/önbellek/model) normal kullanıcıdan
+    /// varsayılan olarak KAPALI bir "Teknik ayrıntılar" bölümünde - hiçbir
+    /// silme/temizleme/klasör açma KOMUTU yok, yalnızca görüntüleme. Klasör
+    /// değiştirme/varsayılan yapma işlemleri hâlâ ana ekrandaki mevcut
+    /// butonlarla yapılıyor (burada tekrarlanmıyor). Açmak/kapatmak hiçbir
+    /// tercihi değiştirmez/kaydetmez.
     /// </summary>
     private void SettingsMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var folder = _productFolder ?? "(seçilmedi)";
-        var source = string.IsNullOrEmpty(DirectorySourceText.Text) ? "(yok)" : DirectorySourceText.Text;
-        var message =
-            $"Ürün klasörü: {folder}\n" +
-            $"Kaynak: {source}\n\n" +
-            $"Yönetici config dosyası:\n{AppPaths.AdminConfigFilePath}\n\n" +
-            $"Kullanıcı ayarları dosyası:\n{AppPaths.UserSettingsFilePath}\n\n" +
-            "Klasörü değiştirmek veya varsayılan yapmak için ana ekrandaki "
-            + "\"Ürün Klasörü Seç\", \"Bu Klasörü Varsayılan Yap\" ve "
-            + "\"Varsayılanı Temizle\" butonlarını kullanın.";
-        AlertWindow.Show(this, message, "Ayarlar", AlertKind.Information);
-    }
+        var folderStatus = _productFolder is null
+            ? "Klasör seçilmedi."
+            : _directoryOrigin switch
+            {
+                DirectoryOrigin.AdminDefault => "Yönetici varsayılanı kullanılıyor.",
+                DirectoryOrigin.UserOverride => "Kullanıcı varsayılanı kullanılıyor.",
+                DirectoryOrigin.Manual => "Geçici seçim kullanılıyor (kalıcı değil - \"Bu Klasörü Varsayılan Yap\" ile kalıcı hale getirilebilir).",
+                _ => "Klasör seçilmedi.",
+            };
 
-    private void OpenLogFolderMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            AppPaths.EnsureLocalDirectoriesExist();
-            Process.Start(new ProcessStartInfo { FileName = AppPaths.LogsDirectory, UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            AlertWindow.Show(this, $"Log klasörü açılamadı:\n{ex.Message}", "Klasör açılamadı", AlertKind.Warning);
-            _logger.Warning("OpenLogFolder", reason: ex.Message);
-        }
+        var modelPath = ResolveModelPath() ?? "(bulunamadı)";
+        var window = new SettingsWindow(
+            folderStatus,
+            AppPaths.AdminConfigFilePath,
+            AppPaths.UserSettingsFilePath,
+            AppPaths.LogsDirectory,
+            AppPaths.CacheRootDirectory,
+            modelPath)
+        { Owner = this };
+        window.ShowDialog();
     }
 
     private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1228,6 +1575,11 @@ public partial class MainWindow : Window
     /// </summary>
     private async void SearchButton_Click(object sender, RoutedEventArgs e)
     {
+        if (WarnIfUnappliedFolderPathEdit())
+        {
+            return;
+        }
+
         if (_productFolder is null)
         {
             AlertWindow.Show(this, "Önce bir ürün klasörü seçin.", "Klasör seçilmedi", AlertKind.Warning);
@@ -1240,21 +1592,35 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!SimilarityThreshold.TryParse(ThresholdTextBox.Text, out var thresholdPercent))
+        // [Arama varsayilanlari] Bos/yalnizca-bosluklu girdi SimilarityThreshold.
+        // DefaultPercent'e (80) cozulur; TryParse'in KATI sozlesmesi (metin/negatif/
+        // 100-ustu/NaN/Infinity reddi) DEGISMEDEN korunur (bkz. ResolveOrDefault).
+        var thresholdInputWasEmpty = string.IsNullOrWhiteSpace(ThresholdTextBox.Text);
+        if (!SimilarityThreshold.ResolveOrDefault(ThresholdTextBox.Text, out var thresholdPercent))
         {
             ShowThresholdValidationError();
             return;
         }
 
         HideThresholdValidationError();
+        if (thresholdInputWasEmpty)
+        {
+            // [Talimat] Kullanici hangi degerle arandigini gorsun - yalnizca
+            // BOS birakildiginda kutu geriye yazilir, kullanicinin GEREKLI bir
+            // degeri (ör. "65") sessizce yeniden bicimlendirilmez/dokunulmaz.
+            ThresholdTextBox.Text = thresholdPercent.ToString(CultureInfo.InvariantCulture);
+        }
 
-        if (!MaxResultsPreference.TryParse(MaxResultsTextBox.Text, out var maxResults))
+        var maxResultsInputWasEmpty = string.IsNullOrWhiteSpace(MaxResultsTextBox.Text);
+        if (!MaxResultsPreference.ResolveOrDefault(MaxResultsTextBox.Text, out var maxResults))
         {
             // [Sonuç sınırı] Threshold ile AYNI desen: gecersiz/bos girdide erken
             // return - buradan sonraki "eski sonuclari temizle" bloguna hic
             // ULASILMAZ, dolayisiyla mevcut ekran/kaydirma AYNEN korunur. Iki
             // FARKLI mesaj: gecerli bir tam sayi ama 200'u asiyorsa ayri, diger
             // tum gecersiz durumlar (bos/metin/ondalik/negatif/0) icin genel mesaj.
+            // NOT: "0" burada GECERSIZDIR (ResolveOrDefault yalnizca GERCEKTEN
+            // bos/yalnizca-bosluklu girdiyi varsayilana cevirir).
             ShowMaxResultsValidationError(MaxResultsPreference.IsAboveMaxAllowed(MaxResultsTextBox.Text)
                 ? $"En fazla {MaxResultsPreference.MaxAllowed} sonuç listeleyebilirsiniz."
                 : $"Lütfen {MaxResultsPreference.MinAllowed}-{MaxResultsPreference.MaxAllowed} arasında bir tam sayı girin.");
@@ -1262,6 +1628,10 @@ public partial class MainWindow : Window
         }
 
         HideMaxResultsValidationError();
+        if (maxResultsInputWasEmpty)
+        {
+            MaxResultsTextBox.Text = maxResults.ToString(CultureInfo.InvariantCulture);
+        }
 
         // [Sonuç sınırı] Yalnizca GECERLI bir deger buraya kadar gelebildigi icin
         // kalici hale getirmek guvenli - Load->degistir->Save akisi diger alanlari
@@ -1538,6 +1908,12 @@ public partial class MainWindow : Window
         SetDefaultButton.IsEnabled = !isBusy && _productFolder is not null && _directoryOrigin != DirectoryOrigin.UserOverride;
         ClearDefaultButton.IsEnabled = !isBusy;
         ProblemFilesButton.IsEnabled = !isBusy;
+        // [Klasör adresi elle girme] BİLEREK IsEnabled DEĞİL - disabled bir WPF
+        // TextBox'ta metin SEÇİLEMEZ/KOPYALANAMAZ (hit-testing kapanır). IsReadOnly
+        // yalnızca DÜZENLEMEYİ engeller; seçim/Ctrl+C/sağ-tık-kopyala meşgulken de
+        // ÇALIŞMAYA DEVAM EDER (bkz. talimat "mevcut adresi seçme ve kopyalama
+        // mümkün kalsın").
+        FolderPathTextBox.IsReadOnly = isBusy;
         Cursor = isBusy ? System.Windows.Input.Cursors.Wait : null;
     }
 

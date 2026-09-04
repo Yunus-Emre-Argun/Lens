@@ -8,7 +8,23 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 **Open Question** = henüz netleşmedi, karar bekliyor.
 **Later Phase** = ilk PoC/MVP kapsamı dışında, ileride değerlendirilecek.
 
-## Güncel Devir Notu — 2026-09-04 (Dokümantasyon Kontrol Noktası)
+## Son Durum — 2026-09-04 (Kaynak Kod Kontrol Noktası)
+
+Kullanıcı, `d4866f1` dokümantasyon push'undan SONRA kaynak kodun da
+commit/push edilmesini açıkça istedi. #75-77'de anlatılan mevcut kaynak
+değişiklikleri bu yeni kayıtla birlikte commit kapsamına alındı; Claude'un
+koduna ek işlevsel değişiklik yapılmadı. Aşağıdaki dokümantasyon kontrol
+noktası TARİHSELDİR: "kod commit edilmedi" ifadeleri o andaki durumu anlatır.
+
+Bu kaynak üzerinde Release yeniden derlendi (**0 warning / 0 error**) ve
+headless testler yeniden geçti (**158 PASS / 0 FAIL**). İlk test denemesi
+sandbox'ın test önbelleğine yazmayı engellemesi nedeniyle durdu; gerekli
+erişimle tekrar çalıştırıldı. Açık Debug uygulamasına müdahale edilmedi;
+Debug doğrulaması ve görsel kabul hâlâ bekliyor. Ertelenen Ayarlar/adres
+sorunları açık; publish/ZIP/Drive paketi bu kaynak kaydıyla güncellenmedi.
+Sonraki adım görsel kabul, kalan doğrulamalar ve ardından teslim paketidir.
+
+## Devir Notu — 2026-09-04 (Önceki Dokümantasyon Kontrol Noktası: d4866f1)
 
 **Kapsam:** Kullanıcının açık talimatıyla bu tur yalnızca dokümantasyon
 commit/push işlemidir. Claude bu kayıt hazırlanırken tasarım kodunu bitirip

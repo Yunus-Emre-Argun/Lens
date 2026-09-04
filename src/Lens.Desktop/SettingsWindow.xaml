@@ -1,0 +1,38 @@
+<Window x:Class="Lens.Desktop.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Ayarlar" Width="460" SizeToContent="Height" MinHeight="200"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False">
+    <StackPanel Margin="18">
+        <TextBlock Text="Klasör durumu" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock x:Name="FolderStatusText" TextWrapping="Wrap" Margin="0,0,0,14" />
+
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,16" Foreground="#FF555555"
+                   Text="Klasör seçme, değiştirme ve varsayılan yapma işlemleri ana ekrandaki &quot;Tarama Klasörünü Seç&quot;, &quot;Bu Klasörü Varsayılan Yap&quot; ve &quot;Varsayılanı Temizle&quot; ile; arka plan/tema tercihi ise ⋮ menüsündeki &quot;Arka Plan&quot; alt menüsüyle yönetilir." />
+
+        <!-- [Ayarlar sadelestirme] Teknik dosya yollari varsayilan olarak KAPALI -
+             normal kullanici icin gurultu; destek/teshis gerektiginde acilabilir.
+             Yalnizca GORUNTULEME - hicbir silme/temizleme/klasor acma komutu YOK. -->
+        <Expander Header="Teknik ayrıntılar" Margin="0,0,0,16">
+            <StackPanel Margin="0,10,0,0">
+                <TextBlock Text="Yönetici config dosyası" FontWeight="SemiBold" FontSize="11" />
+                <TextBox x:Name="AdminConfigPathText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                         TextWrapping="Wrap" Margin="0,2,0,10" Cursor="IBeam" />
+                <TextBlock Text="Kullanıcı ayar dosyası" FontWeight="SemiBold" FontSize="11" />
+                <TextBox x:Name="UserSettingsPathText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                         TextWrapping="Wrap" Margin="0,2,0,10" Cursor="IBeam" />
+                <TextBlock Text="Log klasörü" FontWeight="SemiBold" FontSize="11" />
+                <TextBox x:Name="LogsPathText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                         TextWrapping="Wrap" Margin="0,2,0,10" Cursor="IBeam" />
+                <TextBlock Text="Yerel önbellek klasörü" FontWeight="SemiBold" FontSize="11" />
+                <TextBox x:Name="CachePathText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                         TextWrapping="Wrap" Margin="0,2,0,10" Cursor="IBeam" />
+                <TextBlock Text="Model dosyası" FontWeight="SemiBold" FontSize="11" />
+                <TextBox x:Name="ModelPathText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                         TextWrapping="Wrap" Margin="0,2,0,0" Cursor="IBeam" />
+            </StackPanel>
+        </Expander>
+
+        <Button Content="Kapat" HorizontalAlignment="Right" Padding="22,7" Click="CloseButton_Click" IsDefault="True" />
+    </StackPanel>
+</Window>

@@ -8,6 +8,27 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Kaynak Kod Kontrol Noktası — Yerleşim, Ayarlar ve 80/20] — 2026-09-04
+
+### Değişti
+- Kullanıcının sonraki açık talimatıyla, `d4866f1` dokümantasyon kaydında
+  anlatılan kaynak değişiklikleri de commit kapsamına alındı: ana pencere
+  yerleşimi, yeni Ayarlar penceresi, düzenlenebilir klasör adresi, 80/20
+  varsayılanları ve bunların testleri (kararlar #75-77).
+- Claude'un mevcut kaynak kodu değiştirilmeden kaydedildi. Aşağıdaki
+  önceki turlardaki "kaynak commit'i bekliyor / yalnızca doküman" ifadeleri
+  o kontrol noktasının tarihsel durumudur; bu kaynak kaydıyla güncellendi.
+
+### Test
+- Bu kaynak üzerinde yeniden `dotnet build Lens.sln -c Release --no-restore`
+  çalıştırıldı: **0 warning / 0 error**.
+- `Lens.AiProof hardeningtest` yeniden çalıştırıldı: **158 PASS / 0 FAIL**.
+  İlk deneme test önbelleğine yazma izni nedeniyle sandbox'ta durdu;
+  gerekli erişimle tekrar çalıştırıldığında tamamlandı.
+- Debug uygulaması açık olduğu için kapatılmadı ve Debug yeniden
+  derlenmedi; canlı UI/görsel kabul yapılmadı. #75'te kayıtlı ertelenen
+  sorunlar çözülmüş sayılmaz. Yeni publish/ZIP/Drive yüklemesi yok.
+
 ## [Onaylı Taslağa Göre Görsel Yerleşim Düzeltmesi] — 2026-09-04
 
 **Durum:** Claude'un kaynak kod düzenlemesi tamamlandı raporu; görsel

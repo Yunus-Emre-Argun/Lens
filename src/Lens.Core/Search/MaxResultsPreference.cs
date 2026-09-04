@@ -15,8 +15,16 @@ public static class MaxResultsPreference
     public const int MinAllowed = 1;
     public const int MaxAllowed = SimilaritySearch.MaxResults;
 
-    /// <summary>Eski (bu alanı içermeyen) ayar dosyası veya bozuk/aralık dışı kayıtlı değer için güvenli varsayılan.</summary>
-    public const int Default = 15;
+    /// <summary>
+    /// [Arama varsayılanları] 15 → 20 (yönetici kararı). Üç yerde AYNI değer:
+    /// (1) eski/bu alanı içermeyen veya bozuk/aralık dışı kayıtlı tercih için
+    /// güvenli varsayılan (bkz. <see cref="ValidateOrDefault"/>), (2) açılışta
+    /// kutuya yazılan başlangıç değeri, (3) arama sırasında boş/yalnızca-boşluklu
+    /// girdi için kullanılan değer (bkz. <see cref="ResolveOrDefault"/>). Mevcut
+    /// GEÇERLİ kayıtlı tercihler (ör. 15, 50, 200) bu değişiklikten ETKİLENMEZ -
+    /// yalnızca "tercih hiç yok / geçersiz / boş girdi" durumlarında kullanılır.
+    /// </summary>
+    public const int Default = 20;
 
     public static bool TryParse(string? input, out int value)
     {
@@ -62,5 +70,24 @@ public static class MaxResultsPreference
 
         return int.TryParse(input.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
             && parsed > MaxAllowed;
+    }
+
+    /// <summary>
+    /// [Arama varsayılanları] <see cref="TryParse"/>'in KATI sözleşmesine bir
+    /// şey EKLEMEZ/DEĞİŞTİRMEZ - yalnızca boş/yalnızca-boşluklu girdiyi
+    /// <see cref="Default"/>'a (20) çözer, diğer HER ŞEYİ (metin, ondalık,
+    /// negatif, 0, 200 üstü) olduğu gibi TryParse'e devreder (yani geçersiz
+    /// kalır) - "0" GEÇERSİZDİR (varsayılana çevrilmez), yalnızca gerçekten
+    /// BOŞ girdi varsayılan alır.
+    /// </summary>
+    public static bool ResolveOrDefault(string? input, out int value)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            value = Default;
+            return true;
+        }
+
+        return TryParse(input, out value);
     }
 }
