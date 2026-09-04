@@ -40,9 +40,22 @@ public static class SimilaritySearch
     /// fazla <paramref name="maxResults"/> (varsayilan 200) sonuc al.
     /// </summary>
     /// <param name="minSimilarityPercent">0-100 araliginda, kullaniciya gosterilen "Minimum benzerlik (%)" degeri.</param>
+    /// <param name="maxResults">
+    /// [Kullanici tercihi - "En fazla sonuç"] 1-<see cref="MaxResults"/> (200)
+    /// araliginda olmalidir. UI (bkz. Lens.Desktop MainWindow) bu degeri
+    /// aramaya BASLAMADAN once zaten dogrulamis olmalidir - burasi ikinci
+    /// (cekirdek katman) dogrulamadir, GECERSIZ bir deger SESSIZCE baska bir
+    /// sayiya donusturulmez, ArgumentOutOfRangeException firlatilir.
+    /// </param>
     public static List<SearchResult> SearchWithThreshold(
         float[] query, IReadOnlyList<ImageIndexEntry> entries, double minSimilarityPercent, int maxResults = MaxResults)
     {
+        if (maxResults < 1 || maxResults > MaxResults)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxResults), maxResults,
+                $"maxResults 1-{MaxResults} araliginda olmalidir.");
+        }
+
         var thresholdFraction = (float)(minSimilarityPercent / 100.0);
         var qualifying = new List<SearchResult>(entries.Count);
 

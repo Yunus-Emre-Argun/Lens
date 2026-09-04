@@ -8,6 +8,73 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Sorgu Kilidi ve Kullanıcının Sonuç Sayısını Belirlemesi] — 2026-09-04
+
+### Eklendi
+- **"En fazla sonuç" girişi** — "Minimum benzerlik (%)" alanının yanına eklendi.
+  Varsayılan 15, izin verilen aralık 1-200 tam sayı (sabit teknik üst sınır
+  200 olarak kalıyor, bkz. bir önceki "Sonuç Sınırı 15 → 200" girişi). Alanda
+  yazma/yapıştırma sırasında bir kısıtlama YOK — doğrulama yalnızca "Ara"ya
+  basıldığında yapılır ve duruma göre İKİ FARKLI mesaj gösterilir:
+  - Değer geçerli bir tam sayı ama 200'ü aşıyorsa: **"En fazla 200 sonuç
+    listeleyebilirsiniz."**
+  - Boş, 0, negatif veya tam sayı değilse (harf, ondalık nokta/virgül dahil):
+    **"Lütfen 1-200 arasında bir tam sayı girin."**
+
+  Her iki durumda da uyarı alanın altında gösterilir, arama BAŞLATILMAZ ve
+  mevcut sonuçlar/karşılaştırma/kaydırma AYNEN korunur (threshold'un geçersiz
+  girdi davranışıyla birebir aynı desen — bkz. "Eski Sonuçların Erken
+  Temizlenmesi" girdisi). Kullanıcı geçerli bir değer girip tekrar aradığında
+  uyarı otomatik kalkar. Geçerli tercih yalnızca arama başarıyla başlatıldığında
+  kullanıcının kendi `user-settings.json` dosyasında (`PreferredMaxResults`)
+  kalıcı olur — tema/otomatik indeksleme/klasör tercihini etkilemez. Eski
+  (alanı içermeyen) veya bozuk/aralık dışı kayıtlı bir değer güvenle 15'e
+  döner. Alan, arama/indeksleme sürerken diğer kontrollerle birlikte devre
+  dışı kalır. Arama sırası aynen korundu: eşik → azalan sıra → kullanıcının
+  istediği sayı kadar al; yetersiz eşleşmede düşük benzerlikli ürünlerle
+  DOLDURMA yapılmaz. Başlık "EN BENZER SONUÇLAR" olarak kaldı, arayüzde sabit
+  "en fazla 200" gibi bir ifade eklenmedi. Detay: `docs/DECISIONS.md` #73.
+- **Çekirdek katmanda ikinci doğrulama** — `SimilaritySearch.SearchWithThreshold`
+  artık `maxResults` 1-200 aralığı dışındaysa `ArgumentOutOfRangeException`
+  fırlatır (sessizce başka bir sayıya çevrilmez). UI zaten aramadan önce
+  doğruladığı için normal kullanımda tetiklenmez — bu, bir programlama hatasına
+  karşı ikinci savunma katmanıdır.
+
+### Düzeltildi
+- **Arama/indeks hazırlığı sürerken sorgu artık değiştirilemiyor.** Önceden
+  "Yeni Arama" butonu ve sorgu görseli sürükle-bırak alanı `SetBusy` akışına
+  dahil DEĞİLDİ — bir arama sürerken bu ikisi hâlâ etkindi, teorik olarak
+  sorguyu arama bitmeden değiştirebiliyordu. Artık ikisi de `SetBusy` ile
+  devre dışı bırakılıyor VE yalnızca görsel devre dışı bırakmakla
+  yetinilmiyor: `NewSearchButton_Click` ve
+  `QueryDropZone_DragEnter/DragOver/Drop` olay işleyicilerinin her biri
+  ayrıca bağımsız bir "işlem sürüyor mu" kontrolü (`IsBusy`) yapıyor —
+  buton/alan zaten devre dışıyken bir olay yine de tetiklenirse (ör. klavye/
+  otomasyon kaynaklı) sorgu yine değişmez. Meşgulken sürüklenen bir görsel
+  kabul edilmez VE "kabul edilebilir" sürükleme vurgusu (accent border/
+  önizleme) hiç gösterilmez. `SetBusy`, olası bir iç içe (nested) çağrı
+  ihtimaline karşı artık bir derinlik sayacına (`_busyDepth`) dayanıyor —
+  içteki bir işlem bitse bile dıştaki arama bitmeden koruma kalkmaz. Sorgu
+  yolu, eşik ve yeni "en fazla sonuç" değeri zaten arama başlangıcında local
+  değişkenlere sabitleniyordu (bkz. önceki girişler) — bu değişiklik buna
+  ikinci bir savunma katmanı (alanların ayrıca devre dışı bırakılması) ekledi.
+  Mevcut "eski sonuçları arama başlar başlamaz temizle" düzeltmesi korundu.
+
+### Test
+- `Lens.AiProof hardeningtest` Grup J eklendi (39 kontrol): "en fazla sonuç"
+  girdi validasyonu (1/15/50/200 sınırları, 0/201/negatif/ondalık/boş/null
+  reddi), iki-mesaj ayrımı (`IsAboveMaxAllowed`), `UserSettings.
+  PreferredMaxResults` JSON sözleşmesi (varsayılan, geriye uyumluluk, alan
+  korunumu), `SimilaritySearch.SearchWithThreshold` limit=1/15/50/200 +
+  yetersiz eşleşmede doldurmama + çekirdek katman `ArgumentOutOfRangeException`.
+  Toplam **117/117 PASS**. `dotnet build` Debug/Release **0 warning/0 error**.
+  **Canlı doğrulanamayan:** sorgu kilidinin (arama sürerken "Yeni Arama"/
+  sürükle-bırakın gerçekten pasif kaldığı, hata sonrası tekrar aktif olduğu)
+  ve yeni "En fazla sonuç" alanının minimum pencere boyutunda diğer
+  kontrolleri taşırmadığı gerçek ekranda test edilmedi — kullanıcı ekranı
+  aktif kullandığı için canlı UI otomasyonu/masaüstü müdahalesi yapılmadı,
+  yalnızca kod incelemesi ve headless testlerle doğrulandı.
+
 ## [Sonuç Sınırı 15 → 200 ve Temiz Teslim Paketi] — 2026-09-04
 
 ### Değişti

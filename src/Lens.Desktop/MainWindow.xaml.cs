@@ -58,6 +58,17 @@ public partial class MainWindow : Window
     /// RefreshThemeDependentForegrounds).</summary>
     private bool? _lastIndexStatusSuccess;
 
+    /// <summary>
+    /// [Sorgu kilidi] SetBusy(true)/(false) cagrilarinin ic ice (nested) gelme
+    /// ihtimaline karsi sayac - yalnizca DERINLIK SIFIRA donunce arayuz gercekten
+    /// "mesgul degil" sayilir. Su an hicbir cagiran (Search/UpdateIndex/SelectFolder)
+    /// baska birini nested cagirmiyor, ama bu sayac sayesinde ileride biri nested
+    /// SetBusy(false) cagirsa bile DIS islemin korumasini erken KALDIRAMAZ.
+    /// </summary>
+    private int _busyDepth;
+
+    private bool IsBusy => _busyDepth > 0;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -66,6 +77,10 @@ public partial class MainWindow : Window
 
         var userSettings = UserSettings.Load(_logger);
         AutoIndexCheckBox.IsChecked = userSettings.AutoIndexBeforeSearch;
+        // [Sonuç sınırı] Kayıtlı deger bozuk/aralik disiysa (ör. elle duzenlenmis
+        // JSON'da 0 veya 500) guvenle varsayilana (15) donulur - bu alanin kendisi
+        // hicbir dogrulama yapmadigi icin kontrol burada yapiliyor (bkz. UserSettings.PreferredMaxResults).
+        MaxResultsTextBox.Text = MaxResultsPreference.ValidateOrDefault(userSettings.PreferredMaxResults).ToString();
         // [Tema turu] persist:false - acilista SADECE kayitli tercih uygulanir, tekrar
         // diske YAZILMAZ (bkz. talimat "acilista tema yukleme olaylari yanlislikla
         // varsayilani kaydedip mevcut tercihi ezmemeli").
@@ -755,6 +770,15 @@ public partial class MainWindow : Window
     /// </summary>
     private void NewSearchButton_Click(object sender, RoutedEventArgs e)
     {
+        // [Sorgu kilidi] Buton zaten SetBusy ile gorsel olarak devre disi birakiliyor,
+        // ama bu kontrol BAGIMSIZ bir guvenlik agi - ornegin klavye/otomasyon kaynakli
+        // bir Click, IsEnabled=false'a ragmen event handler'a ulasirsa (WPF'te normalde
+        // olmaz ama garanti degildir) arama surerken sorgu yine de degismez.
+        if (IsBusy)
+        {
+            return;
+        }
+
         _queryImagePath = null;
         QueryPreviewImage.Source = null;
         QueryFileNameText.Text = string.Empty;
@@ -812,7 +836,12 @@ public partial class MainWindow : Window
 
     private void QueryDropZone_DragEnter(object sender, DragEventArgs e)
     {
-        var isValid = TryGetDroppedImagePath(e.Data, out var path, out _);
+        // [Sorgu kilidi] Arama/indeks hazirligi surerken yeni bir sorgu gorseli
+        // KABUL EDILMEZ - gecerli bir dosya suruklense bile isValid zorla false
+        // yapilir ki "kabul edilebilir" vurgusu (accent border/onizleme) HICBIR
+        // ZAMAN yanlislikla gosterilmesin.
+        var hasValidFile = TryGetDroppedImagePath(e.Data, out var path, out _);
+        var isValid = !IsBusy && hasValidFile;
         e.Effects = isValid ? DragDropEffects.Copy : DragDropEffects.None;
         // [Faz 4D polish] Gecersiz surukleme icin yanlis "kabul edilebilir"
         // gorunumu vermeyelim - vurgu yalnizca gercekten kabul edilecek bir
@@ -837,7 +866,8 @@ public partial class MainWindow : Window
 
     private void QueryDropZone_DragOver(object sender, DragEventArgs e)
     {
-        var isValid = TryGetDroppedImagePath(e.Data, out _, out _);
+        // [Sorgu kilidi] bkz. QueryDropZone_DragEnter - ayni kural DragOver icin de gecerli.
+        var isValid = !IsBusy && TryGetDroppedImagePath(e.Data, out _, out _);
         e.Effects = isValid ? DragDropEffects.Copy : DragDropEffects.None;
         _dragPreviewAdorner?.UpdatePosition(e.GetPosition(RootGrid));
         e.Handled = true;
@@ -853,6 +883,15 @@ public partial class MainWindow : Window
     {
         SetQueryDropZoneActive(false);
         RemoveDragPreview();
+
+        // [Sorgu kilidi] DragEnter/DragOver zaten "kabul edilebilir" vurgusunu hic
+        // GOSTERMEDI (isValid=false), ama WPF bir Drop olayini yine de teslim
+        // edebilir - bu yuzden burada da BAGIMSIZ olarak kontrol edilir. Sessizce
+        // yok sayilir (kullaniciya zaten hicbir kabul sinyali verilmemisti).
+        if (IsBusy)
+        {
+            return;
+        }
 
         if (!TryGetDroppedImagePath(e.Data, out var path, out var error))
         {
@@ -1192,6 +1231,31 @@ public partial class MainWindow : Window
 
         HideThresholdValidationError();
 
+        if (!MaxResultsPreference.TryParse(MaxResultsTextBox.Text, out var maxResults))
+        {
+            // [Sonuç sınırı] Threshold ile AYNI desen: gecersiz/bos girdide erken
+            // return - buradan sonraki "eski sonuclari temizle" bloguna hic
+            // ULASILMAZ, dolayisiyla mevcut ekran/kaydirma AYNEN korunur. Iki
+            // FARKLI mesaj: gecerli bir tam sayi ama 200'u asiyorsa ayri, diger
+            // tum gecersiz durumlar (bos/metin/ondalik/negatif/0) icin genel mesaj.
+            ShowMaxResultsValidationError(MaxResultsPreference.IsAboveMaxAllowed(MaxResultsTextBox.Text)
+                ? $"En fazla {MaxResultsPreference.MaxAllowed} sonuç listeleyebilirsiniz."
+                : $"Lütfen {MaxResultsPreference.MinAllowed}-{MaxResultsPreference.MaxAllowed} arasında bir tam sayı girin.");
+            return;
+        }
+
+        HideMaxResultsValidationError();
+
+        // [Sonuç sınırı] Yalnizca GECERLI bir deger buraya kadar gelebildigi icin
+        // kalici hale getirmek guvenli - Load->degistir->Save akisi diger alanlari
+        // (tema/otomatik indeksleme/klasor override'i) KORUR.
+        var maxResultsSettings = UserSettings.Load(_logger);
+        if (maxResultsSettings.PreferredMaxResults != maxResults)
+        {
+            maxResultsSettings.PreferredMaxResults = maxResults;
+            maxResultsSettings.Save(_logger);
+        }
+
         // [Stale-results fix] Buraya kadar gelindiyse girdi gecerli - "gecerli bir arama
         // baslatildi" sayilir. Index hazirligi/model yukleme gibi uzun suren islemler
         // BASLAMADAN once eski sonuclar/karsilastirma/sonuc sayisi temizlenir ki bu
@@ -1230,6 +1294,11 @@ public partial class MainWindow : Window
             var entries = _indexEntries;
             var embedder = _embedder!;
             var productFolder = _productFolder;
+            // [Sorgu kilidi] maxResults (threshold/queryPath gibi) burada LOCAL bir
+            // degiskene sabitlenir - MaxResultsTextBox zaten SetBusy ile devre disi
+            // birakildigindan degismesi beklenmez, ama arama KENDI baslangic
+            // degeriyle tamamlansin diye alan ayrica arama sirasinda tekrar OKUNMAZ.
+            var maxResultsForSearch = maxResults;
 
             // [200-limit perf] Thumbnail decode'u (TryLoadPreview) da bu arka plan
             // gorevine tasindi - eskiden UI thread'de, arama sonucu donduk-ten SONRA,
@@ -1243,7 +1312,7 @@ public partial class MainWindow : Window
             var viewModels = await Task.Run(() =>
             {
                 var embedding = embedder.Embed(queryPath);
-                var matches = SimilaritySearch.SearchWithThreshold(embedding, entries, thresholdPercent);
+                var matches = SimilaritySearch.SearchWithThreshold(embedding, entries, thresholdPercent, maxResultsForSearch);
 
                 var list = new List<SearchResultViewModel>(matches.Count);
                 foreach (var r in matches)
@@ -1327,6 +1396,20 @@ public partial class MainWindow : Window
         ThresholdValidationText.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>[Sonuç sınırı] Gecersiz "en fazla sonuç": odak hatali alana doner, sade (modal olmayan) bir mesaj gosterilir - ThresholdValidationText ile AYNI desen. Mesaj cagiran tarafindan secilir (bkz. SearchButton_Click - "200'u asan" ile "diger gecersiz" durumlar AYRI metinler kullanir).</summary>
+    private void ShowMaxResultsValidationError(string message)
+    {
+        MaxResultsValidationText.Text = message;
+        MaxResultsValidationText.Visibility = Visibility.Visible;
+        MaxResultsTextBox.Focus();
+        MaxResultsTextBox.SelectAll();
+    }
+
+    private void HideMaxResultsValidationError()
+    {
+        MaxResultsValidationText.Visibility = Visibility.Collapsed;
+    }
+
     private bool TryEnsureEmbedder(out string error)
     {
         error = string.Empty;
@@ -1404,18 +1487,34 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// [Sorgu kilidi] Tek gercek "mesgul mu" kaynagi _busyDepth'tir - bkz. IsBusy.
+    /// SetBusy(true)/(false) cagrilari her zaman ESLESIR (try/finally ile), bu
+    /// yuzden derinlik normalde 0/1 arasinda gidip gelir; ama olasi bir nested
+    /// cagride (ör. ileride bir alt-islem de SetBusy kullanirsa) ic taraf bittiginde
+    /// disarinin korumasini YANLISLIKLA kaldirmaz - yalnizca EN DISTAKI SetBusy(false)
+    /// derinligi sifira indirdiginde arayuz gercekten "mesgul degil" olur.
+    /// NewSearchButton ve MaxResultsTextBox buraya [Sorgu kilidi] turunda eklendi -
+    /// onceden yalnizca gorsel olarak degil, IsBusy kontrolu ile ilgili olay
+    /// isleyicilerinde de (bkz. NewSearchButton_Click, QueryDropZone_*) korunuyorlar.
+    /// </summary>
     private void SetBusy(bool busy)
     {
-        SelectFolderButton.IsEnabled = !busy;
-        UpdateIndexButton.IsEnabled = !busy;
-        SelectQueryButton.IsEnabled = !busy;
-        SearchButton.IsEnabled = !busy;
-        ThresholdTextBox.IsEnabled = !busy;
-        AutoIndexCheckBox.IsEnabled = !busy;
-        SetDefaultButton.IsEnabled = !busy && _productFolder is not null && _directoryOrigin != DirectoryOrigin.UserOverride;
-        ClearDefaultButton.IsEnabled = !busy;
-        ProblemFilesButton.IsEnabled = !busy;
-        Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
+        _busyDepth = Math.Max(0, _busyDepth + (busy ? 1 : -1));
+        var isBusy = IsBusy;
+
+        SelectFolderButton.IsEnabled = !isBusy;
+        UpdateIndexButton.IsEnabled = !isBusy;
+        SelectQueryButton.IsEnabled = !isBusy;
+        SearchButton.IsEnabled = !isBusy;
+        NewSearchButton.IsEnabled = !isBusy;
+        ThresholdTextBox.IsEnabled = !isBusy;
+        MaxResultsTextBox.IsEnabled = !isBusy;
+        AutoIndexCheckBox.IsEnabled = !isBusy;
+        SetDefaultButton.IsEnabled = !isBusy && _productFolder is not null && _directoryOrigin != DirectoryOrigin.UserOverride;
+        ClearDefaultButton.IsEnabled = !isBusy;
+        ProblemFilesButton.IsEnabled = !isBusy;
+        Cursor = isBusy ? System.Windows.Input.Cursors.Wait : null;
     }
 
     protected override void OnClosed(EventArgs e)

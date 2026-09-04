@@ -190,6 +190,8 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Minimum benzerlik (%)" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox x:Name="ThresholdTextBox" Width="60" VerticalContentAlignment="Center" Margin="0,0,16,0" />
+                        <TextBlock Text="En fazla sonuç" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBox x:Name="MaxResultsTextBox" Width="60" VerticalContentAlignment="Center" Margin="0,0,16,0" />
                         <CheckBox x:Name="AutoIndexCheckBox" Content="Arama öncesi indeksi otomatik kontrol et ve güncelle"
                                   VerticalAlignment="Center" Checked="AutoIndexCheckBox_CheckedChanged" Unchecked="AutoIndexCheckBox_CheckedChanged" />
                     </StackPanel>
@@ -200,6 +202,8 @@
                         Margin="0,0,0,6" Click="NewSearchButton_Click" />
             </WrapPanel>
             <TextBlock x:Name="ThresholdValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
+                       FontSize="11" Margin="0,4,0,0" Visibility="Collapsed" />
+            <TextBlock x:Name="MaxResultsValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
                        FontSize="11" Margin="0,4,0,0" Visibility="Collapsed" />
         </StackPanel>
 

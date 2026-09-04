@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Lens.Core.IO;
 using Lens.Core.Logging;
+using Lens.Core.Search;
 
 namespace Lens.Core.Config;
 
@@ -36,6 +37,19 @@ public sealed class UserSettings
     /// dogrulama yapmaz (dumduz string).
     /// </summary>
     public string Theme { get; set; } = "Normal";
+
+    /// <summary>
+    /// [Sonuç sınırı - kullanıcı tercihi] "En fazla sonuç" girdisinin kalıcı
+    /// hali (bkz. MaxResultsPreference, MainWindow.MaxResultsTextBox).
+    /// Varsayılan 15; eski (bu alanı içermeyen) bir dosya yüklendiğinde
+    /// AutoIndexBeforeSearch/Theme ile aynı geriye-uyumlu mantıkla 15 kabul
+    /// edilir. Yalnızca GEÇERLİ (1-200) bir değer arama başlatılırken
+    /// kaydedilir (bkz. MainWindow.SearchButton_Click) - bu alanın kendisi
+    /// hiçbir doğrulama yapmaz (dümdüz int); bozuk/aralık dışı bir kayıtlı
+    /// değer MainWindow tarafında MaxResultsPreference.ValidateOrDefault ile
+    /// güvenle 15'e çevrilir.
+    /// </summary>
+    public int PreferredMaxResults { get; set; } = MaxResultsPreference.Default;
 
     public static UserSettings Load(ILensLogger? logger = null)
     {

@@ -680,6 +680,129 @@ static void RunHardeningTest()
     }
 
     Console.WriteLine();
+
+    // ---- Grup J: "En fazla sonuç" kullanıcı tercihi (MaxResultsPreference + UserSettings.PreferredMaxResults + SearchWithThreshold entegrasyonu) ----
+    Console.WriteLine("[J] \"En fazla sonuç\" tercihi: girdi validasyonu + kalıcılık + arama entegrasyonu");
+    {
+        bool MOk(string? input, int expected)
+        {
+            var ok = MaxResultsPreference.TryParse(input, out var value);
+            return ok && value == expected;
+        }
+
+        bool MRejects(string? input) => !MaxResultsPreference.TryParse(input, out _);
+
+        Check("J1 '1' -> geçerli (alt sınır dahil)", MOk("1", 1));
+        Check("J2 '200' -> geçerli (üst sınır dahil)", MOk("200", 200));
+        Check("J3 '15' -> geçerli", MOk("15", 15));
+        Check("J4 '0' -> reddedilir", MRejects("0"));
+        Check("J5 '-5' (negatif) -> reddedilir", MRejects("-5"));
+        Check("J6 '201' (üst sınırın üstü) -> reddedilir", MRejects("201"));
+        Check("J7 '15.5' (ondalık nokta) -> reddedilir", MRejects("15.5"));
+        Check("J8 '15,5' (ondalık virgül) -> reddedilir", MRejects("15,5"));
+        Check("J9 'abc' (metin) -> reddedilir", MRejects("abc"));
+        Check("J10 '' (boş) -> reddedilir - düzenleme sırasında geçici boşluk arama başlatamaz", MRejects(""));
+        Check("J11 null -> reddedilir", MRejects((string?)null));
+        Check("J12 '   ' (yalnızca boşluk) -> reddedilir", MRejects("   "));
+
+        // [UI mesaj ayrımı] "200'den büyük" ile "diğer tüm geçersiz durumlar" ARAYÜZDE
+        // farklı iki mesajla gösterilir (bkz. SearchButton_Click) - IsAboveMaxAllowed
+        // bu ayrımı yapan yardımcı.
+        Check("J12b IsAboveMaxAllowed('201') -> true (geçerli tam sayı ama üst sınırı aşıyor)", MaxResultsPreference.IsAboveMaxAllowed("201"));
+        Check("J12c IsAboveMaxAllowed('300') -> true", MaxResultsPreference.IsAboveMaxAllowed("300"));
+        Check("J12d IsAboveMaxAllowed('200') -> false (üst sınırın kendisi, GEÇERLİ)", !MaxResultsPreference.IsAboveMaxAllowed("200"));
+        Check("J12e IsAboveMaxAllowed('0') -> false (genel mesaja düşer)", !MaxResultsPreference.IsAboveMaxAllowed("0"));
+        Check("J12f IsAboveMaxAllowed('-5') -> false", !MaxResultsPreference.IsAboveMaxAllowed("-5"));
+        Check("J12g IsAboveMaxAllowed('abc') -> false (tam sayı değil, genel mesaja düşer)", !MaxResultsPreference.IsAboveMaxAllowed("abc"));
+        Check("J12h IsAboveMaxAllowed('250.5') -> false (ondalık - tam sayı değil, genel mesaja düşer)", !MaxResultsPreference.IsAboveMaxAllowed("250.5"));
+        Check("J12i IsAboveMaxAllowed('') -> false", !MaxResultsPreference.IsAboveMaxAllowed(""));
+        Check("J12j IsAboveMaxAllowed(null) -> false", !MaxResultsPreference.IsAboveMaxAllowed(null));
+
+        Check("J13 ValidateOrDefault(15) geçerli değeri aynen döner", MaxResultsPreference.ValidateOrDefault(15) == 15);
+        Check("J14 ValidateOrDefault(0) -> güvenli varsayılan 15", MaxResultsPreference.ValidateOrDefault(0) == 15);
+        Check("J15 ValidateOrDefault(500) (aralık dışı, bozuk kayıtlı değer) -> güvenli varsayılan 15", MaxResultsPreference.ValidateOrDefault(500) == 15);
+        Check("J16 ValidateOrDefault(-3) -> güvenli varsayılan 15", MaxResultsPreference.ValidateOrDefault(-3) == 15);
+        Check("J17 ValidateOrDefault(200) (üst sınır) geçerli, aynen döner", MaxResultsPreference.ValidateOrDefault(200) == 200);
+
+        // ---- UserSettings.PreferredMaxResults - JSON sözleşmesi (Grup I ile aynı desen) ----
+        var oldJsonWithoutField = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"AutoIndexBeforeSearch\":true,\"Theme\":\"Normal\"}";
+        var loadedFromOld = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(oldJsonWithoutField);
+        Check("J18 eski (PreferredMaxResults alanını içermeyen) settings JSON'u -> 15 (geriye uyumlu varsayılan)",
+            loadedFromOld is not null && loadedFromOld.PreferredMaxResults == 15);
+
+        var freshSettings = new Lens.Core.Config.UserSettings();
+        Check("J19 yeni oluşturulan UserSettings -> varsayılan PreferredMaxResults=15", freshSettings.PreferredMaxResults == 15);
+
+        var explicitJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"PreferredMaxResults\":50}";
+        var loadedExplicit = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(explicitJson);
+        Check("J20 açık 'PreferredMaxResults=50' JSON'u -> 50 (kullanıcının geçerli tercihi korunur)",
+            loadedExplicit is not null && loadedExplicit.PreferredMaxResults == 50);
+
+        var roundTripJson = JsonSerializer.Serialize(new Lens.Core.Config.UserSettings { PreferredMaxResults = 200 });
+        var roundTripped = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(roundTripJson);
+        Check("J21 200 -> serialize -> deserialize round-trip korunur",
+            roundTripped is not null && roundTripped.PreferredMaxResults == 200);
+
+        // PreferredMaxResults kaydı diger alanlari (Theme/AutoIndexBeforeSearch/UserOverride/klasor tercihi) EZMEMELI.
+        var combinedJson = "{\"UserOverrideProductDirectory\":\"C:\\\\urunler\",\"UseUserOverride\":true,\"AutoIndexBeforeSearch\":false,\"Theme\":\"Koyu\",\"PreferredMaxResults\":75}";
+        var loadedCombined = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(combinedJson);
+        Check("J22 PreferredMaxResults ile birlikte diğer tüm alanlar (tema/otomatik indeksleme/klasör) da korunur",
+            loadedCombined is not null
+            && loadedCombined.PreferredMaxResults == 75
+            && loadedCombined.Theme == "Koyu"
+            && !loadedCombined.AutoIndexBeforeSearch
+            && loadedCombined.UseUserOverride
+            && loadedCombined.UserOverrideProductDirectory == "C:\\urunler");
+
+        // ---- SearchWithThreshold, kullanicinin ozel "en fazla sonuç" limitiyle (bkz. kullanici talimati: limit 1/15/50/200) ----
+        static List<ImageIndexEntry> MakeScoredEntries(params float[] scores)
+        {
+            var list = new List<ImageIndexEntry>();
+            for (int i = 0; i < scores.Length; i++)
+            {
+                list.Add(new ImageIndexEntry { RelativePath = $"j{i}.jpg", Embedding = new[] { scores[i] } });
+            }
+
+            return list;
+        }
+
+        float[] jquery = { 1f };
+        var scores100 = Enumerable.Range(0, 100).Select(i => 1f - i * 0.001f).ToArray();
+
+        var j23 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(scores100), minSimilarityPercent: 0, maxResults: 1);
+        Check("J23 limit=1, 100 qualifying -> yalnızca en iyi 1 sonuç", j23.Count == 1 && Math.Abs(j23[0].Score - 1.0f) < 1e-5);
+
+        var j24 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(scores100), minSimilarityPercent: 0, maxResults: 15);
+        Check("J24 limit=15, 100 qualifying -> en iyi 15, azalan sıra", j24.Count == 15 && j24.SequenceEqual(j24.OrderByDescending(r => r.Score)));
+
+        var j25 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(scores100), minSimilarityPercent: 0, maxResults: 50);
+        Check("J25 limit=50, 100 qualifying -> en iyi 50, azalan sıra", j25.Count == 50 && j25.SequenceEqual(j25.OrderByDescending(r => r.Score)));
+
+        var j26 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(scores100), minSimilarityPercent: 0, maxResults: 200);
+        Check("J26 limit=200 (üst sınır), yalnızca 100 qualifying -> hepsi 100 (doldurma YOK)", j26.Count == 100);
+
+        var j27 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(0.9f, 0.5f, 0.2f), minSimilarityPercent: 0, maxResults: 50);
+        Check("J27 limit=50, yalnızca 3 qualifying -> 3 (yetersiz eşleşmede doldurma YOK)", j27.Count == 3);
+
+        bool ThrowsOutOfRange(int badMax)
+        {
+            try
+            {
+                SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(1f), minSimilarityPercent: 0, maxResults: badMax);
+                return false;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return true;
+            }
+        }
+
+        Check("J28 çekirdek katman: maxResults=0 -> ArgumentOutOfRangeException (sessizce başka sayıya çevrilmez)", ThrowsOutOfRange(0));
+        Check("J29 çekirdek katman: maxResults=201 -> ArgumentOutOfRangeException", ThrowsOutOfRange(201));
+        Check("J30 çekirdek katman: maxResults=-5 -> ArgumentOutOfRangeException", ThrowsOutOfRange(-5));
+    }
+
+    Console.WriteLine();
     Console.WriteLine($"=== Sonuc: {passed} PASS, {failed} FAIL ===");
     if (failed > 0)
     {
