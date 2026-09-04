@@ -817,7 +817,7 @@ public partial class MainWindow : Window
         {
             QueryDropZone.BorderBrush = (Brush)FindResource("NeutralBorderBrush");
             QueryDropZone.BorderThickness = new Thickness(2);
-            QueryDropZone.Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
+            QueryDropZone.Background = Brushes.White;
             QueryDropHintText.Text = "Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt";
         }
     }
@@ -1022,9 +1022,11 @@ public partial class MainWindow : Window
         ComparisonScoreText.Text = result.ScoreText;
         // [Faz 4D polish] Yalnizca goruntulenen deger tam %100 oldugunda
         // basari/yesil vurgusu - diger skorlar notr kalir.
+        // [Gorsel guncelleme] ComparisonScoreText koyu slate zemin uzerinde durdugu icin
+        // koyu-zemin-uyumlu karsiliklar kullanilir (OnDarkSuccessBrush/OnDarkTextBrush).
         ComparisonScoreText.Foreground = result.IsPerfectMatch
-            ? (Brush)FindResource("SuccessBrush")
-            : (Brush)FindResource("NeutralTextBrush");
+            ? (Brush)FindResource("OnDarkSuccessBrush")
+            : (Brush)FindResource("OnDarkTextBrush");
     }
 
     private void ClearComparison()
@@ -1038,7 +1040,7 @@ public partial class MainWindow : Window
         ComparisonResultImage.Source = null;
         ComparisonFileNameText.Text = string.Empty;
         ComparisonScoreText.Text = string.Empty;
-        ComparisonScoreText.Foreground = (Brush)FindResource("NeutralTextBrush");
+        ComparisonScoreText.Foreground = (Brush)FindResource("OnDarkTextBrush");
     }
 
     /// <summary>

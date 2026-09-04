@@ -8,6 +8,31 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Görsel Güncelleme — Zemin Rengi Kontrastı] — 2026-09-04
+
+### Değişti
+- Ana pencere arka planı `#F5F6F8` yerine koyu slate `#64748B`; beyaz/açık
+  renkli desenlerin (özellikle nevresim gibi açık tonlu ürünler) zeminden
+  belirgin şekilde ayrışması amaçlanmıştır. Desen/sonuç kartları, sorgu ve
+  seçilen sonuç görsel kutuları saf beyaz (`#FFFFFF`) olarak korunmuştur.
+- Üst kontrol (klasör seçimi), durum/sayaç satırları ve sorgu/eşik çubuğu
+  (Satır 0-3) tek parça açık renkli bir panel (`#F5F6F8`, `LightPanelBrush`)
+  üzerine alındı; alt bilgi metni de aynı panel içine taşındı — okunabilirlik
+  koyu zeminde bozulmasın diye.
+- Koyu zemin üzerinde kalan öğeler (karşılaştırma alanı başlıkları/dosya
+  adları/ipucu metni, sonuç listesi başlığı, %100 eşleşme vurgusu) için
+  yeni `OnDarkTextBrush`/`OnDarkSecondaryTextBrush`/`OnDarkSuccessBrush`
+  kaynakları eklendi; `MainWindow.xaml.cs` içindeki `ComparisonScoreText`
+  renk ataması bu yeni kaynaklara güncellendi (önceki `NeutralTextBrush`/
+  `SuccessBrush` koyu zeminde okunmuyordu).
+- Sorgu görselinin nötr/koyu çerçevesi, seçilen sonucun ve seçili Top-15
+  kartının mavi vurgusu değişmedi. Arama/threshold/indeksleme/kilit iş
+  mantığına dokunulmadı — yalnızca XAML renk/arka plan ve ilgili 3 satırlık
+  `Foreground` ataması değişti.
+
+Detay: `docs/DECISIONS.md` #66. Kapsam: yalnızca `MainWindow.xaml` ve
+`MainWindow.xaml.cs` (renk atamaları).
+
 ## [Faz 1 — Manager Requirement Paketi] — 2026-09-03
 
 ### Eklendi

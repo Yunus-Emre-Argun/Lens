@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Lens.Desktop"
         mc:Ignorable="d"
-        Background="#FFF5F6F8"
+        Background="#FF64748B"
         Title="Lens - Ürün Görsel Arama (MVP)" Height="840" Width="1060" MinHeight="680" MinWidth="860">
     <Window.Resources>
         <SolidColorBrush x:Key="AccentBrush" Color="#FF2F6FED" />
@@ -18,6 +18,22 @@
              AccentBrush (mavi) yalnizca Selected Result / secili Top-10 karti
              icin kullanilir, boylece iki rol hicbir zaman karismaz. -->
         <SolidColorBrush x:Key="NeutralBorderBrush" Color="#FF3A3A3A" />
+        <!-- Ana pencere zemini artik koyu slate (#FF64748B) - beyaz/acik desenlerin
+             zeminden ayrisip belirginlesmesi icin. Ust kontrol/durum/sayac ve alt bilgi
+             satirlari bu acik panel rengi uzerinde tutulur ki okunabilirlik bozulmasin;
+             sonuc kartlari ve sorgu/secilen-sonuc gorsel alanlari ayrica saf beyaz kalir. -->
+        <SolidColorBrush x:Key="LightPanelBrush" Color="#FFF5F6F8" />
+        <!-- Koyu slate zemin uzerinde (Satir 4 karsilastirma etiketleri + Satir 5 sonuc
+             basligi - bilerek acik panelin DISINDA, boylece beyaz gorsel kartlari zeminden
+             ayrisir) okunabilirlik icin acik renkli metin - beyaz zeminli TextBox/TextBlock'lar
+             (dosya adlari vb.) etkilenmez, sadece bu iki satirdaki ilgili elemanlara lokal
+             Foreground override'i ile uygulanir. -->
+        <SolidColorBrush x:Key="OnDarkTextBrush" Color="White" />
+        <SolidColorBrush x:Key="OnDarkSecondaryTextBrush" Color="#FFDCE1E8" />
+        <!-- ComparisonScoreText (Satir 4, koyu zemin uzerinde) icin NeutralTextBrush/SuccessBrush'in
+             koyu-zemin-uyumlu karsiliklari - MainWindow.xaml.cs SelectResult/ClearComparison
+             icinde kullanilir, boylece %100 esleme vurgusu koyu zeminde de okunur kalir. -->
+        <SolidColorBrush x:Key="OnDarkSuccessBrush" Color="#FF7CE495" />
 
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -89,6 +105,12 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+
+        <!-- Ust kontrol + durum + sayaclar + sorgu/karsilastirma cubugu (Satir 0-3) icin
+             tek parca acik panel zemin - koyu slate ana zeminin uzerinde metin okunabilirligi
+             icin. Grid'de daha sonra eklenen kardesler ustunde cizildiginden sadece arka plan
+             gorevi gorur, mevcut satir/icerik yerlesimine dokunmaz. -->
+        <Border Grid.Row="0" Grid.RowSpan="4" Background="{StaticResource LightPanelBrush}" />
 
         <!-- Ust kontrol - Satir 1: klasor secimi + esneyen path + menu -->
         <Grid Grid.Row="0" Margin="0,0,0,8">
@@ -174,27 +196,32 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" Margin="0,0,0,4" HorizontalAlignment="Center"
+                           Foreground="{StaticResource OnDarkTextBrush}" />
                 <Border x:Name="QueryDropZone" BorderBrush="{StaticResource NeutralBorderBrush}" BorderThickness="2" Width="220" Height="220"
-                        Background="#FFF5F5F5" AllowDrop="True" Cursor="Hand"
+                        Background="White" AllowDrop="True" Cursor="Hand"
                         DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragOver"
                         DragLeave="QueryDropZone_DragLeave"
                         Drop="QueryDropZone_Drop" MouseLeftButtonDown="QueryDropZone_MouseLeftButtonDown">
                     <Image x:Name="QueryPreviewImage" Stretch="Uniform" Margin="4" />
                 </Border>
-                <TextBox x:Name="QueryFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center" />
+                <TextBox x:Name="QueryFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
+                         Foreground="{StaticResource OnDarkSecondaryTextBrush}" />
                 <TextBlock x:Name="QueryDropHintText" Text="Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt" FontStyle="Italic"
-                           Foreground="#FF777777" FontSize="11" Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" Width="220" />
+                           Foreground="{StaticResource OnDarkSecondaryTextBrush}" FontSize="11" Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" Width="220" />
             </StackPanel>
 
             <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                <TextBlock Text="Seçilen Sonuç" FontWeight="SemiBold" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                <TextBlock Text="Seçilen Sonuç" FontWeight="SemiBold" Margin="0,0,0,4" HorizontalAlignment="Center"
+                           Foreground="{StaticResource OnDarkTextBrush}" />
                 <Border x:Name="ComparisonResultBorder" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="220" Height="220"
-                        Background="#FFF5F5F5" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
+                        Background="White" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
                     <Image x:Name="ComparisonResultImage" Stretch="Uniform" Margin="4" />
                 </Border>
-                <TextBox x:Name="ComparisonFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center" />
-                <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" Margin="0,4,0,0" HorizontalAlignment="Center" />
+                <TextBox x:Name="ComparisonFileNameText" Text="" Width="220" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
+                         Foreground="{StaticResource OnDarkSecondaryTextBrush}" />
+                <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" Margin="0,4,0,0" HorizontalAlignment="Center"
+                           Foreground="{StaticResource OnDarkTextBrush}" />
             </StackPanel>
         </Grid>
 
@@ -207,7 +234,8 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <TextBlock Grid.Row="0" Text="EN BENZER SONUÇLAR (EN FAZLA 15)" Style="{StaticResource SectionHeaderStyle}" />
+            <TextBlock Grid.Row="0" Text="EN BENZER SONUÇLAR (EN FAZLA 15)" Style="{StaticResource SectionHeaderStyle}"
+                       Foreground="{StaticResource OnDarkTextBrush}" />
             <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1" Background="White">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <ItemsControl x:Name="ResultsItemsControl" Margin="4">
@@ -241,8 +269,10 @@
             </Border>
         </Grid>
 
-        <!-- Alt bilgi -->
-        <TextBlock Grid.Row="6" Margin="0,8,0,0" FontStyle="Italic" Foreground="#FF555555"
-                    Text="Sistem kesin eşleşme belirtmez; en yakın adaylar listelenir. Son kararı kullanıcı verir." />
+        <!-- Alt bilgi: koyu slate zeminde okunabilirlik icin acik panel uzerinde -->
+        <Border Grid.Row="6" Margin="0,8,0,0" Background="{StaticResource LightPanelBrush}" Padding="6,3">
+            <TextBlock FontStyle="Italic" Foreground="#FF555555"
+                        Text="Sistem kesin eşleşme belirtmez; en yakın adaylar listelenir. Son kararı kullanıcı verir." />
+        </Border>
     </Grid>
 </Window>
