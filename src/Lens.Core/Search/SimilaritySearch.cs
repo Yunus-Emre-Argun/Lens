@@ -11,8 +11,8 @@ public sealed record SearchResult(string RelativePath, float Score);
 /// </summary>
 public static class SimilaritySearch
 {
-    /// <summary>"Maksimum 15 sonuç" sözleşmesi (Top-10 kararı superseded - bkz. proje talimati).</summary>
-    public const int MaxResults = 15;
+    /// <summary>"Maksimum 200 sonuç" sözleşmesi (Top-10 → 15 → 200, bkz. docs/DECISIONS.md).</summary>
+    public const int MaxResults = 200;
 
     /// <summary>
     /// Float32 dot-product birikimi (512 terim) kaynakli kucuk hassasiyet
@@ -37,7 +37,7 @@ public static class SimilaritySearch
     /// <summary>
     /// Cekirdek arama sozlesmesi: 1) tum skorlari hesapla, 2) score &gt;=
     /// threshold filtresini (inclusive) uygula, 3) azalan siraya koy, 4) en
-    /// fazla <paramref name="maxResults"/> (varsayilan 15) sonuc al.
+    /// fazla <paramref name="maxResults"/> (varsayilan 200) sonuc al.
     /// </summary>
     /// <param name="minSimilarityPercent">0-100 araliginda, kullaniciya gosterilen "Minimum benzerlik (%)" degeri.</param>
     public static List<SearchResult> SearchWithThreshold(

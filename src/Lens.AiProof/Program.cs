@@ -524,8 +524,12 @@ static void RunHardeningTest()
 
     Console.WriteLine();
 
-    // ---- Grup F: arama sozlesmesi (threshold inclusive + azalan sira + en fazla 15) ----
-    Console.WriteLine("[F] Arama sözleşmesi: threshold (inclusive) + azalan sıra + en fazla 15 sonuç");
+    // ---- Grup F: arama sozlesmesi (threshold inclusive + azalan sira + en fazla 200) ----
+    // [200-limit karari] Onceki "en fazla 15" sozlesmesi "en fazla 200"e yukseltildi -
+    // kullaniciya yeni bir sayi girisi EKLENMEDI, sadece SimilaritySearch.MaxResults
+    // sabiti degisti. Bu grup artik 0/1/15/200/200-uzeri eslesme senaryolarini
+    // (bkz. kullanici talimati) ayri ayri kapsar.
+    Console.WriteLine("[F] Arama sözleşmesi: threshold (inclusive) + azalan sıra + en fazla 200 sonuç");
     {
         static List<ImageIndexEntry> MakeEntries(params float[] scores)
         {
@@ -543,28 +547,34 @@ static void RunHardeningTest()
         float[] query = { 1f };
 
         var f1 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.80f), minSimilarityPercent: 80);
-        Check("F1 score == threshold -> dahil (inclusive boundary)", f1.Count == 1);
+        Check("F1 score == threshold -> dahil (inclusive boundary), 1 qualifying -> 1", f1.Count == 1);
 
         var f2 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.75f), minSimilarityPercent: 80);
-        Check("F2 score < threshold -> haric", f2.Count == 0);
+        Check("F2 score < threshold -> haric, 0 qualifying -> boş liste", f2.Count == 0);
 
-        var scores40 = Enumerable.Range(0, 40).Select(i => 1f - i * 0.01f).ToArray();
-        var f3 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores40), minSimilarityPercent: 0);
-        Check("F3 40 qualifying -> en fazla 15 sonuç", f3.Count == 15);
-        Check("F4 azalan sıralı", f3.SequenceEqual(f3.OrderByDescending(r => r.Score)));
-        Check("F5 en iyi 15 alındı (ilk 1.00, son ~0.86)",
-            Math.Abs(f3[0].Score - 1.0f) < 1e-5 && Math.Abs(f3[14].Score - 0.86f) < 1e-4);
-
-        var scores15 = Enumerable.Range(0, 15).Select(i => 0.9f - i * 0.01f).ToArray();
-        var f6 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores15), minSimilarityPercent: 0);
-        Check("F6 tam 15 qualifying -> 15", f6.Count == 15);
+        var f8 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.1f, 0.2f), minSimilarityPercent: 99);
+        Check("F8 0 qualifying (başka bir senaryo) -> boş liste, exception yok", f8.Count == 0);
 
         var scores6 = new[] { 0.9f, 0.85f, 0.7f, 0.5f, 0.3f, 0.1f };
         var f7 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores6), minSimilarityPercent: 0);
-        Check("F7 6 qualifying -> 6 (hepsi)", f7.Count == 6);
+        Check("F7 6 qualifying -> 6 (hepsi, doldurma/padding YOK)", f7.Count == 6);
 
-        var f8 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.1f, 0.2f), minSimilarityPercent: 99);
-        Check("F8 0 qualifying -> boş liste, exception yok", f8.Count == 0);
+        var scores15 = Enumerable.Range(0, 15).Select(i => 0.9f - i * 0.01f).ToArray();
+        var f6 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores15), minSimilarityPercent: 0);
+        Check("F6 15 qualifying (200 sınırının ALTINDA) -> hepsi 15, artık kesilmiyor", f6.Count == 15);
+        Check("F6b azalan sıralı", f6.SequenceEqual(f6.OrderByDescending(r => r.Score)));
+
+        var scores200 = Enumerable.Range(0, 200).Select(i => 1f - i * 0.001f).ToArray();
+        var f11 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores200), minSimilarityPercent: 0);
+        Check("F11 tam 200 qualifying -> hepsi 200 (sınırda kesilme yok)", f11.Count == 200);
+        Check("F11b azalan sıralı", f11.SequenceEqual(f11.OrderByDescending(r => r.Score)));
+
+        var scores250 = Enumerable.Range(0, 250).Select(i => 1f - i * 0.001f).ToArray();
+        var f3 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores250), minSimilarityPercent: 0);
+        Check("F3 250 qualifying -> en fazla 200 sonuç (200'ü aşan doldurma/padding YOK)", f3.Count == 200);
+        Check("F4 azalan sıralı", f3.SequenceEqual(f3.OrderByDescending(r => r.Score)));
+        Check("F5 en iyi 200 alındı (ilk 1.00, 200. ~0.801 - 201-250 arası ATILDI)",
+            Math.Abs(f3[0].Score - 1.0f) < 1e-5 && Math.Abs(f3[199].Score - 0.801f) < 1e-4);
 
         var f9 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.99995f), minSimilarityPercent: 100);
         Check("F9 %100 eşiğinde küçük float farkı (0.99995) yine de DAHİL (epsilon toleransı)", f9.Count == 1);

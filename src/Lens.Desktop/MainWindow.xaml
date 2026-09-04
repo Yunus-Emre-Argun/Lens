@@ -250,13 +250,14 @@
         <!-- Sonuclar: Grid (Auto baslik + * viewport) - StackPanel'DEN BILEREK cikarildi, cunku StackPanel
              ic ScrollViewer'a hicbir zaman sinirli (bounded) bir yukseklik vermez (icerik Grid satiri
              tarafindan gorsel olarak kirpilirdi, gercek scroll calismazdi). Grid'in "*" satiri
-             ScrollViewer'a kalan tum yuksekligi verir, boylece tekerlek ile TUM 15 karta erisilebilir. -->
+             ScrollViewer'a kalan tum yuksekligi verir, boylece tekerlek ile TUM karta (en fazla
+             SimilaritySearch.MaxResults kadar) erisilebilir. -->
         <Grid Grid.Row="5">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <TextBlock Grid.Row="0" Text="EN BENZER SONUÇLAR (EN FAZLA 15)" Style="{StaticResource SectionHeaderStyle}" />
+            <TextBlock Grid.Row="0" Text="EN BENZER SONUÇLAR" Style="{StaticResource SectionHeaderStyle}" />
             <!-- Background BILEREK yok (transparan) - dolu/az sonuclu durumda kartlarin
                  ALTINDAKI/ETRAFINDAKI bos alan artik ana pencere zemini ile birlesir
                  (buyuk sabit beyaz blok kaldirildi). Kartlarin kendisi (ResultCardBorderStyle)

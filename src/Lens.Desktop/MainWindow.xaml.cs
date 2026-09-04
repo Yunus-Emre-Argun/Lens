@@ -1167,7 +1167,8 @@ public partial class MainWindow : Window
     /// [Faz 1] Siralama: 1) urun klasoru, 2) sorgu gorseli, 3) threshold
     /// validasyonu (pahali islemlerden ONCE), 4) model hazirligi, 5) auto-index
     /// tercihine gore index hazirlama/kontrol, 6) kullanilabilir index
-    /// kontrolu, 7) threshold filtreli en fazla 15 sonuclu arama.
+    /// kontrolu, 7) threshold filtreli en fazla <see cref="SimilaritySearch.MaxResults"/>
+    /// (200) sonuclu arama.
     /// </summary>
     private async void SearchButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1228,26 +1229,44 @@ public partial class MainWindow : Window
             var queryPath = _queryImagePath;
             var entries = _indexEntries;
             var embedder = _embedder!;
+            var productFolder = _productFolder;
 
-            var matches = await Task.Run(() =>
+            // [200-limit perf] Thumbnail decode'u (TryLoadPreview) da bu arka plan
+            // gorevine tasindi - eskiden UI thread'de, arama sonucu donduk-ten SONRA,
+            // sirayla calisiyordu. 15 sonuçta gozle gorulur bir donma yaratmiyordu, ama
+            // en fazla 200 sonuçta (bkz. SimilaritySearch.MaxResults) UI thread'de art
+            // arda 200 JPEG decode'u fark edilir bir kilitlenmeye yol acabilirdi.
+            // BitmapImage.Freeze() (bkz. LoadPreview) sayesinde arka planda olusturulan
+            // gorsel donduruldukten sonra thread-safe sekilde UI'ya tasinabiliyor.
+            // BILEREK sirali (paralel degil) birakildi - sabit bir donma riskini ortadan
+            // kaldirmak yeterli, sinirsiz paralel decode/bellek/CPU baskisi eklenmedi.
+            var viewModels = await Task.Run(() =>
             {
                 var embedding = embedder.Embed(queryPath);
-                return SimilaritySearch.SearchWithThreshold(embedding, entries, thresholdPercent);
+                var matches = SimilaritySearch.SearchWithThreshold(embedding, entries, thresholdPercent);
+
+                var list = new List<SearchResultViewModel>(matches.Count);
+                foreach (var r in matches)
+                {
+                    var fullPath = Path.Combine(productFolder, r.RelativePath);
+                    var scoreText = $"Benzerlik: {r.Score:P1}";
+                    list.Add(new SearchResultViewModel
+                    {
+                        FileName = r.RelativePath,
+                        ScoreText = scoreText,
+                        Thumbnail = TryLoadPreview(fullPath),
+                        FullPath = fullPath,
+                        IsPerfectMatch = scoreText.EndsWith("100.0%", StringComparison.Ordinal),
+                    });
+                }
+
+                return list;
             });
 
             _results.Clear();
-            foreach (var r in matches)
+            foreach (var vm in viewModels)
             {
-                var fullPath = Path.Combine(_productFolder, r.RelativePath);
-                var scoreText = $"Benzerlik: {r.Score:P1}";
-                _results.Add(new SearchResultViewModel
-                {
-                    FileName = r.RelativePath,
-                    ScoreText = scoreText,
-                    Thumbnail = TryLoadPreview(fullPath),
-                    FullPath = fullPath,
-                    IsPerfectMatch = scoreText.EndsWith("100.0%", StringComparison.Ordinal),
-                });
+                _results.Add(vm);
             }
 
             searchStopwatch.Stop();
@@ -1263,7 +1282,11 @@ public partial class MainWindow : Window
                 // ilk (en yuksek skorlu) sonuc otomatik secilir; kullanici
                 // isterse listeden baskasina gecer.
                 SelectResult(_results[0]);
-                SetIndexStatus($"{matches.Count} sonuç bulundu.", success: true);
+                // [200-limit] Metin BILEREK "gosteriliyor" diyor, "bulundu" degil - eşiği
+                // karşılayan toplam eşleşme SimilaritySearch.MaxResults'ı (200) aşarsa bu
+                // sayı yalnızca EKRANDA GORUNEN (kesilmis) listeyi yansıtır, toplam
+                // eşleşme sayısını değil (toplam sayı ayrıca izlenmiyor/gösterilmiyor).
+                SetIndexStatus($"{_results.Count} sonuç gösteriliyor.", success: true);
             }
             else
             {
@@ -1276,7 +1299,7 @@ public partial class MainWindow : Window
             }
 
             _logger.Info("Search", file: Path.GetFileName(queryPath),
-                reason: $"results={matches.Count} threshold={thresholdPercent} duration_ms={searchStopwatch.ElapsedMilliseconds}");
+                reason: $"results={_results.Count} threshold={thresholdPercent} duration_ms={searchStopwatch.ElapsedMilliseconds}");
         }
         catch (Exception ex)
         {

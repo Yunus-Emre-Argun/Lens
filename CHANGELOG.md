@@ -8,6 +8,73 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Sonuç Sınırı 15 → 200 ve Temiz Teslim Paketi] — 2026-09-04
+
+### Değişti
+- **Sabit maksimum sonuç sayısı 15'ten 200'e çıkarıldı**
+  (`SimilaritySearch.MaxResults`). Kullanıcıya sonuç sayısını seçebileceği
+  yeni bir giriş alanı EKLENMEDİ — bu, önceki "kullanıcıdan sonuç sayısı
+  al / 1-100 seç" isteğinin yerine geçen bir yönetici kararıdır. Mevcut
+  minimum benzerlik eşiği aynen korunuyor: eşiği karşılayan sonuçlar
+  benzerlik skoruna göre azalan sırada getirilir; 200'den fazlaysa yalnızca
+  en iyi 200'ü gösterilir (fazlası sessizce elenir, hata değildir). Eşiği
+  karşılayan sonuç 200'den azsa listeyi doldurmak için düşük benzerlikli
+  ürün EKLENMEZ (doldurma/padding yok) — benzerlik hesaplaması ve threshold
+  sözleşmesi değişmedi. Detay: `docs/DECISIONS.md` #72.
+- **"EN BENZER SONUÇLAR (EN FAZLA 15)" başlığı → "EN BENZER SONUÇLAR"**
+  oldu. Arayüzde "en fazla 200" veya başka bir sabit üst sınır açıklaması
+  BİLEREK gösterilmiyor.
+- **Durum mesajı artık gerçekten listelenen sayıyı söylüyor:** "N sonuç
+  bulundu." → "N sonuç gösteriliyor." (`N` = `_results.Count`, yani
+  ekranda GERÇEKTEN görünen kart sayısı). Kesilmiş bir listede bu sayı
+  toplam eşleşme sayısı gibi sunulmuyor — toplam eşleşme sayısı zaten ayrı
+  bir yerde izlenmiyor/gösterilmiyor.
+- Tema, kart boyutu, ortalanmış sorgu/karşılaştırma görselleri, kaydırma
+  düzeni ve "yeni aramada eski sonuçları hemen temizle" düzeltmesi
+  (bkz. yukarıdaki "Eski Sonuçların Erken Temizlenmesi" girdisi)
+  DEĞİŞMEDEN korundu.
+
+### Performans
+- **200 sonuca kadar thumbnail decode'u artık arka plan thread'inde**
+  (`SearchButton_Click` içindeki mevcut `Task.Run`'a taşındı) — önceden
+  UI thread'de, arama sonucu döndükten SONRA sırayla yapılıyordu; 15
+  sonuçta gözle görülür bir donma yaratmıyordu ama 200 sonuçta art arda
+  200 JPEG decode'u fark edilir bir arayüz kilitlenmesi riski
+  taşıyordu. `BitmapImage.Freeze()` (mevcut `LoadPreview` zaten bunu
+  yapıyordu) sayesinde arka planda oluşturulan görsel thread-safe şekilde
+  UI'ya taşınabiliyor. Yükleme BİLEREK sıralı (sıralı/tek thread) bırakıldı
+  — sabit bir donma riskini ortadan kaldırmak yeterliydi, sınırsız paralel
+  decode/bellek/CPU baskısı eklenmedi.
+
+### Test
+- `Lens.AiProof hardeningtest` Grup F ("arama sözleşmesi"), yeni 200
+  sınırına göre güncellendi: 0, 1, 6, 15 (yeni sınırın ALTINDA — artık
+  kesilmiyor), tam 200 (sınırda kesilme yok) ve 250 (200'ü aşan, fazlası
+  atılıyor, doldurma yok) eşleşme senaryoları; her birinde azalan sıra ve
+  (200-üstü durumda) en iyi 200'ün seçildiği ayrı ayrı doğrulandı. Tüm
+  78 kontrol PASS (0 FAIL). `dotnet build` Debug/Release'de 0 warning/0
+  error. **Canlı doğrulanamayan:** 200 sonuçlu gerçek bir aramanın
+  arayüzde akıcı kaydığı/donmadığı — kullanıcı bilgisayarı kullanırken
+  arayüz otomasyonu/uzaktan tıklama yapılmadı (bkz. proje talimatı);
+  gerekirse kullanıcı kendi ortamında kısa bir manuel kontrolle
+  doğrulayabilir.
+
+### Temiz teslim paketi
+- `publish/Lens.Desktop-win-x64-themes/` aynı kaynak sürümünden, temiz
+  (`dotnet clean` sonrası) `dotnet publish -p:DebugType=None` ile yeniden
+  üretildi. Önceki turda yalnızca `.pdb` dosyalarının silinmesinin YETERLİ
+  OLMADIĞI netleşti — `.dll`/`.exe` dosyalarının debug directory'si de
+  PDB'nin yerel derleme yolunu (`C:\Users\...`) taşıyordu. `DebugType=None`
+  ile PDB hiç ÜRETİLMİYOR, dolayısıyla `.dll`/`.exe` içinde ona işaret eden
+  bir yol da kalmıyor. Doğrulandı: pakette `.pdb` yok; `Lens.Desktop.dll`,
+  `Lens.Core.dll`, `Lens.Desktop.exe` içinde yerel kullanıcı adı/yol dizesi
+  yok (ikili tarama ile); `appsettings.json` boş dağıtım şablonu
+  (`AdminDefaultProductDirectory: ""`); CLIP ONNX modeli ve tüm çalışma
+  zamanı bağımlılıkları pakette mevcut; gerçek kullanıcı ayarı/ürün
+  görseli/index/log/test dosyası YOK. Diğer üç publish paketi
+  (`-win-x64`, `-manager`, `-manager-shared-index`) dokunulmadan korundu.
+  Detay: `docs/DECISIONS.md` #72.
+
 ## [Düzeltme — Eski Sonuçların Erken Temizlenmesi] — 2026-09-04
 
 ### Düzeltildi
