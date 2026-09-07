@@ -10,15 +10,20 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 
 ## Son Durum — 2026-09-07 (Orta Form + Üst Klasör Satırı Kontrol Noktası)
 
-Bu kontrol noktasında iki küçük, ayrı arayüz düzenlemesinin (orta arama
-formu hizalaması ve üst klasör satırı — bkz. karar #78) kaynak
-değişiklikleri commit kapsamına alındı; arama/indeksleme mantığı, tema
-sistemi ve 80/20 varsayılanları DEĞİŞMEDİ.
+Bu kontrol noktasında üç küçük, ayrı arayüz düzenlemesinin (orta arama
+formu hizalaması, üst klasör satırı ve bunun responsive sınır
+düzeltmeleri — bkz. karar #78) kaynak değişiklikleri commit kapsamına
+alındı; arama/indeksleme mantığı, tema sistemi ve 80/20 varsayılanları
+DEĞİŞMEDİ. Üç nokta (`⋮`) menüsü artık varsayılan klasör buton
+grubundan bağımsız, `TopAreaGrid`'in son sütununda ve gerçek bir `*`
+boşluk sütunu (`MenuSpacerColumn`) sayesinde pencere ne kadar
+genişlerse genişlesin HER ZAMAN en sağda kalıyor.
 
 Bu commit, sonraki denemeden ÖNCEKİ geri dönülebilir bir kontrol
 noktasıdır: sıradaki tur yalnızca "Bu Klasörü Varsayılan Yap" buton
-grubunu ürün/kaynak bilgisine biraz yaklaştırmayı DENEYECEK — bu deneme
-kapsam dışı bir yan etki yaratırsa bu commit'e dönülebilir.
+grubunu ürün/kaynak bilgisine yaklaşık **24-32 DIP** mesafeye
+yaklaştırmayı DENEYECEK — bu deneme kapsam dışı bir yan etki yaratırsa
+bu commit'e dönülebilir.
 
 Release yeniden derlendi (**0 warning / 0 error**). Canlı görsel doğrulama
 bu turda YAPILMADI (uygulama açılmadı, kullanıcı ekranına müdahale

@@ -30,9 +30,26 @@ güncellenmelidir.
   `ProblemFilesButton` aynı sütunda/aynı sol kenar hizasında kalmaya
   devam ediyor; `ClearDefaultButton` kendi `Auto` sütununda. Klasör yolu
   kutusunun (`FolderPathTextBox`) eski sabit `MaxWidth="360"` sınırı
-  kaldırıldı — kutu artık pencere genişliğine göre yaklaşık 200–530 DIP
-  arasında responsive büyüyor (XAML güvenlik sınırları: `MinWidth=180`,
-  `MaxWidth=560`).
+  kaldırıldı — kutu artık pencere genişliğine göre dar görünümde 180
+  DIP'ten başlayıp geniş görünümde yaklaşık 530 DIP'e kadar responsive
+  büyüyor (XAML güvenlik sınırları: `MinWidth=180`, `MaxWidth=560`).
+- **Responsive sınır düzeltmeleri (860×680 minimum genişlik taşma riski):**
+  `UpdateResponsiveLayout` içinde aynı çağrıda yeni `FolderPathColumn.Width`
+  atandıktan hemen sonra eski (bir önceki layout turuna ait)
+  `FolderPathColumn.ActualWidth` okunması düzeltildi — `leftContentWidth`
+  artık aynı turda hesaplanan, kolonun gerçek `MinWidth`/`MaxWidth`
+  sınırlarına göre clamp edilmiş `folderPathWidth` değerini kullanıyor;
+  bu, yeniden boyutlandırmada varsayılan buton grubunun bir kare geriden
+  "sıçramasını" önlüyor. Dar hedef `FolderPathColumn` için 200'den 180
+  DIP'e (kolonun gerçek tabanı) indirildi ve yeni `ProductInfoPanel`
+  (ürün sayısı/kaynak metni `WrapPanel`'i) adlandırılıp responsive bir
+  `MaxWidth` aldı (dar görünümde ~160 DIP — gerçek metinler
+  `FormattedText` ile ölçülerek bu sınırın altında kaldığı doğrulandı,
+  `DirectorySourceText` gerekirse alt satıra sarar; geniş görünümde ~600
+  DIP, pratikte sınırsız, mevcut yan-yana görünüm korunur). Bu iki
+  düzeltme, 860 DIP minimum pencerede `Varsayılanı Temizle` görünürken
+  üst satırın `MenuButton`'u dışarı itme riskini ölçülebilir şekilde
+  (~ölçülen 118 DIP taşmadan ~35-45 DIP güvenlik payına) azalttı.
 - Arama/indeksleme mantığı, tema sistemi ve 80/20 varsayılanları
   DEĞİŞMEDİ — bu tur yalnızca `MainWindow.xaml`/`MainWindow.xaml.cs`
   içindeki yerleşimle sınırlı.
