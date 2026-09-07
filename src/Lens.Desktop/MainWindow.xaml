@@ -187,7 +187,7 @@
                     VerticalAlignment="Center" Margin="0,0,0,10" Click="MenuButton_Click" ToolTip="Menü">
                 <Button.ContextMenu>
                     <ContextMenu Placement="Bottom">
-                        <MenuItem Header="Ayarlar" Click="SettingsMenuItem_Click" />
+                        <MenuItem Header="Bilgilendirme" Click="SettingsMenuItem_Click" />
                         <!-- [Tema turu] Alt menu Normal butondan ayri, "check" ile
                              hangi temanin secili oldugu her zaman gorunur (bkz.
                              MainWindow.UpdateThemeMenuChecks). Tag, ThemeMenuItem_Click
@@ -203,7 +203,7 @@
                                       IsCheckable="True" Click="ThemeMenuItem_Click" />
                             <MenuItem x:Name="ThemeMenuItem_KoyuSepya" Header="Koyu Sepya" Tag="KoyuSepya"
                                       IsCheckable="True" Click="ThemeMenuItem_Click" />
-                            <MenuItem x:Name="ThemeMenuItem_Lime" Header="Lime (Deneme)" Tag="Lime"
+                            <MenuItem x:Name="ThemeMenuItem_Lime" Header="Lime" Tag="Lime"
                                       IsCheckable="True" Click="ThemeMenuItem_Click" />
                         </MenuItem>
                         <Separator />

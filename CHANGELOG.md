@@ -8,6 +8,57 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Küçük Arayüz Düzeltmeleri ve 3-Rakam Sınırı] — 2026-09-07
+
+### Değişti
+- **"Lime (Deneme)" → "Lime":** Tema alt menüsündeki etiket sadeleştirildi
+  (`MainWindow.xaml` `MenuItem.Header` ve tutarlılık için `AppTheme.
+  ThemePalette.DisplayName` eşlemesi - ikincisi şu an hiçbir yerden
+  çağrılmıyor ama ileride kullanılırsa aynı metni versin diye güncellendi).
+  Tema rengi/paleti/davranışı DEĞİŞMEDİ.
+- **"Ayarlar" → "Bilgilendirme":** ⋮ menüsündeki menü öğesi ve açılan
+  penceresinin başlığı (`Title`) kullanıcıya görünen her iki yerde de
+  tutarlı şekilde güncellendi. `SettingsWindow` sınıf/dosya adı ve
+  `SettingsMenuItem_Click` metot adı BİLEREK değiştirilmedi (talimat: kod
+  tarafı zorunlu değil, gereksiz yeniden adlandırma yapılmadı).
+- **Bilgilendirme ekranına "Versiyonlama" geliştirici notu:** Varsayılan
+  kapalı "Teknik ayrıntılar" bölümüne, sürümün nereden geldiğini
+  (`Lens.Desktop.csproj` → `AssemblyVersion`/`FileVersion`/
+  `InformationalVersion`) ve önerilen `MAJOR.MINOR.PATCH` artırma kuralını
+  (MAJOR: geriye dönük uyumsuz büyük değişiklik, MINOR: geriye uyumlu yeni
+  özellik, PATCH: geriye uyumlu hata düzeltmesi) kısaca anlatan, yalnızca
+  geliştiricilere yönelik bir paragraf eklendi; yayın öncesi sürüm
+  güncelleyip yeniden derlemenin gerekliliği vurgulanıyor. Salt bilgi -
+  hiçbir komut/eylem içermiyor.
+- **Sayısal alanlarda en fazla 3 rakam:** "Minimum benzerlik (%)" ve "En
+  fazla sonuç" alanlarına artık en fazla 3 rakam (ondalık ayırıcı hariç,
+  ayırıcının iki tarafı BİRLİKTE sayılır - ör. "80,55" 4 rakam olduğu için
+  reddedilir) girilebiliyor. `Lens.Core.Search.NumericInputFilter`'a yeni
+  `MaxDigitCount=3` sabiti eklendi; hem klavye/üzerine-yazma/yapıştırma
+  reddi (`IsValidPartialText`) hem son güvenlik ağı (`StripInvalidCharacters`,
+  yalnızca IME/beklenmedik giriş yolu için) bu sınırı uyguluyor. 4+ rakamlı
+  bir yapıştırma **kesilip kısaltılmıyor, tamamen reddediliyor** ("1000"
+  yapıştırılırsa hiçbir şey uygulanmaz). "201"/"9999" gibi 3 rakamlı bir
+  değer hâlâ YAZILABİLİYOR (karakter olarak geçerli) - aralık dışı olduğu
+  "Ara"ya basıldığında mevcut "En fazla 200 sonuç listeleyebilirsiniz."
+  uyarısıyla ayrıca bildiriliyor, bu davranış DEĞİŞMEDİ.
+- Benzerlik algoritması, arama/indeksleme mantığı, 80/20 varsayılanları,
+  tema renk paleti, orta form/üst satır hizası ve diğer tüm onaylı tasarım
+  DEĞİŞMEDİ - bu tur yalnızca yukarıdaki dört küçük, belirtilen alana
+  müdahale etti.
+
+### Test
+- `dotnet build Lens.sln -c Release`: **0 warning / 0 error** (Debug,
+  kullanıcının açık `Lens.Desktop.exe`'si tarafından kilitliydi -
+  müdahale edilmedi, Release ayrı çıktı yoluyla temiz derlendi).
+- `Lens.AiProof hardeningtest`: **204/204 PASS** (önceki 192 + Grup M'e
+  eklenen 12 yeni kontrol: M35-M46, 3-rakam sınırının klavye/üzerine-yazma/
+  yapıştırma/son-temizleme davranışı).
+- Canlı görsel doğrulama YAPILMADI (uygulama açılmadı) - kullanıcının kendi
+  ekranında Lime etiketi, Bilgilendirme başlığı/notu ve 3-rakam sınırının
+  kontrolü bekleniyor. Publish paketi bu kayıtla GÜNCELLENMEDİ. Detay:
+  `docs/DECISIONS.md` #81.
+
 ## [Assembly Sürüm Gösterimi ve Sayısal Giriş Sınırlaması] — 2026-09-07
 
 ### Değişti

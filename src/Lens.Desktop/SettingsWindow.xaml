@@ -1,7 +1,7 @@
 <Window x:Class="Lens.Desktop.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Ayarlar" Width="460" SizeToContent="Height" MinHeight="200"
+        Title="Bilgilendirme" Width="460" SizeToContent="Height" MinHeight="200"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False">
     <StackPanel Margin="18">
         <TextBlock Text="Klasör durumu" FontWeight="Bold" Margin="0,0,0,4" />
@@ -29,7 +29,15 @@
                          TextWrapping="Wrap" Margin="0,2,0,10" Cursor="IBeam" />
                 <TextBlock Text="Model dosyası" FontWeight="SemiBold" FontSize="11" />
                 <TextBox x:Name="ModelPathText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
-                         TextWrapping="Wrap" Margin="0,2,0,0" Cursor="IBeam" />
+                         TextWrapping="Wrap" Margin="0,2,0,10" Cursor="IBeam" />
+
+                <!-- [Versiyonlama - 2026-09-07] Geliştiriciye yönelik kısa not - kullanıcı
+                     odaklı ekranı gürültüyle doldurmamak için mevcut "Teknik ayrıntılar"
+                     Expander'ının İÇİNDE (varsayılan kapalı). Salt bilgi - hiçbir
+                     komut/eylem içermez. -->
+                <TextBlock Text="Versiyonlama (geliştirici notu)" FontWeight="SemiBold" FontSize="11" />
+                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#FF555555" Margin="0,2,0,0"
+                           Text="Uygulama sürümü tek kaynaktan okunur: Lens.Desktop.csproj içindeki AssemblyVersion/FileVersion (sayısal, ör. 1.0.0.0) ve InformationalVersion (serbest metin, ana pencerede/Hakkında'da görünen değer) - bu ekranda veya kodda sabit yazılmaz. Sürüm değiştirmek için bu üç değeri Lens.Desktop.csproj'da güncelleyip yeniden derleyin/publish alın (bkz. docs/DEPLOYMENT.md §9). AssemblyVersion/FileVersion için önerilen artırma kuralı: MAJOR.MINOR.PATCH - MAJOR: geriye dönük uyumsuz büyük değişiklik, MINOR: geriye uyumlu yeni özellik, PATCH: geriye uyumlu hata düzeltmesi. Yayın almadan önce sürüm numarasını güncelleyip yeniden derleyin - aksi halde uygulamada görünen sürümle publish çıktısındaki sürüm tutarsız kalabilir." />
             </StackPanel>
         </Expander>
 

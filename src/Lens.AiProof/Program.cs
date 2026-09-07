@@ -968,12 +968,31 @@ static void RunHardeningTest()
         // -- Son güvenlik ağı: gecersiz metinden temizleme (StripInvalidCharacters) --
         Check("M31 temizleme: '8a0b' (ondalık alan) -> '80'",
             NumericInputFilter.StripInvalidCharacters("8a0b", allowDecimal: true) == "80");
-        Check("M32 temizleme: '80,5,2' (ondalık alan, fazla ayırıcı) -> '80,52' (İLK ayırıcı korunur, sonrakiler atılır)",
-            NumericInputFilter.StripInvalidCharacters("80,5,2", allowDecimal: true) == "80,52");
+        Check("M32 temizleme: '80,5,2' (ondalık alan, fazla ayırıcı+3 rakam sınırı) -> '80,5' (İLK ayırıcı korunur, sonraki ayırıcı VE 3. rakamdan sonrası atılır)",
+            NumericInputFilter.StripInvalidCharacters("80,5,2", allowDecimal: true) == "80,5");
         Check("M33 temizleme: '2-0.5' (tam sayı alanı - eksi VE nokta atılır) -> '205'",
             NumericInputFilter.StripInvalidCharacters("2-0.5", allowDecimal: false) == "205");
         Check("M34 temizleme: 'abc' -> '' (tamamen geçersiz -> boş, alan boş bırakılabilir sözleşmesiyle tutarlı)",
             NumericInputFilter.StripInvalidCharacters("abc", allowDecimal: true) == "");
+
+        // -- [2026-09-07 ek kural] En fazla 3 rakam (ondalık ayırıcı hariç, iki taraf birlikte sayılır) --
+        Check("M35 benzerlik: '100' (tam 3 rakam) -> izinli", DOk("100"));
+        Check("M36 benzerlik: '9,99' (3 rakam: 9,9,9) -> izinli", DOk("9,99"));
+        Check("M37 benzerlik: '80,55' (4 rakam: 8,0,5,5) -> REDDEDİLİR", !DOk("80,55"));
+        Check("M38 benzerlik: '1000' (4 rakam) -> REDDEDİLİR", !DOk("1000"));
+        Check("M39 sonuç sayısı: '200' (tam 3 rakam) -> izinli", IOk("200"));
+        Check("M40 sonuç sayısı: '2000' (4 rakam) -> REDDEDİLİR", !IOk("2000"));
+        Check("M41 ekleme: '999' üzerine (imleç sonda) 4. rakam '9' yaz -> REDDEDİLİR (9999 yazılamaz)",
+            !NumericInputFilter.IsValidPartialInput("999", 3, 0, "9", allowDecimal: true));
+        Check("M42 ekleme (tam sayı alanı): '999' üzerine 4. rakam yaz -> REDDEDİLİR",
+            !NumericInputFilter.IsValidPartialInput("999", 3, 0, "9", allowDecimal: false));
+        Check("M43 yapıştırma: boş alana 4 rakamlı '1000' yapıştır (tam sayı alanı) -> TAMAMEN REDDEDİLİR (kesilip kısaltılmaz)",
+            !NumericInputFilter.IsValidPartialInput("", 0, 0, "1000", allowDecimal: false));
+        Check("M44 ekleme: '999' TAMAMI seçiliyken '888' yapıştır -> izinli (3 rakamlık seçimin üzerine 3 rakam)",
+            NumericInputFilter.IsValidPartialInput("999", 0, 3, "888", allowDecimal: true));
+        Check("M45 ekleme: '99,9' (3 rakam) sonuna 4. rakam '9' yaz -> '99,99' REDDEDİLİR (ayırıcı iki tarafı birlikte sayılır)",
+            !NumericInputFilter.IsValidPartialInput("99,9", 4, 0, "9", allowDecimal: true));
+        Check("M46 MaxDigitCount sabiti 3", NumericInputFilter.MaxDigitCount == 3);
     }
 
     Console.WriteLine();

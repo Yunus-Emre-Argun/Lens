@@ -57,7 +57,7 @@ public static class ThemePalette
         AppTheme.Koyu => "Koyu",
         AppTheme.AcikSepya => "Açık Sepya",
         AppTheme.KoyuSepya => "Koyu Sepya",
-        AppTheme.Lime => "Lime (Deneme)",
+        AppTheme.Lime => "Lime",
         _ => theme.ToString(),
     };
 

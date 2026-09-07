@@ -8,6 +8,31 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 **Open Question** = henüz netleşmedi, karar bekliyor.
 **Later Phase** = ilk PoC/MVP kapsamı dışında, ileride değerlendirilecek.
 
+## Son Durum — 2026-09-07 (Gün Sonu Kontrol Noktası — Sürüm Gösterimi, Sayısal Giriş, Küçük Düzeltmeler)
+
+Günün son kontrol noktası. İki ayrı tur commit kapsamına alındı (kararlar
+#80-81): (1) Ana pencere sol alt köşesinde ve Hakkında ekranında Assembly
+metadata'dan (`Lens.Desktop.csproj` → `AssemblyVersion`/`FileVersion`/
+`InformationalVersion`) okunan bir sürüm gösterimi eklendi - XAML/C#'ta
+sabit metin YOK, tek okuma kaynağı `AppVersionInfo.GetDisplayVersion()`.
+(2) "Minimum benzerlik (%)"/"En fazla sonuç" alanlarına artık harf/geçersiz
+karakter yazılamıyor/yapıştırılamıyor VE en fazla 3 rakam kabul ediliyor
+(`Lens.Core.Search.NumericInputFilter`, WPF'siz test edilebilir) - mevcut
+0-100/1-200 aralık doğrulaması ve 80/20 varsayılanları HİÇ DEĞİŞMEDİ. (3)
+Tema menüsünde "Lime (Deneme)" → "Lime", "Ayarlar" ekranı kullanıcıya
+görünen adı → "Bilgilendirme" (kod tarafı adları değişmedi), ve bu ekrana
+geliştiricilere yönelik kısa bir "Versiyonlama" notu eklendi.
+
+Release derlemesi 0 warning/0 error; `Lens.AiProof hardeningtest`
+204/204 PASS. Debug derlemesi bu turda kullanıcının açık `Lens.Desktop.exe`'si
+tarafından kilitliydi - müdahale edilmedi. Canlı görsel doğrulama
+YAPILMADI (uygulama açılmadı) - sürüm gösterimi, sayısal alan davranışı,
+Lime/Bilgilendirme etiketleri ve versiyonlama notunun kullanıcı tarafından
+gerçek ekranda kontrolü bekleniyor. Ayarlar penceresindeki "Teknik
+ayrıntılar" bölümünün kendisi (adres normalizasyonu/klasör geçişi ile
+ilgili önceden ertelenen konular) hâlâ açık. Publish/ZIP/Drive paketi bu
+kayıtla güncellenmedi.
+
 ## Son Durum — 2026-09-07 (Ekran Uyumu — Pencere Ölçüsü Sığdırma)
 
 Görsel tasarım DEĞİŞTİRİLMEDEN, farklı ekran çözünürlüğü/Windows

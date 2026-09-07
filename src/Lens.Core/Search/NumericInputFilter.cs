@@ -14,6 +14,14 @@ namespace Lens.Core.Search;
 public static class NumericInputFilter
 {
     /// <summary>
+    /// [2026-09-07 ek kural] Her iki alanda da (ondalık ayırıcı HARİÇ) en fazla bu
+    /// kadar rakam kabul edilir - ör. "80,55" (4 rakam) reddedilir, "9,99" (3 rakam)
+    /// kabul edilir. Aralık dışı ama rakam-sayısı-geçerli bir değer (ör. "201")
+    /// burada reddedilmez - "200'ü aşan" uyarısı hâlâ Ara sırasında gösterilir.
+    /// </summary>
+    public const int MaxDigitCount = 3;
+
+    /// <summary>
     /// Mevcut metnin [selectionStart, selectionStart+selectionLength) aralığı
     /// <paramref name="insertedText"/> ile değiştirildiğinde ortaya çıkacak
     /// metnin geçerli bir "yazılıyor olabilir" adayı olup olmadığını döner
@@ -44,6 +52,9 @@ public static class NumericInputFilter
     /// edilir (Core katmanındaki double/int.TryParse + InvariantCulture ile
     /// BİREBİR aynı karakter kümesi - filtrenin kabul ettiği her şey Core'un da
     /// PARSE EDEBİLECEĞİ bir karakter kümesidir, aralık dışı kalabilir ama).
+    /// Toplam rakam sayısı (ondalık ayırıcı SAYILMAZ, iki taraf birlikte
+    /// sayılır) <see cref="MaxDigitCount"/>'u (3) AŞAMAZ - ör. "80,55" (4 rakam)
+    /// reddedilir.
     /// </summary>
     public static bool IsValidPartialText(string? text, bool allowDecimal)
     {
@@ -53,6 +64,7 @@ public static class NumericInputFilter
         }
 
         var separatorSeen = false;
+        var digitCount = 0;
         foreach (var ch in text)
         {
             if (ch is ',' or '.')
@@ -70,6 +82,12 @@ public static class NumericInputFilter
             {
                 return false;
             }
+
+            digitCount++;
+            if (digitCount > MaxDigitCount)
+            {
+                return false;
+            }
         }
 
         return true;
@@ -80,7 +98,11 @@ public static class NumericInputFilter
     /// beklenmedik bir yoldan (ör. sürükle-bırak metin) geçersiz karakter alana
     /// girerse, geçersiz karakterleri (harf, eksi işareti, fazla ayırıcı) SESSİZCE
     /// kaldırıp geriye yalnızca geçerli rakam(lar) + (izin veriliyorsa) TEK bir
-    /// ondalık ayırıcı bırakır. WPF TextChanged içinde çağrılması amaçlanır.
+    /// ondalık ayırıcı bırakır; <see cref="MaxDigitCount"/>'u (3) AŞAN rakamlar da
+    /// kırpılır. WPF TextChanged içinde çağrılması amaçlanır - bu, YAPIŞTIRMA
+    /// yolundaki "sessizce kesme YERİNE tamamen reddet" kuralından FARKLIDIR
+    /// (bkz. IsValidPartialInput/DataObject.Pasting): bu metot yalnızca PreviewTextInput/
+    /// Pasting'i hiç GEÇMEMİŞ, olağandışı bir yoldan gelen metin için son çare.
     /// </summary>
     public static string StripInvalidCharacters(string? text, bool allowDecimal)
     {
@@ -91,6 +113,7 @@ public static class NumericInputFilter
 
         var builder = new System.Text.StringBuilder(text.Length);
         var separatorSeen = false;
+        var digitCount = 0;
         foreach (var ch in text)
         {
             if (ch is ',' or '.')
@@ -104,9 +127,10 @@ public static class NumericInputFilter
                 continue;
             }
 
-            if (ch is >= '0' and <= '9')
+            if (ch is >= '0' and <= '9' && digitCount < MaxDigitCount)
             {
                 builder.Append(ch);
+                digitCount++;
             }
         }
 
