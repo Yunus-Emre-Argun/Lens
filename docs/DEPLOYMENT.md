@@ -139,6 +139,61 @@ uygulanmamış) süreç — detay ve gerekçe `docs/RELEASE_PROCESS.md`'de:
   SHA-256) eklemeyi değerlendirin — bu bir süreç önerisidir, bu dokümanla
   birlikte otomatik olarak eklenmemiştir.
 
+## 9. Sürüm Güncelleme (Yönetici Süreci)
+
+**[2026-09-07]** Ana pencerenin sol alt köşesinde (`Sürüm: 07.09.2026 — v1.0`
+biçiminde) ve Hakkında ekranında gösterilen sürüm metninin **tek kaynağı**
+derlenen `Lens.Desktop.exe` içindeki Assembly metadata'sıdır — XAML/C# içinde
+sabit bir metin olarak YAZILMAZ (bkz. `Lens.Desktop.MainWindow.xaml`
+`FooterVersionText`, `MainWindow.AboutMenuItem_Click`, ortak okuyucu:
+`Lens.Desktop.AppVersionInfo.GetDisplayVersion()`). Değer, `src/Lens.Desktop/
+Lens.Desktop.csproj` içindeki üç MSBuild özelliğinden derleme sırasında SDK
+tarafından otomatik üretilir:
+
+| MSBuild özelliği | Biçim | Örnek | Kullanım yeri |
+|---|---|---|---|
+| `AssemblyVersion` | yalnızca `major.minor.build.revision` (sayısal) | `1.0.0.0` | .NET assembly binding/CLR metadata |
+| `FileVersion` | yalnızca `major.minor.build.revision` (sayısal) | `1.0.0.0` | Windows Gezgini "Dosya sürümü" |
+| `InformationalVersion` | serbest metin | `07.09.2026 — v1.0` | Alt bilgi satırı + Hakkında ekranı (**kullanıcının gördüğü değer budur**) |
+
+`IncludeSourceRevisionInInformationalVersion` bilinçli olarak `false` bırakıldı
+— aksi halde (bu proje ileride bir SourceLink paketi kullanmaya başlarsa)
+`InformationalVersion`'ın sonuna otomatik olarak `+<git-commit-hash>` eklenip
+gösterilen metni değiştirebilirdi.
+
+### Yeni sürüm çıkarırken izlenecek adımlar
+
+1. Visual Studio'da `Lens.Desktop` projesine (Solution Explorer) sağ tıklayıp
+   **Properties**'i açın.
+2. **Sayısal alanlar (`AssemblyVersion`/`FileVersion`):** **Application**
+   sekmesindeki **"Assembly Information..."** düğmesiyle açılan diyalogda
+   **"Assembly version"** / **"File version"** kutularını `1.0.0.0` benzeri
+   geçerli bir sayısal değere güncelleyin. Bu diyalog/alan adları uzun
+   süredir kararlı bir konumdur, ancak **VS sürümüne göre "Assembly
+   Information..." düğmesinin tam yeri (Application sekmesi vs. yeni
+   birleşik Properties sayfası) değişebilir** — bulamazsanız adım 3'teki
+   yöntemle doğrudan `.csproj`'u düzenlemek her VS sürümünde garanti çalışır.
+3. **Kullanıcıya gösterilen serbest metin (`InformationalVersion`):** Yeni
+   SDK-style proje Properties arayüzlerinde bu alan için **her VS sürümünde
+   garanti bir metin kutusu bulunmayabilir** (bu, `Assembly Version`/`File
+   Version`'ın aksine, VS'nin klasik "Assembly Information" diyaloğunda
+   HİÇBİR ZAMAN ayrı bir alan olarak yer almamıştır). En güvenilir ve VS
+   sürümünden bağımsız yol: Solution Explorer'da `Lens.Desktop` projesine
+   sağ tıklayıp **"Edit Project File"** (veya Properties sayfasının kendi
+   XML/gelişmiş düzenleme seçeneği) ile `Lens.Desktop.csproj`'u açıp
+   `<InformationalVersion>07.09.2026 — v1.0</InformationalVersion>` satırını
+   doğrudan değiştirmektir (bkz. dosyadaki ilgili `PropertyGroup` yorumu).
+   Önerilen biçim: `GG.AA.YYYY — vX.Y` (Türkçe tarih + kısa sürüm etiketi).
+4. Gerekirse (büyük bir sürüm atlaması, dağıtım takibi için) adım 2'deki
+   sayısal `AssemblyVersion`/`FileVersion` değerlerini de artırın — bu iki
+   alanın kullanıcıya gösterilen metinle (`InformationalVersion`) BİREBİR
+   aynı olması ZORUNLU DEĞİLDİR, bağımsız izlenebilirler.
+5. Projeyi yeniden derleyin (`dotnet build Lens.sln -c Release`, 0 warning/0
+   error beklenir) ve gerekiyorsa yeniden publish alın (bkz. §1).
+6. Doğrulayın: ana pencerenin sol alt köşesi, Hakkında ekranı (⋮ → Hakkında)
+   ve EXE'nin Windows Gezgini → Özellikler → Detaylar sekmesindeki "Dosya
+   sürümü"/"Ürün sürümü" alanları güncel/tutarlı değerleri gösteriyor mu.
+
 ## İlgili Dokümanlar
 
 - İlk pilot/demo'ya özel adımlar: `docs/DEMO_DEPLOYMENT_GUIDE.md`

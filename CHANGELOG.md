@@ -8,6 +8,69 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Assembly Sürüm Gösterimi ve Sayısal Giriş Sınırlaması] — 2026-09-07
+
+### Değişti
+- **Sürüm bilgisi (sol alt köşe + Hakkında):** Ana pencerenin sol alt
+  köşesinde `Sürüm: 07.09.2026 — v1.0` biçiminde bir sürüm etiketi eklendi.
+  Bu metin XAML/C# içinde SABİT bir string DEĞİL — tek kaynağı derlenen
+  `Lens.Desktop.exe`'nin Assembly metadata'sı (`AssemblyInformationalVersion`,
+  `Lens.Desktop.csproj`'daki `InformationalVersion` MSBuild özelliğinden SDK
+  tarafından otomatik üretilir). Yeni ortak `Lens.Desktop.AppVersionInfo.
+  GetDisplayVersion()`, hem alt bilgi satırını hem de Hakkında ekranını
+  besler — ikisi ARTIK AYNI kaynaktan okur, farklı sürüm gösteremezler (eski
+  Hakkında ekranı yalnızca sayısal `AssemblyVersion`/`GetName().Version`
+  kullanıyordu, bu ayrım kaldırıldı). Assembly metadata okunamazsa/boşsa
+  uygulama ÇÖKMEZ — güvenli bir yedek metne düşer. `AssemblyVersion`/
+  `FileVersion` standart sayısal `1.0.0.0` biçiminde ayrı tutuldu (duplicate
+  assembly attribute riski yok — `AssemblyInfo.cs`'deki mevcut WPF
+  `ThemeInfo` tanımına dokunulmadı). `IncludeSourceRevisionInInformationalVersion=
+  false` ile git commit hash'inin sürüm metnine otomatik eklenmesi engellendi.
+  Alt bilgi satırı artık 2 sütunlu responsive bir `Grid` (sol: sürüm, sağ:
+  mevcut "Sistem kesin eşleşme belirtmez…" açıklaması, değişmeden) - 860 DIP
+  minimum genişlikte metinler kesilmez/üst üste binmez (sağ metne savunma
+  amaçlı `TextWrapping="Wrap"` eklendi). Sürüm güncelleme süreci
+  `docs/DEPLOYMENT.md` §9'da belgelendi.
+- **Sayısal giriş sınırlaması ("Minimum benzerlik (%)" / "En fazla sonuç"):**
+  Bu iki alana artık harf/geçersiz karakter ne yazılabiliyor ne de
+  yapıştırılabiliyor. Yeni, WPF'ye bağımlı OLMAYAN `Lens.Core.Search.
+  NumericInputFilter` (test edilebilir, bkz. Test) karakter düzeyinde karar
+  verir; `MainWindow`'daki üç paylaşılan olay işleyicisi (`PreviewTextInput`,
+  `DataObject.Pasting`, `TextChanged` son güvenlik ağı) bu mantığı her iki
+  alana da uygular — kod tekrarı yok. Minimum benzerlik alanı TR virgülü
+  (`80,5`) ve İngilizce nokta (`80.5`) ile ondalık kabul eder; en fazla
+  sonuç alanı YALNIZCA tam sayı kabul eder (ayırıcı dahi reddedilir). Her
+  iki alanda da eksi işareti ve harf HER ZAMAN reddedilir, birden fazla
+  ondalık ayırıcı reddedilir. **Aralık/varsayılan doğrulaması
+  (`SimilarityThreshold`/`MaxResultsPreference`, 0-100 / 1-200, boş
+  girdide 80/20 varsayılanı, "200'ü aşan" uyarı mesajı) HİÇ DEĞİŞMEDİ** —
+  yeni filtre yalnızca karakter düzeyinde çalışır, aralık dışı ama
+  karakter-olarak-geçerli bir sayı (ör. "101", "201") buradan geçer, asıl
+  doğrulama/uyarı katmanında olduğu gibi ele alınmaya devam eder. Backspace/
+  Delete/yön tuşları/Tab/Ctrl+A/Ctrl+C/Ctrl+V/seçili metnin üzerine yazma
+  etkilenmedi (bunlar zaten `PreviewTextInput`'a hiç girmiyor ya da
+  `DataObject.Pasting` üzerinden ayrıca ele alınıyor). Mevcut 860 DIP
+  minimum genişlikte alan boyutları/hizası DEĞİŞMEDİ (spinner/ok eklenmedi).
+- Benzerlik algoritması, sıralama, index formatı/konumu, otomatik index
+  güncelleme, 200 sonuç üst sınırı, 80/20 varsayılanları, busy/kilit
+  davranışı, sürükle-bırak, Yeni Arama, kaydırma sıfırlama, tema sistemi,
+  sonuç kartları, üst klasör satırı ve orta form hizası DEĞİŞMEDİ.
+
+### Test
+- `dotnet build Lens.sln -c Debug`/`-c Release`: **0 warning / 0 error**
+  (her ikisi de).
+- `Lens.AiProof hardeningtest`: **192/192 PASS** (önceki 158 + yeni Grup M:
+  `NumericInputFilter` karakter-düzeyi doğrulaması, 34 kontrol - boş/geçerli/
+  harf/eksi-işareti/çoklu-ayırıcı/ekleme-yapıştırma senaryoları/son-temizleme).
+- Assembly metadata reflection ile doğrulandı (derlenen DLL'in Win32
+  `ProductVersion`/`FileVersion` kaynaklarından): `InformationalVersion`
+  em-tire (—, U+2014) dahil BİREBİR korunuyor, `FileVersion`/`AssemblyVersion`
+  `1.0.0.0`.
+- Canlı görsel doğrulama YAPILMADI (uygulama açılmadı) — kullanıcının kendi
+  ekranında sol alt köşe/Hakkında ekranı/sayısal alan davranışını
+  doğrulaması bekleniyor. Publish paketi bu kayıtla GÜNCELLENMEDİ (bilinçli -
+  görsel kabul öncesi). Detay: `docs/DECISIONS.md` #80, `docs/DEPLOYMENT.md` §9.
+
 ## [Ekran Uyumu — Pencere Ölçüsünün Çalışma Alanına Sığdırılması] — 2026-09-07
 
 ### Analiz

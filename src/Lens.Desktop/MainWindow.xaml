@@ -348,8 +348,17 @@
                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Minimum benzerlik (%)" VerticalAlignment="Center" FontSize="14"
                            TextWrapping="Wrap" Margin="0,0,10,0"
                            Foreground="{DynamicResource NeutralTextBrush}" />
+                <!-- [Sayısal giriş - 2026-09-07] Harf/geçersiz karakter yazma VE yapıştırma
+                     PreviewTextInput + DataObject.Pasting ile ENGELLENİR (bkz. MainWindow.
+                     NumericTextBox_PreviewTextInput/_Pasting - karar mantığı Lens.Core.Search.
+                     NumericInputFilter'da, WPF'siz test edilebilir). TextChanged, IME/beklenmedik
+                     giriş yollarına karşı SON güvenlik ağıdır. Bu filtre yalnızca KARAKTER
+                     düzeyinde çalışır - 0-100 aralık/varsayılan/boş-girdi sözleşmesi tamamen
+                     SimilarityThreshold'da kalır, burada TEKRARLANMAZ/DEĞİŞTİRİLMEZ. -->
                 <TextBox Grid.Row="2" Grid.Column="1" x:Name="ThresholdTextBox" Width="84" MinHeight="36" VerticalContentAlignment="Center"
-                         HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                         HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                         PreviewTextInput="NumericTextBox_PreviewTextInput" DataObject.Pasting="NumericTextBox_Pasting"
+                         TextChanged="NumericTextBox_TextChanged" />
                 <Button Grid.Row="2" Grid.Column="3" x:Name="SearchButton" Content="Ara" Style="{StaticResource PrimaryButtonStyle}"
                         Width="120" Height="42" FontSize="14" VerticalAlignment="Center" Click="SearchButton_Click" />
                 <!-- Uyarı: gizliyken SIFIR yükseklik (mevcut satır aralığını bozmaz), görünürken
@@ -365,8 +374,14 @@
                 <TextBlock Grid.Row="5" Grid.Column="0" Text="En fazla sonuç" VerticalAlignment="Center" FontSize="14"
                            TextWrapping="Wrap" Margin="0,0,10,0"
                            Foreground="{DynamicResource NeutralTextBrush}" />
+                <!-- [Sayısal giriş - 2026-09-07] ThresholdTextBox ile AYNI ortak filtre (bkz.
+                     yukarıdaki yorum) - allowDecimal=false (yalnızca tam sayı, ondalık ayırıcı
+                     dahi kabul edilmez). 1-200 aralık/varsayılan/200-üstü uyarı sözleşmesi
+                     tamamen MaxResultsPreference'da kalır, burada TEKRARLANMAZ/DEĞİŞTİRİLMEZ. -->
                 <TextBox Grid.Row="5" Grid.Column="1" x:Name="MaxResultsTextBox" Width="84" MinHeight="36" VerticalContentAlignment="Center"
-                         HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                         HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                         PreviewTextInput="NumericTextBox_PreviewTextInput" DataObject.Pasting="NumericTextBox_Pasting"
+                         TextChanged="NumericTextBox_TextChanged" />
                 <Button Grid.Row="5" Grid.Column="3" x:Name="NewSearchButton" Content="Yeni Arama" Style="{StaticResource QueryActionButtonStyle}"
                         Width="120" Height="42" FontSize="14" VerticalAlignment="Center" Click="NewSearchButton_Click" />
                 <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" x:Name="MaxResultsValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
@@ -460,8 +475,25 @@
         </Grid>
 
         <!-- Alt bilgi: artik ayri bir acik panel/blok degil - ana pencere zeminiyle
-             birlesir, metin rengi DynamicResource ile temaya gore okunabilir kalir. -->
-        <TextBlock Grid.Row="3" Margin="0,8,0,0" FontStyle="Italic" Foreground="{DynamicResource SecondaryTextBrush}"
-                    Text="Sistem kesin eşleşme belirtmez; en yakın adaylar listelenir. Son kararı kullanıcı verir." />
+             birlesir, metin rengi DynamicResource ile temaya gore okunabilir kalir.
+             [Surum bilgisi - 2026-09-07] Satir artik 2 sutunlu responsive bir Grid:
+             sol tarafta Assembly metadata'dan okunan surum (FooterVersionText -
+             Text BURADA SABIT DEGIL, MainWindow constructor'inda AppVersionInfo.
+             GetDisplayVersion() ile doldurulur - bkz. o sinif), kalan alanda mevcut
+             aciklama metni/tasarimi AYNEN korunur. Sol sutun Auto (dogal genislik,
+             asla kirpilmaz), sag sutun kalan TUM genisligi kullanir; TextWrapping=Wrap
+             (yeni - savunma amacli) 860 DIP minimum genislikte bile iki metnin ust
+             uste binmesini/pencere disina tasmasini engeller. -->
+        <Grid Grid.Row="3" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="FooterVersionText" Text="" FontStyle="Italic" VerticalAlignment="Top"
+                        Margin="0,0,16,0" Foreground="{DynamicResource SecondaryTextBrush}" />
+            <TextBlock Grid.Column="1" FontStyle="Italic" TextWrapping="Wrap" VerticalAlignment="Top"
+                        Foreground="{DynamicResource SecondaryTextBrush}"
+                        Text="Sistem kesin eşleşme belirtmez; en yakın adaylar listelenir. Son kararı kullanıcı verir." />
+        </Grid>
     </Grid>
 </Window>

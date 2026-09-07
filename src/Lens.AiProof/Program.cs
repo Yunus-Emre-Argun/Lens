@@ -908,6 +908,75 @@ static void RunHardeningTest()
     }
 
     Console.WriteLine();
+
+    // ---- Grup M: Sayısal giriş filtresi (NumericInputFilter) - karakter düzeyi ----
+    // [Sayısal giriş - 2026-09-07] Bu grup YALNIZCA karakter/tuş/yapıştırma düzeyinde
+    // "yazılmasına/yapıştırılmasına İZİN VERİLİR mi" sorusunu test eder - 0-100/1-200
+    // ARALIK doğrulaması burada test EDİLMEZ (o zaten Grup K'de SimilarityThreshold/
+    // MaxResultsPreference üzerinden kapsanıyor). Bu yüzden ör. "101"/"201" gibi
+    // aralık-dışı ama KARAKTER olarak geçerli sayılar burada true (izinli) döner -
+    // filtre bilerek aralığı KONTROL ETMEZ, yalnızca harf/eksi/fazla ayırıcıyı engeller.
+    Console.WriteLine("[M] Sayısal giriş filtresi: karakter düzeyi doğrulama (NumericInputFilter)");
+    {
+        bool DOk(string text) => NumericInputFilter.IsValidPartialText(text, allowDecimal: true);
+        bool IOk(string text) => NumericInputFilter.IsValidPartialText(text, allowDecimal: false);
+
+        // -- Benzerlik (allowDecimal=true) --
+        Check("M1 benzerlik: '' (boş) -> izinli (geçici olarak boş bırakılabilir)", DOk(""));
+        Check("M2 benzerlik: '0' -> izinli", DOk("0"));
+        Check("M3 benzerlik: '80' -> izinli", DOk("80"));
+        Check("M4 benzerlik: '80,5' (TR virgül) -> izinli", DOk("80,5"));
+        Check("M5 benzerlik: '80.5' (nokta) -> izinli", DOk("80.5"));
+        Check("M6 benzerlik: '100' -> izinli", DOk("100"));
+        Check("M7 benzerlik: 'abc' (metin) -> REDDEDİLİR", !DOk("abc"));
+        Check("M8 benzerlik: '8a' (rakam+harf) -> REDDEDİLİR", !DOk("8a"));
+        Check("M9 benzerlik: '-1' (eksi işareti) -> REDDEDİLİR", !DOk("-1"));
+        Check("M10 benzerlik: '101' -> KARAKTER olarak izinli (aralık kontrolü burada DEĞİL, bkz. Grup K)", DOk("101"));
+        Check("M11 benzerlik: '80,5,2' (birden fazla ayırıcı) -> REDDEDİLİR", !DOk("80,5,2"));
+
+        // -- Sonuç sayısı (allowDecimal=false) --
+        Check("M12 sonuç sayısı: '' (boş) -> izinli", IOk(""));
+        Check("M13 sonuç sayısı: '1' -> izinli", IOk("1"));
+        Check("M14 sonuç sayısı: '20' -> izinli", IOk("20"));
+        Check("M15 sonuç sayısı: '200' -> izinli", IOk("200"));
+        Check("M16 sonuç sayısı: '0' -> KARAKTER olarak izinli (0'ın GEÇERSİZ olması Grup K'nin işi)", IOk("0"));
+        Check("M17 sonuç sayısı: '201' -> KARAKTER olarak izinli (aralık kontrolü burada DEĞİL)", IOk("201"));
+        Check("M18 sonuç sayısı: 'abc' -> REDDEDİLİR", !IOk("abc"));
+        Check("M19 sonuç sayısı: '2a' -> REDDEDİLİR", !IOk("2a"));
+        Check("M20 sonuç sayısı: '20,5' (virgül - tam sayı alanında ayırıcı YOK) -> REDDEDİLİR", !IOk("20,5"));
+        Check("M21 sonuç sayısı: '20.5' (nokta - tam sayı alanında ayırıcı YOK) -> REDDEDİLİR", !IOk("20.5"));
+        Check("M22 sonuç sayısı: '-5' (eksi işareti) -> REDDEDİLİR", !IOk("-5"));
+
+        // -- Ekleme (insert) senaryoları: mevcut metin + seçim + yeni karakter/yapıştırma --
+        Check("M23 ekleme: '8' üzerine (imleç sonda) '0' yaz -> '80' izinli",
+            NumericInputFilter.IsValidPartialInput("8", 1, 0, "0", allowDecimal: true));
+        Check("M24 ekleme: '80' TAMAMI seçiliyken 'a' yaz -> REDDEDİLİR (seçili metnin üzerine harf)",
+            !NumericInputFilter.IsValidPartialInput("80", 0, 2, "a", allowDecimal: true));
+        Check("M25 ekleme: '80' TAMAMI seçiliyken '65' yapıştır -> '65' izinli (seçili metnin üzerine geçerli sayı)",
+            NumericInputFilter.IsValidPartialInput("80", 0, 2, "65", allowDecimal: true));
+        Check("M26 yapıştırma: boş alana '80,5' yapıştır -> izinli",
+            NumericInputFilter.IsValidPartialInput("", 0, 0, "80,5", allowDecimal: true));
+        Check("M27 yapıştırma: boş alana '8a' yapıştır -> REDDEDİLİR",
+            !NumericInputFilter.IsValidPartialInput("", 0, 0, "8a", allowDecimal: true));
+        Check("M28 yapıştırma: '80,' sonuna '5,2' yapıştır -> REDDEDİLİR (toplamda 2 ayırıcı)",
+            !NumericInputFilter.IsValidPartialInput("80,", 3, 0, "5,2", allowDecimal: true));
+        Check("M29 yapıştırma (tam sayı alanı): boş alana '150' yapıştır -> izinli",
+            NumericInputFilter.IsValidPartialInput("", 0, 0, "150", allowDecimal: false));
+        Check("M30 yapıştırma (tam sayı alanı): boş alana '15,5' yapıştır -> REDDEDİLİR",
+            !NumericInputFilter.IsValidPartialInput("", 0, 0, "15,5", allowDecimal: false));
+
+        // -- Son güvenlik ağı: gecersiz metinden temizleme (StripInvalidCharacters) --
+        Check("M31 temizleme: '8a0b' (ondalık alan) -> '80'",
+            NumericInputFilter.StripInvalidCharacters("8a0b", allowDecimal: true) == "80");
+        Check("M32 temizleme: '80,5,2' (ondalık alan, fazla ayırıcı) -> '80,52' (İLK ayırıcı korunur, sonrakiler atılır)",
+            NumericInputFilter.StripInvalidCharacters("80,5,2", allowDecimal: true) == "80,52");
+        Check("M33 temizleme: '2-0.5' (tam sayı alanı - eksi VE nokta atılır) -> '205'",
+            NumericInputFilter.StripInvalidCharacters("2-0.5", allowDecimal: false) == "205");
+        Check("M34 temizleme: 'abc' -> '' (tamamen geçersiz -> boş, alan boş bırakılabilir sözleşmesiyle tutarlı)",
+            NumericInputFilter.StripInvalidCharacters("abc", allowDecimal: true) == "");
+    }
+
+    Console.WriteLine();
     Console.WriteLine($"=== Sonuc: {passed} PASS, {failed} FAIL ===");
     if (failed > 0)
     {

@@ -88,6 +88,11 @@ public partial class MainWindow : Window
         ResultsItemsControl.ItemsSource = _results;
         _logger.Info("AppStart");
 
+        // [Sürüm bilgisi] Tek kaynak Assembly metadata (bkz. AppVersionInfo) - Hakkında
+        // ekranı (AboutMenuItem_Click) AYNI metodu çağırır, iki farklı yerde tekrar
+        // okuma mantığı yok, dolayısıyla ikisi asla farklı sürüm gösteremez.
+        FooterVersionText.Text = $"Sürüm: {AppVersionInfo.GetDisplayVersion()}";
+
         var userSettings = UserSettings.Load(_logger);
         AutoIndexCheckBox.IsChecked = userSettings.AutoIndexBeforeSearch;
         // [Sonuç sınırı] Kayıtlı deger bozuk/aralik disiysa (ör. elle duzenlenmis
@@ -1592,9 +1597,10 @@ public partial class MainWindow : Window
 
     private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-        var versionText = version is null ? "MVP" : $"{version.Major}.{version.Minor}.{version.Build}";
-        var message = $"Lens\nGörsel Ürün Arama Sistemi\nSürüm: {versionText}";
+        // [Sürüm bilgisi] Eski GetName().Version (yalnızca sayısal AssemblyVersion)
+        // KALDIRILDI - artık alt bilgi satırıyla AYNI ortak kaynağı (AppVersionInfo,
+        // Assembly.InformationalVersion) kullanır, iki ekran asla farklı sürüm göstermez.
+        var message = $"Lens\nGörsel Ürün Arama Sistemi\nSürüm: {AppVersionInfo.GetDisplayVersion()}";
         AlertWindow.Show(this, message, "Hakkında", AlertKind.Information);
     }
 
@@ -1853,6 +1859,69 @@ public partial class MainWindow : Window
         {
             SetBusy(false);
         }
+    }
+
+    /// <summary>
+    /// [Sayısal giriş - 2026-09-07] ThresholdTextBox/MaxResultsTextBox'a KLAVYEDEN
+    /// yazılan her karakter, işlenmeden ÖNCE burada sorulur. Karar mantığı (harf/
+    /// eksi işareti/fazla ayırıcı reddi) tamamen <see cref="NumericInputFilter"/>'da -
+    /// WPF'siz, Lens.AiProof ile test edilebilir (bkz. hardeningtest Grup M). Hangi
+    /// alanın ondalık kabul ettiği (yalnızca ThresholdTextBox) `sender`'dan belirlenir -
+    /// aynı işleyici iki alan için de paylaşılır (kod tekrarı yok).
+    /// </summary>
+    private void NumericTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        var textBox = (TextBox)sender;
+        var allowDecimal = ReferenceEquals(textBox, ThresholdTextBox);
+        e.Handled = !NumericInputFilter.IsValidPartialInput(
+            textBox.Text, textBox.SelectionStart, textBox.SelectionLength, e.Text, allowDecimal);
+    }
+
+    /// <summary>
+    /// [Sayısal giriş - 2026-09-07] Yapıştırma (Ctrl+V, sağ-tık yapıştır, Düzen menüsü -
+    /// hepsi AYNI WPF komutuna bağlı, tek bir yerden yakalanır) PreviewTextInput'un
+    /// KAPSAMADIĞI bir yol - talimat gereği ayrıca ele alınır. Yalnızca metin verisi
+    /// kabul edilir (resim/dosya yapıştırma zaten anlamsız, iptal edilir); geçerli metin
+    /// bile olsa NumericInputFilter'ı geçemezse tüm yapıştırma işlemi İPTAL edilir
+    /// (kısmi/bozuk bir yapıştırma bırakılmaz).
+    /// </summary>
+    private void NumericTextBox_Pasting(object sender, DataObjectPastingEventArgs e)
+    {
+        var textBox = (TextBox)sender;
+        if (!e.DataObject.GetDataPresent(DataFormats.Text))
+        {
+            e.CancelCommand();
+            return;
+        }
+
+        var pasted = (string)e.DataObject.GetData(DataFormats.Text);
+        var allowDecimal = ReferenceEquals(textBox, ThresholdTextBox);
+        if (!NumericInputFilter.IsValidPartialInput(textBox.Text, textBox.SelectionStart, textBox.SelectionLength, pasted, allowDecimal))
+        {
+            e.CancelCommand();
+        }
+    }
+
+    /// <summary>
+    /// [Sayısal giriş - 2026-09-07] Son güvenlik ağı: IME kompozisyonu veya sürükle-
+    /// bırak metin gibi PreviewTextInput/DataObject.Pasting'i atlayan beklenmedik bir
+    /// yoldan alana geçersiz karakter girerse, burada SESSİZCE temizlenir (harf/eksi
+    /// işareti/fazla ayırıcı kaldırılır, imleç konumu korunur). Zaten geçerliyse hiçbir
+    /// şey yapmaz - metni yeniden ATAYIP gereksiz ikinci bir TextChanged tetiklemez.
+    /// </summary>
+    private void NumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var textBox = (TextBox)sender;
+        var allowDecimal = ReferenceEquals(textBox, ThresholdTextBox);
+        if (NumericInputFilter.IsValidPartialText(textBox.Text, allowDecimal))
+        {
+            return;
+        }
+
+        var caret = textBox.CaretIndex;
+        var cleaned = NumericInputFilter.StripInvalidCharacters(textBox.Text, allowDecimal);
+        textBox.Text = cleaned;
+        textBox.CaretIndex = Math.Min(caret, cleaned.Length);
     }
 
     /// <summary>[Faz 1] Gecersiz threshold: odak hatali alana doner, sade (modal olmayan) bir mesaj gosterilir.</summary>

@@ -29,4 +29,33 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <!-- [Sürüm bilgisi - 2026-09-07] SDK-style proje: bu üç deger, Visual Studio'da
+       Solution Explorer -> Lens.Desktop projesine sag tik -> Properties -> Application
+       sekmesi -> "Assembly Information..." (Assembly Version/File Version icin) VEYA
+       dogrudan bu .csproj dosyasinin XML'i (Informational Version icin - bkz. asagidaki
+       yorum) uzerinden degistirilir; XAML/C# icinde SABIT metin OLARAK YAZILMAZ (bkz.
+       AppVersionInfo.GetDisplayVersion - TEK okuma kaynagi). AssemblyVersion/FileVersion
+       SDK'nin GenerateAssemblyInfo hedefi tarafindan derleme sirasinda otomatik uretilir -
+       AssemblyInfo.cs icine ELLE [assembly: AssemblyVersion(...)] EKLENMEDI (aksi halde
+       duplicate attribute derleme HATASI olurdu); mevcut WPF ThemeInfo attribute'u
+       (AssemblyInfo.cs) bu degisiklikten ETKILENMEDI. -->
+  <PropertyGroup>
+    <!-- Standart sayisal alanlar - yalnizca "major.minor.build.revision" bicimi
+         gecerlidir (ör. "1.0.0.0"); VS Assembly Information dialogundaki "Assembly
+         version"/"File version" alanlariyla BIREBIR eslesir. -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <!-- Kullaniciya gosterilen serbest metin (tarih + kisa etiket) - Assembly
+         Information dialogunda AYRI bir alan olarak GARANTI gorunmeyebilir (VS
+         surumune gore degisir); en guvenilir/VS-surumunden-bagimsiz yol bu degeri
+         doğrudan burada (.csproj dosyasi) duzenlemektir - bkz. docs/DEPLOYMENT.md
+         "Surum Guncelleme (Yonetici Sureci)". -->
+    <InformationalVersion>07.09.2026 — v1.0</InformationalVersion>
+    <!-- Bu proje su an bir SourceLink paketi kullanmadigindan pratikte etkisi yok,
+         ama SDK'nin git commit hash'ini InformationalVersion sonuna "+<hash>" olarak
+         OTOMATIK eklemesini (SourceRevisionId mevcutsa) kalici olarak ENGELLER - "07.09.2026
+         — v1.0" degeri HER ZAMAN degismeden gorunur. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
 </Project>
