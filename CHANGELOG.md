@@ -8,6 +8,44 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Arama Formu ve Üst Klasör Satırı Hizaları] — 2026-09-07
+
+### Değişti
+- **Orta arama formu:** Minimum benzerlik ve en fazla sonuç satırlarındaki
+  iki bağımsız yatay `StackPanel` kaldırıldı. İki etiket artık ortak bir
+  etiket sütununu paylaşıyor; `ThresholdTextBox`/`MaxResultsTextBox` aynı
+  84 DIP giriş sütununda (`SettingsInputColumn`), `SearchButton`/
+  `NewSearchButton` aynı işlem sütununda — sol/sağ kenarlar ve genişlikler
+  artık tahmini `Margin` değil, ortak Grid sütun sınırıyla garanti hizalı.
+  "Sorgu Görseli Seç" butonu ve otomatik indeksleme kutusu aynı ayar
+  alanını (etiket+giriş sütunları toplamı) kaplıyor. Mevcut responsive
+  genişlik hesabı (`MainWindow.UpdateResponsiveLayout`) yeni sütun
+  yapısına uyarlandı, ferah dikey boşluklar korundu.
+- **Üst klasör satırı:** `TopAreaGrid` 7 sütundan 8 sütuna çıkarıldı;
+  `MenuButton` son sütuna alındı ve menüden önce gerçek, bağımsız bir
+  `MenuSpacerColumn Width="*"` eklendi — "⋮" menüsü artık varsayılan
+  klasör buton grubundan (Bu Klasörü Varsayılan Yap / Varsayılanı
+  Temizle) ayrı, pencerenin en sağında sabit kalıyor; pencere
+  genişledikçe sağ kenardan uzaklaşmıyor. `SetDefaultButton` ile
+  `ProblemFilesButton` aynı sütunda/aynı sol kenar hizasında kalmaya
+  devam ediyor; `ClearDefaultButton` kendi `Auto` sütununda. Klasör yolu
+  kutusunun (`FolderPathTextBox`) eski sabit `MaxWidth="360"` sınırı
+  kaldırıldı — kutu artık pencere genişliğine göre yaklaşık 200–530 DIP
+  arasında responsive büyüyor (XAML güvenlik sınırları: `MinWidth=180`,
+  `MaxWidth=560`).
+- Arama/indeksleme mantığı, tema sistemi ve 80/20 varsayılanları
+  DEĞİŞMEDİ — bu tur yalnızca `MainWindow.xaml`/`MainWindow.xaml.cs`
+  içindeki yerleşimle sınırlı.
+
+### Test
+- `dotnet build src/Lens.Desktop/Lens.Desktop.csproj -c Release`:
+  **0 warning / 0 error**.
+- Canlı görsel doğrulama bu turda YAPILMADI (uygulama açılmadı, kullanıcı
+  ekranına müdahale edilmedi) — kullanıcının kendi ekranında onayı
+  bekleniyor, özellikle 860×680 minimum pencerede `Varsayılanı Temizle`
+  görünürken üst satırda kesilme olmadığı. Publish/ZIP/Drive paketi bu
+  kayıtla GÜNCELLENMEDİ. Detay: `docs/DECISIONS.md` #78.
+
 ## [Kaynak Kod Kontrol Noktası — Yerleşim, Ayarlar ve 80/20] — 2026-09-04
 
 ### Değişti

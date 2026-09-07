@@ -148,8 +148,31 @@ public partial class MainWindow : Window
         const double narrowWindowWidth = 860; // Window.MinWidth
         const double narrowImage = 200, wideImage = 300;
         const double narrowSettingsColumn = 240, wideSettingsColumn = 260;
+        // [Orta form hizalama duzeltmesi] Sayisal giris sutunu (ThresholdTextBox/
+        // MaxResultsTextBox) SABIT 84 DIP - pencere genisligiyle DEGISMEZ (bkz. talimat
+        // "Sayısal girişler 84 DIP olarak eşit kalsın"). "Ayar alani" (narrow/wideSettingsColumn)
+        // hala etiket+giris TOPLAMINI ifade eder; etiket sutunu bu toplamdan sabit giris
+        // genisligi CIKARILARAK hesaplanir (asagida).
+        const double settingsInputColumnWidth = 84;
         const double narrowButtonWidth = 104, wideButtonWidth = 120;
         const double narrowGap = 16, wideGapOuter = 40, wideGapInner = 32;
+        // [Ust satir taslak hizalama duzeltmesi] Klasor yolu kutusunun (FolderPathTextBox)
+        // hedef genisligi - dar pencerede FolderPathColumn'un gercek tabani olan 180 DIP'te
+        // baslar (860 DIP minimum pencerede "Bu Klasörü Varsayılan Yap"/"Varsayılanı Temizle"/
+        // MenuButton'a yer birakmak icin OLCULEREK dogrulandi - bkz. asagidaki sinir-durumu
+        // notu), genis pencerede ~530 DIP'e kadar buyur (talimat tablosundaki ~500-560 araligi);
+        // asagidaki AYNI "t" (pencere genisligi orani) ile Lerp edilir, boylece TEK ve anlasilir
+        // bir egri kullanilir - ayri/tutarsiz ikinci bir hesap YOK. FolderPathColumn'daki
+        // MinWidth=180/MaxWidth=560 gercek bir GUVENLIK AGI - bu Lerp bir sekilde araligin
+        // disina cikarsa bile Grid motoru sert sinirlari uygular.
+        const double narrowFolderPath = 180, wideFolderPath = 530;
+        // [Ust satir sinir-durumu duzeltmesi] Urun sayisi/kaynak WrapPanel'inin (ProductInfoPanel)
+        // ust genislik siniri - 860 DIP minimumda ~160 DIP (gercek metinler FormattedText ile
+        // olculdu: en uzun urun-sayisi metni ~143 DIP, en uzun sabit kaynak etiketi ~118 DIP -
+        // ikisi YAN YANA 160'a sigmaz, WrapPanel DirectorySourceText'i alt satira SARAR, kolon
+        // genisligi ~143 DIP'e duser), genis pencerede ~600 DIP (pratikte sinirsiz, mevcut
+        // yan-yana gorunumu KORUR). Ayni "t" ile Lerp edilir.
+        const double narrowProductInfoMax = 160, wideProductInfoMax = 600;
 
         // "Tam genis hedef" toplam genislik: iki gorsel + iki dis bosluk +
         // (ayar sutunu + ic bosluk + buton) + RootGrid kenar bosluklari (12+12)
@@ -169,6 +192,10 @@ public partial class MainWindow : Window
         var buttonWidth = Lerp(narrowButtonWidth, wideButtonWidth, t);
         var gapOuter = Lerp(narrowGap, wideGapOuter, t);
         var gapInner = Lerp(narrowGap, wideGapInner, t);
+        var folderPathWidth = Lerp(narrowFolderPath, wideFolderPath, t);
+        FolderPathColumn.Width = new GridLength(folderPathWidth);
+        var productInfoMaxWidth = Lerp(narrowProductInfoMax, wideProductInfoMax, t);
+        ProductInfoPanel.MaxWidth = productInfoMaxWidth;
 
         QueryDropZone.Width = imageSize;
         QueryDropZone.Height = imageSize;
@@ -180,32 +207,46 @@ public partial class MainWindow : Window
 
         ComparisonGapLeftColumn.Width = new GridLength(gapOuter);
         ComparisonGapRightColumn.Width = new GridLength(gapOuter);
-        SettingsColumn.Width = new GridLength(settingsColumnWidth);
+        SettingsLabelColumn.Width = new GridLength(Math.Max(0, settingsColumnWidth - settingsInputColumnWidth));
         SettingsButtonsGapColumn.Width = new GridLength(gapInner);
         SearchButton.Width = buttonWidth;
         NewSearchButton.Width = buttonWidth;
 
-        // [Talimat - KESIN sart DEGIL ama acikca istendi] Ust satirdaki varsayilan
-        // buton grubunun (SetDefaultButton'dan baslayarak) sol baslangicini,
-        // karsilastirma satirindaki SAG gorselin sol kenari CIVARINDA tutar -
-        // pencerenin ham sag kösesine YAPISMAZ. Deger OLCULUR (yukaridaki
-        // analitik toplamlar + TopAreaGrid'in sol sutunlarinin GERCEK ActualWidth'i),
-        // tahmini sabit bir margin DEGILDIR.
+        // [Talimat - KESIN sart DEGIL ama acikca istendi] Ust satirdaki varsayilan buton
+        // grubunun (SetDefaultButton'dan baslayarak, sutun 4-5) sol baslangicini,
+        // karsilastirma satirindaki SAG gorselin sol kenari CIVARINDA tutar - pencerenin ham
+        // sag kösesine YAPISMAZ. Deger OLCULUR (yukaridaki analitik toplamlar + TopAreaGrid'in
+        // sol sutunlarinin GERCEK ActualWidth'i), tahmini sabit bir margin DEGILDIR. BU HESAP
+        // ARTIK SADECE varsayilan buton grubunu (4-5) kapsar - MenuSpacerColumn(6)/MenuColumn(7)
+        // buraya DAHIL DEGIL, cunku menu artik bu gruptan BAGIMSIZ, gercek bir "*" sutunla
+        // (MenuSpacerColumn) her zaman en sag kenara sabitleniyor (bkz. XAML yorumu).
         var settingsButtonsGroupWidth = settingsColumnWidth + gapInner + buttonWidth;
         var comparisonTotalWidth = imageSize + gapOuter + settingsButtonsGroupWidth + gapOuter + imageSize;
         var comparisonLeftEdgeX = Math.Max(0, (RootGrid.ActualWidth - comparisonTotalWidth) / 2);
         var rightImageStartX = comparisonLeftEdgeX + imageSize + gapOuter + settingsButtonsGroupWidth + gapOuter;
 
-        var leftContentWidth = TopAreaGrid.ColumnDefinitions[0].ActualWidth
-            + TopAreaGrid.ColumnDefinitions[1].ActualWidth
-            + TopAreaGrid.ColumnDefinitions[2].ActualWidth;
-        var rightGroupNaturalWidth = TopAreaGrid.ColumnDefinitions[4].ActualWidth
-            + TopAreaGrid.ColumnDefinitions[5].ActualWidth
-            + TopAreaGrid.ColumnDefinitions[6].ActualWidth;
+        // [Sinir-durumu duzeltmesi] FolderPathColumn.ActualWidth BURADA KULLANILMAZ - ActualWidth
+        // bu satirin birkac satir YUKARISINDA ayarlanan Width'i henuz YANSITMAZ (WPF, Width
+        // atamasindan sonraki bir sonraki measure/arrange turune kadar ActualWidth'i
+        // GUNCELLEMEZ), yani bir onceki pencere-boyutu turunun DEGERINI okur - bu, yeniden
+        // boyutlandirmada varsayilan buton grubunun bir kare GERIDEN "sicramasina" yol acardi.
+        // Bunun yerine BU TURDA zaten hesaplanan folderPathWidth (ColumnDefinition'in gercek
+        // MinWidth/MaxWidth sinirlariyla ayni sekilde Clamp edilmis hali) dogrudan kullanilir -
+        // bu deger, Grid'in bu turda GERCEKTEN uygulayacagi genislikle BIREBIR ayni.
+        var leftContentWidth = SelectFolderColumn.ActualWidth
+            + Math.Clamp(folderPathWidth, FolderPathColumn.MinWidth, FolderPathColumn.MaxWidth)
+            + ProductInfoColumn.ActualWidth;
+        var defaultGroupNaturalWidth = DefaultGroupColumn.ActualWidth
+            + ClearDefaultColumn.ActualWidth;
+        // Menu her zaman en sagda kalmasi gereken bagimsiz bir kontrol - burada yalnizca
+        // DefaultGroupSpacerColumn'un menuyu sikistirmayacak kadar alan BIRAKMASI icin
+        // rezerve edilir (kod menuyu KONUMLANDIRMAZ, sadece komsu spacer'in asiri
+        // buyumesini engeller; asil konumlandirma MenuSpacerColumn'daki gercek "*" ile olur).
+        var menuNaturalWidth = MenuColumn.ActualWidth;
 
         var targetSpacer = Math.Max(0, rightImageStartX - leftContentWidth);
-        var maxAvailableSpacer = Math.Max(0, RootGrid.ActualWidth - leftContentWidth - rightGroupNaturalWidth);
-        TopAreaSpacerColumn.Width = new GridLength(Math.Min(targetSpacer, maxAvailableSpacer));
+        var maxAvailableSpacer = Math.Max(0, RootGrid.ActualWidth - leftContentWidth - defaultGroupNaturalWidth - menuNaturalWidth);
+        DefaultGroupSpacerColumn.Width = new GridLength(Math.Min(targetSpacer, maxAvailableSpacer));
     }
 
     /// <summary>[Faz 1] Checkbox tercihi degistiginde aninda kalicilastirilir (bkz. UserSettings.AutoIndexBeforeSearch).</summary>
