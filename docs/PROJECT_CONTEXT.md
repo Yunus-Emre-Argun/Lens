@@ -8,6 +8,27 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 **Open Question** = henüz netleşmedi, karar bekliyor.
 **Later Phase** = ilk PoC/MVP kapsamı dışında, ileride değerlendirilecek.
 
+## Son Durum — 2026-09-07 (Ekran Uyumu — Pencere Ölçüsü Sığdırma)
+
+Görsel tasarım DEĞİŞTİRİLMEDEN, farklı ekran çözünürlüğü/Windows
+ölçeklendirme kombinasyonlarında (1920×1080, 1366×768 × %100/%125/%150)
+taşma riski analiz edildi (bkz. karar #79). 1366×768 %125/%150'de sabit
+`MinHeight=680` gerçek çalışma alanından büyük kalıyordu — kullanıcı
+pencereyi hiçbir şekilde ekrana sığdıramıyordu; 1366×768 %100 ve
+1920×1080 %150'de varsayılan başlangıç boyutu (840 DIP) çalışma alanını
+aşıyordu. Bu ölçülebilir riski gidermek için `MainWindow.
+ClampWindowToWorkArea()` eklendi: yalnızca gerçek ekran normalden
+küçükse `MinWidth`/`MinHeight`/başlangıç `Width`/`Height`'i çalışma
+alanına göre KÜÇÜLTÜR (asla büyütmez) — normal/geniş ekranlarda
+(1920×1080 %100/%125 dahil) onaylı 860×680 minimum / 1060×840 başlangıç
+ölçüsü BİREBİR korunur. Orta form/üst satır tasarımı, tema, arama/
+indeksleme mantığı bu değişiklikten ETKİLENMEDİ.
+
+Release/Debug 0 warning/0 error, `hardeningtest` 158/158 PASS. Canlı
+ekran doğrulaması bu turda YAPILMADI (uygulama açılmadı) — kod/DIP
+aritmetiği ile sınırlı, kullanıcının gerçek donanımda görsel kontrolü
+önerilir. Publish/ZIP/Drive paketi güncellenmedi.
+
 ## Son Durum — 2026-09-07 (Orta Form + Üst Klasör Satırı Kontrol Noktası)
 
 Bu kontrol noktasında üç küçük, ayrı arayüz düzenlemesinin (orta arama

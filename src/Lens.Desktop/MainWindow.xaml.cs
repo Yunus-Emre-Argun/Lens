@@ -84,6 +84,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ClampWindowToWorkArea();
         ResultsItemsControl.ItemsSource = _results;
         _logger.Info("AppStart");
 
@@ -118,6 +119,43 @@ public partial class MainWindow : Window
         // SizeChanged sonraki her pencere yeniden boyutlandirmasinda gunceller.
         Loaded += (_, _) => UpdateResponsiveLayout();
         RootGrid.SizeChanged += (_, _) => UpdateResponsiveLayout();
+    }
+
+    /// <summary>
+    /// [Ekran uyumu - farklı çözünürlük/DPI analizi, 2026-09-07] XAML'deki onaylı
+    /// 860×680 minimum / 1060×840 başlangıç pencere ölçüleri normal/geniş ekranlarda
+    /// (ör. 1920×1080 %100/%125/%150, 1366×768 %100) hiçbir şekilde DEĞİŞMEZ - bu
+    /// metot yalnızca gerçek çalışma alanı (görev çubuğu hariç, `SystemParameters.
+    /// WorkArea` başlangıç anındaki mevcut ekranı DIP cinsinden yansıtır) bu
+    /// sabitlerden GERÇEKTEN küçükse devreye girer. Ölçülen/hesaplanan risk: bazı
+    /// yaygın dizüstü + Windows ölçeklendirme kombinasyonlarında (ör. 1366×768 %125
+    /// ~1093×574 DIP, %150 ~911×472 DIP çalışma alanı) sabit `MinHeight=680` bile
+    /// ekrandan BÜYÜK kalıyordu - WPF interaktif resize'da `MinHeight`/`MinWidth`
+    /// altına asla izin vermediğinden kullanıcı pencereyi HİÇBİR ŞEKİLDE küçültüp
+    /// ekrana sığdıramıyordu (sonuçlar/alt bilgi kalıcı olarak erişilemez kalırdı).
+    /// `Math.Min`/`Math.Clamp` ile hem `MinWidth`/`MinHeight` hem de başlangıç
+    /// `Width`/`Height` çalışma alanını AŞMAYACAK şekilde (yalnızca gerektiğinde)
+    /// küçültülür - hiçbir zaman BÜYÜTÜLMEZ, dolayısıyla onaylanmış tasarım normal
+    /// ekranlarda birebir korunur. Orta/üst bölüm kontrol boyutları, boşluklar ve
+    /// `UpdateResponsiveLayout`'un görsel/sütun hesapları BURADAN ETKİLENMEZ - o
+    /// metot zaten yalnızca `RootGrid.ActualWidth`'e göre çalışır ve pencere ne
+    /// kadar küçültülürse küçültülsün aynı şekilde tepki verir. Çoklu monitör/DPI
+    /// değişikliği (uygulama açıkken ekran değiştirme) kapsam dışı bırakıldı -
+    /// `SystemParameters.WorkArea` yalnızca BAŞLANGIÇ anındaki birincil ekranı
+    /// yansıtır, bu görevin istediği 6 tek-monitör senaryosu için yeterlidir.
+    /// </summary>
+    private void ClampWindowToWorkArea()
+    {
+        var workArea = SystemParameters.WorkArea;
+        if (workArea.Width <= 0 || workArea.Height <= 0)
+        {
+            return; // Guvenilmez/olculemeyen calisma alani - dokunma.
+        }
+
+        MinWidth = Math.Min(MinWidth, workArea.Width);
+        MinHeight = Math.Min(MinHeight, workArea.Height);
+        Width = Math.Clamp(Width, MinWidth, workArea.Width);
+        Height = Math.Clamp(Height, MinHeight, workArea.Height);
     }
 
     /// <summary>

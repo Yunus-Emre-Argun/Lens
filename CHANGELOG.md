@@ -8,6 +8,64 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Ekran Uyumu — Pencere Ölçüsünün Çalışma Alanına Sığdırılması] — 2026-09-07
+
+### Analiz
+- Görsel tasarım DEĞİŞTİRİLMEDEN, farklı ekran çözünürlüğü/Windows
+  ölçeklendirme kombinasyonlarında (1920×1080 %100/%125/%150, 1366×768
+  %100/%125/%150) sabit `Window.MinHeight="680"`/`MinWidth="860"` ve
+  başlangıç `Height="840"`/`Width="1060"` değerlerinin gerçek çalışma
+  alanına (görev çubuğu hariç, DIP cinsinden) sığıp sığmadığı hesaplandı.
+- **Tespit:** 1366×768 ekranda **%125** (~1093×574 DIP çalışma alanı) ve
+  **%150**'de (~911×472 DIP) sabit `MinHeight=680` çalışma alanından
+  **büyük** kalıyordu — WPF interaktif yeniden boyutlandırmada
+  `MinHeight`/`MinWidth` altına asla izin vermediğinden kullanıcı
+  pencereyi hiçbir şekilde küçültüp ekrana sığdıramıyor, alt kısım
+  (sonuçlar/alt bilgi) kalıcı olarak erişilemez kalıyordu. Ayrıca
+  1366×768 %100'de ve 1920×1080 %150'de varsayılan başlangıç yüksekliği
+  (840 DIP) çalışma alanını (sırasıyla ~728 ve ~680 DIP) aşıyordu — ilk
+  açılışta pencerenin alt kenarı ekran dışında/görev çubuğunun altında
+  kalabiliyordu (kullanıcı manuel küçültmeden fark etmeyebilir).
+  1920×1080 %100/%125 SAFE (bolca pay var).
+- **Karar:** Bu ölçülebilir taşma riski, görevin "düzeltme gerekli"
+  ölçütünü (`%125`/`%150`'de pencerenin altına erişilemiyor +
+  `MinHeight` çalışma alanından büyük kalıyor) açıkça karşıladığı için
+  küçük bir düzeltme uygulandı.
+
+### Değişti
+- Yeni `MainWindow.ClampWindowToWorkArea()`, constructor'da
+  `InitializeComponent()`'ten hemen sonra çağrılır: `SystemParameters.
+  WorkArea` (başlangıç anındaki mevcut ekranın DIP cinsinden çalışma
+  alanı) gerçek `MinWidth`/`MinHeight`/`Width`/`Height`'ten KÜÇÜKSE
+  bunları `Math.Min`/`Math.Clamp` ile YALNIZCA gerektiği kadar küçültür
+  — hiçbir zaman BÜYÜTMEZ. Normal/geniş ekranlarda (çalışma alanı zaten
+  860×680'den büyük) hiçbir şey değişmez, onaylanmış 860×680 minimum /
+  1060×840 başlangıç ölçüsü BİREBİR korunur.
+- `WindowStartupLocation="CenterScreen"` eklendi — küçültülen pencere
+  ekranın rastgele bir köşesinde değil, ortalanmış açılır.
+- `UpdateResponsiveLayout`, orta bölüm görsel/sütun ölçüleri, üst satır
+  yerleşimi, tema sistemi, arama/indeksleme mantığı ve tüm onaylı
+  tasarım DEĞİŞMEDİ — bu düzeltme yalnızca pencere geometrisinin
+  başlangıç değerlerine dokunur, `UpdateResponsiveLayout` zaten yalnızca
+  `RootGrid.ActualWidth`'e göre çalıştığından pencere ne kadar
+  küçültülürse küçültülsün aynı şekilde tepki vermeye devam eder.
+- DPI-awareness manifestosu (PerMonitorV2 vb.) BİLEREK EKLENMEDİ —
+  incelenen 6 senaryonun tümü "tek ekranda başlangıç" durumudur;
+  varsayılan (manifestosuz) WPF davranışı bu senaryolarda zaten doğru
+  DIP hesaplaması yapıyor, yalnızca "uygulama açıkken farklı DPI'lı bir
+  monitöre sürükleme" durumunda (kapsam dışı) bulanıklaşma riski taşır.
+
+### Test
+- `dotnet build Lens.sln -c Debug`/`-c Release`: **0 warning / 0 error**
+  (her ikisi de).
+- `Lens.AiProof hardeningtest`: **158/158 PASS** (bu değişiklik arama/
+  indeksleme/doğrulama mantığına dokunmadığı için beklenen sonuç).
+- Canlı ekran testi YAPILMADI (uygulama açılmadı) — hesap kaynak kod
+  üzerinden `SystemParameters.WorkArea` mantığı ve DIP aritmetiğiyle
+  yapıldı; kullanıcının gerçek 1366×768/1920×1080 donanımda görsel
+  doğrulaması önerilir. Publish/ZIP/Drive paketi bu kayıtla
+  GÜNCELLENMEDİ. Detay: `docs/DECISIONS.md` #79.
+
 ## [Arama Formu ve Üst Klasör Satırı Hizaları] — 2026-09-07
 
 ### Değişti
