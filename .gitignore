@@ -10,6 +10,12 @@ $RECYCLE.BIN/
 .vs/
 *.swp
 
+# [ClickOnce - 2026-09-08] Visual Studio/MSBuild kullanici-bazli proje dosyasi
+# (ör. son secilen publish profili) - makine yerel yolu icerebilir, asla
+# commit edilmez. ClickOnce.pubxml ile MSBuild.exe dogrudan calistirildiginda
+# otomatik olusuyor, yerinde tespit edildi.
+*.csproj.user
+
 # Temp
 *.tmp
 *.log

@@ -8,6 +8,26 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [ClickOnce Masaüstü Kısayolu] — 2026-09-08
+
+> **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e
+> merge beklemektedir.** Detay/gerekçe: `docs/DECISIONS.md` karar #85,
+> `docs/CLICKONCE.md` §2b.
+
+### Eklendi
+- `ClickOnce.pubxml`'e `<CreateDesktopShortcut>true</CreateDesktopShortcut>`
+  eklendi — kurulum tamamlanınca kullanıcının masaüstünde otomatik `Lens`
+  kısayolu oluşur (Başlat menüsü kaydı zaten var, değişmedi; görev çubuğuna
+  sabitleme yapılmaz). Kısayol `Lens.Desktop.application` deployment
+  manifestine işaret eder, doğrudan EXE'ye değil — sürüm güncellemelerinde
+  geçerliliğini korur.
+
+### Notlar
+- Deployment manifestinde `co.v1:createDesktopShortcut="true"` özniteliği
+  yerinde doğrulandı. Mevcut güncelleme/self-contained/model/sürüm/
+  kullanıcı ayarları davranışları ve taşınabilir publish akışı DEĞİŞMEDİ.
+- Canlı kurulum penceresi kullanıcı izni olmadan açılmadı.
+
 ## [ClickOnce Kurulum Hazırlığı] — 2026-09-08
 
 > **Durum: `feature/clickonce-deployment` branch'inde (mevcut

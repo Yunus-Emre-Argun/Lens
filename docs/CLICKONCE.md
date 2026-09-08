@@ -1,8 +1,9 @@
 # ClickOnce Kurulum ve Otomatik Güncelleme
 
 Bu doküman, Lens için eklenen **ClickOnce** dağıtım yolunu anlatır:
-`setup.exe` ile kullanıcı bazlı kurulum, Başlat menüsü kısayolu, çevrimdışı
-çalışma ve sonraki sürümlerde otomatik güncelleme kontrolü.
+`setup.exe` ile kullanıcı bazlı kurulum, Başlat menüsü kısayolu, masaüstü
+kısayolu, çevrimdışı çalışma ve sonraki sürümlerde otomatik güncelleme
+kontrolü.
 
 **Bu doküman `docs/DEPLOYMENT.md`'nin (mevcut taşınabilir self-contained
 publish akışı) yerine geçmez — onu tamamlar.** İki dağıtım yolu paralel var
@@ -115,6 +116,29 @@ Modelimiz ve `appsettings.json` `None` olarak tanımlıydı → dahil edilmiyord
 publish davranışını **etkilemez** (None/Content, `CopyToOutputDirectory`
 söz konusu olduğunda SDK publish'i için eştir) — yalnızca ClickOnce
 uygunluğunu sağlar.
+
+## 2b. Masaüstü Kısayolu
+
+**[2026-09-08]** `ClickOnce.pubxml` içine `<CreateDesktopShortcut>true</CreateDesktopShortcut>`
+eklendi (`Install`/`InstallFrom`/çevrimdışı kurulum ayarlarıyla aynı blokta).
+Kurulum tamamlandığında:
+
+- Başlat menüsü kaydı **korunur** (ClickOnce'ta zaten varsayılan davranış,
+  bu ayardan bağımsız).
+- Kullanıcının masaüstünde otomatik olarak **`Lens`** kısayolu oluşur.
+- Görev çubuğuna otomatik sabitleme **yapılmaz** — ClickOnce'ta böyle bir
+  ayar yok, istenmedi de.
+- Kısayol, publish klasöründeki EXE'ye **doğrudan değil**, ClickOnce'ın
+  yönettiği `Lens.Desktop.application` deployment manifestine işaret eder —
+  bu yüzden sürüm güncellemelerinde (bkz. §4/§6) geçerliliğini korur, elle
+  yeniden oluşturulması gerekmez.
+
+Yerinde doğrulandı: publish sonrası üretilen `Lens.Desktop.application`
+deployment manifestinde `co.v1:createDesktopShortcut="true"` özniteliği
+mevcut (`<deployment install="true" mapFileExtensions="true"
+co.v1:createDesktopShortcut="true">`). Gerçek kurulum penceresi açılıp
+masaüstünde kısayolun fiilen oluştuğu bu turda **denenmedi** — bkz.
+§12 "Kullanıcıdan Beklenen Canlı Test Adımları".
 
 ## 3. Paket İçeriği Doğrulaması (her yayından önce elle kontrol edin)
 
@@ -312,10 +336,12 @@ Bu tur yalnızca komut satırından doğrulama yaptı, gerçek kurulum/güncelle
 penceresi **açılmadı**. Aşağıdaki adımlar kullanıcı tarafından elle
 doğrulanmalıdır:
 
-1. `publish\ClickOnce\setup.exe` ile kurulum yapın.
-2. Lens'i Başlat menüsünden açın, modelin (CLIP ONNX) hatasız yüklendiğini
-   ve sol alt köşedeki sürüm metninin (`07.09.2026 — v1.0`) doğru
-   göründüğünü doğrulayın.
+1. Varsa eski bir ClickOnce Lens kurulumunu kaldırın, ardından
+   `publish\ClickOnce\setup.exe` ile kurulum yapın.
+2. Lens'i **hem Başlat menüsünden hem masaüstündeki `Lens` kısayolundan**
+   açın (§2b), modelin (CLIP ONNX) hatasız yüklendiğini ve sol alt
+   köşedeki sürüm metninin (`07.09.2026 — v1.0`) doğru göründüğünü
+   doğrulayın.
 3. `FileVersion`'ı artırıp (§4) yeniden publish alıp aynı `PublishDir`'e
    yayımladıktan sonra (gerçek dağıtımda: gerçek adrese kopyaladıktan sonra),
    uygulamayı yeniden açıp güncellemenin sorulduğunu/uygulandığını ve daha
