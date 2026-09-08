@@ -51,8 +51,12 @@ public partial class MainWindow : Window
     private IndexUpdateStats? _lastSuccessfulStats;
 
     /// <summary>[Tema turu] Aktif tema - menu check-state'i ve tema degisiminde ekranda zaten
-    /// gorunen (imperatif atanmis) renklerin yeniden uygulanmasi icin tutulur.</summary>
-    private AppTheme _currentTheme = AppTheme.Normal;
+    /// gorunen (imperatif atanmis) renklerin yeniden uygulanmasi icin tutulur. Bu alan yalnizca
+    /// constructor tamamlanana kadar gecerlidir - constructor icinde SetTheme(ParseTheme(...))
+    /// her zaman gercek kayitli/varsayilan temayla UZERINE YAZAR (bkz. asagida). [2026-09-08]
+    /// Baslangic degeri, kayitli tema fallback'iyle (UserSettings.Theme/ParseTheme) TUTARLI
+    /// olmasi icin AppTheme.Lime yapildi - pratikte gozlemlenebilir bir fark yaratmaz.</summary>
+    private AppTheme _currentTheme = AppTheme.Lime;
 
     /// <summary>[Tema turu] SetIndexStatus'un en son success parametresi - tema degistiginde
     /// IndexStatusText.Foreground'u METNE DOKUNMADAN yeniden hesaplamak icin (bkz.
@@ -338,6 +342,15 @@ public partial class MainWindow : Window
     /// <summary>[Tema turu] user-settings.json'daki serbest string'i guvenle AppTheme'e
     /// cevirir - bos/bilinmeyen/gecersiz deger her zaman Normal'e duser, hicbir istisna
     /// firlatmaz (diger ayarlari etkilemez).</summary>
+    /// <summary>
+    /// [2026-09-08] Guvenli geri donus "Lime"a cevrildi (onceden "Normal" idi) -
+    /// yeni kullanicilar, kayitli ayar dosyasi olmayanlar ve bos/bilinmeyen/gecersiz
+    /// bir "Theme" degeri okuyanlar icin varsayilan tema artik Lime (bkz.
+    /// docs/DECISIONS.md, SUPERSEDES eski "Normal varsayilandir" karari).
+    /// Kullanicinin ONCEDEN ACIKCA kaydettigi GECERLI bir tema adi (ör. "Normal",
+    /// "Koyu", "AcikSepya") bu degisiklikten ETKILENMEZ - Enum.TryParse basarili
+    /// oldugu surece aynen parse edilip DONDURULUR, hicbir zaman Lime'a cevrilmez.
+    /// </summary>
     private static AppTheme ParseTheme(string? value)
     {
         if (!string.IsNullOrWhiteSpace(value)
@@ -347,7 +360,7 @@ public partial class MainWindow : Window
             return parsed;
         }
 
-        return AppTheme.Normal;
+        return AppTheme.Lime;
     }
 
     /// <summary>

@@ -641,19 +641,25 @@ static void RunHardeningTest()
     Console.WriteLine();
 
     // ---- Grup I: tema tercihi (UserSettings.Theme) - JSON sozlesmesi ----
-    // NOT: AppTheme enum'u ve ParseTheme (bilinmeyen/gecersiz -> Normal
-    // guvenli donusu) Lens.Desktop projesindedir; Lens.AiProof (bu konsol
-    // araci) BILEREK yalnizca Lens.Core'a referans verir (bkz. csproj) - bu
-    // yuzden burada test edilen SADECE UserSettings.Theme'in JSON okuma/
-    // yazma sozlesmesidir (varsayilan deger, alan korunumu). ParseTheme'in
-    // kendisi ve gercek ekran gecisi manuel/UI Automation ile dogrulandi
-    // (bkz. CHANGELOG.md / final rapor).
+    // NOT: AppTheme enum'u ve ParseTheme (bilinmeyen/gecersiz/bos -> Lime
+    // guvenli donusu, [2026-09-08] onceden Normal idi) Lens.Desktop
+    // projesindedir; Lens.AiProof (bu konsol araci) BILEREK yalnizca
+    // Lens.Core'a referans verir (bkz. csproj) - bu yuzden burada test
+    // edilen SADECE UserSettings.Theme'in JSON okuma/yazma sozlesmesidir
+    // (varsayilan deger, alan korunumu, bos/bilinmeyen bir string'in
+    // DEGISTIRILMEDEN/reddedilmeden tasindigi - Core katmani hicbir
+    // dogrulama/normallestirme YAPMAZ). ParseTheme'in kendisi (Lime
+    // fallback'i uygulayan asil kod) ve gercek ekran gecisi bu commit'te
+    // kod incelemesiyle + manuel/UI Automation ile dogrulandi (bkz.
+    // CHANGELOG.md / final rapor) - I6/I7 burada yalnizca ParseTheme'e
+    // ULASACAK GIRDININ (bos/bilinmeyen string) Core katmaninda bozulmadan
+    // korundugunu kanitlar, ParseTheme'in KENDISINI calistirmaz.
     Console.WriteLine("[I] Tema tercihi (UserSettings.Theme) - JSON sozlesmesi");
     {
         var oldJsonWithoutTheme = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"AutoIndexBeforeSearch\":true}";
         var loadedFromOld = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(oldJsonWithoutTheme);
-        Check("I1 eski (Theme alanini icermeyen) settings JSON'u -> Theme='Normal' (geriye uyumlu varsayilan)",
-            loadedFromOld is not null && loadedFromOld.Theme == "Normal");
+        Check("I1 eski (Theme alanini icermeyen) settings JSON'u -> Theme='Lime' (yeni geriye uyumlu varsayilan)",
+            loadedFromOld is not null && loadedFromOld.Theme == "Lime");
 
         var explicitThemeJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"Theme\":\"Koyu\"}";
         var loadedKoyu = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(explicitThemeJson);
@@ -661,7 +667,7 @@ static void RunHardeningTest()
             loadedKoyu is not null && loadedKoyu.Theme == "Koyu");
 
         var freshSettings = new Lens.Core.Config.UserSettings();
-        Check("I3 yeni olusturulan UserSettings -> varsayilan Theme='Normal'", freshSettings.Theme == "Normal");
+        Check("I3 yeni olusturulan UserSettings -> varsayilan Theme='Lime'", freshSettings.Theme == "Lime");
 
         var roundTripJson = JsonSerializer.Serialize(new Lens.Core.Config.UserSettings { Theme = "Lime" });
         var roundTripped = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(roundTripJson);
@@ -678,6 +684,28 @@ static void RunHardeningTest()
             && !loadedCombined.AutoIndexBeforeSearch
             && loadedCombined.UseUserOverride
             && loadedCombined.UserOverrideProductDirectory == "C:\\urunler");
+
+        // [2026-09-08] Yeni varsayilan Lime oldugu icin: acikca "Normal" (eski
+        // varsayilan) kaydetmis bir kullanicinin tercihi YENI varsayilanla
+        // ASLA topluca degistirilmemeli - yalnizca "tercih hic yok/gecersiz"
+        // durumunda Lime kullanilir (bkz. MainWindow.ParseTheme).
+        var explicitNormalJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"Theme\":\"Normal\"}";
+        var loadedNormal = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(explicitNormalJson);
+        Check("I5b acikca kaydedilmis 'Normal' -> yeni Lime varsayilanina RAGMEN 'Normal' olarak KORUNUR",
+            loadedNormal is not null && loadedNormal.Theme == "Normal");
+
+        // Bos/bilinmeyen bir Theme string'i Core katmaninda hicbir sekilde
+        // degistirilmez/reddedilmez - MainWindow.ParseTheme'in Lime fallback'i
+        // UI katmaninda calisir, bu asil girdiyi (bozulmadan) alir.
+        var emptyThemeJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"Theme\":\"\"}";
+        var loadedEmpty = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(emptyThemeJson);
+        Check("I6 bos 'Theme:\"\"' JSON'u -> Core katmaninda oldugu gibi (bos) korunur (ParseTheme'de Lime'a doner)",
+            loadedEmpty is not null && loadedEmpty.Theme == "");
+
+        var unknownThemeJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"Theme\":\"Bilinmeyen\"}";
+        var loadedUnknown = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(unknownThemeJson);
+        Check("I7 bilinmeyen 'Theme:\"Bilinmeyen\"' JSON'u -> Core katmaninda oldugu gibi korunur (ParseTheme'de Lime'a doner)",
+            loadedUnknown is not null && loadedUnknown.Theme == "Bilinmeyen");
     }
 
     Console.WriteLine();

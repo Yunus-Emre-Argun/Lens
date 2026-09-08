@@ -8,6 +8,48 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Yeni Kullanıcılarda Varsayılan Tema: Lime] — 2026-09-08
+
+> **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e
+> merge beklemektedir.** Detay/gerekçe: `docs/DECISIONS.md` karar #88
+> (SUPERSEDES #67, #68).
+
+### Değişti
+- Yeni kullanıcılar, ayar dosyası bulunmayanlar ve kayıtlı `Theme` alanı
+  boş/bilinmeyen/geçersiz olanlar için güvenli varsayılan tema `Normal`'den
+  `Lime`'a değiştirildi:
+  - `Lens.Core.Config.UserSettings.Theme` alan varsayılanı.
+  - `MainWindow.ParseTheme`'in boş/bilinmeyen/geçersiz girdi için güvenli
+    dönüşü.
+  - `MainWindow._currentTheme` başlangıç değeri (tutarlılık için).
+
+### Korundu (değişmedi)
+- Kullanıcının **önceden açıkça kaydettiği** geçerli bir tema tercihi
+  (`Normal`, `Açık`, `Koyu`, `Açık Sepya`, `Koyu Sepya`, `Lime`) — hiçbiri
+  yeni varsayılana çevrilmez, olduğu gibi uygulanır.
+- 6 temanın kendisi, renkleri (`ThemePalette`), tema menüsü sıralaması.
+- Açılışta tercihin yalnızca **uygulandığı**, diske tekrar **yazılmadığı**
+  (`persist:false`) davranış.
+- Tema seçimi yalnızca ilgili bilgisayarın `%LocalAppData%\Lens\config\
+  user-settings.json` dosyasında saklanır — paylaşılan hiçbir yere
+  yazılmaz.
+- Arama Ayarları panelinin beyaz görünümü, tema menüsü seçenekleri, ClickOnce
+  masaüstü kısayolu/ikon/sürüm davranışı.
+
+### Notlar
+- XAML'deki statik başlangıç renkleri hâlâ "Normal" değerleriyle yazılı —
+  kullanıcı bunları hiç görmez, çünkü `MainWindow` constructor'ı pencere
+  gösterilmeden önce gerçek/varsayılan temayı senkron uyguluyor (görünür bir
+  "parlama" riski yok, kod incelemesiyle doğrulandı) — bu yüzden gereksiz
+  XAML tekrarına girilmedi.
+- `Lens.AiProof` Grup I testlerine 3 yeni kontrol eklendi (açıkça kaydedilmiş
+  "Normal" korunuyor, boş/bilinmeyen `Theme` Core katmanında bozulmadan
+  taşınıyor); mevcut I1/I3 yeni "Lime" varsayılanına göre güncellendi.
+- ClickOnce paketi yeniden üretildi; masaüstü kısayolu, ikon, model,
+  `appsettings.json`, self-contained, güncelleme/sürüm davranışı
+  DEĞİŞMEDİ.
+- Canlı arayüz kullanıcı izni olmadan açılmadı.
+
 ## [Lens Uygulama ve ClickOnce İkonu] — 2026-09-08
 
 > **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e

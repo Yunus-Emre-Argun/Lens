@@ -29,14 +29,19 @@ public sealed class UserSettings
     /// tercihi ("Acik"/"Normal"/"Koyu"/"AcikSepya"/"KoyuSepya"/"Lime" - bkz.
     /// Lens.Desktop.AppTheme). Salt UI tercihidir, shared index/urun
     /// klasorune YAZILMAZ ve baska bir kullaniciyi etkilemez - yalnizca bu
-    /// bilgisayarin LocalAppData'sindaki bu dosyada tutulur. Varsayilan
-    /// "Normal"; eski (bu alani icermeyen) bir dosya yuklendiginde de
-    /// AutoIndexBeforeSearch ile ayni geriye-uyumlu mantikla "Normal" kabul
-    /// edilir. Bilinmeyen/gecersiz bir deger MainWindow.ParseTheme
-    /// tarafindan guvenle "Normal"e cevrilir - bu alanin kendisi hicbir
-    /// dogrulama yapmaz (dumduz string).
+    /// bilgisayarin LocalAppData'sindaki bu dosyada tutulur.
+    /// [2026-09-08] Varsayilan "Lime" (onceden "Normal" idi - bkz.
+    /// docs/DECISIONS.md, SUPERSEDES eski "Normal varsayilandir" karari);
+    /// eski (bu alani icermeyen) bir dosya yuklendiginde de
+    /// AutoIndexBeforeSearch ile ayni geriye-uyumlu mantikla "Lime" kabul
+    /// edilir. Bilinmeyen/gecersiz/bos bir deger MainWindow.ParseTheme
+    /// tarafindan guvenle "Lime"a cevrilir - bu alanin kendisi hicbir
+    /// dogrulama yapmaz (dumduz string). ONEMLI: bu yalnizca ALAN
+    /// bulunmadigi/gecersiz oldugu durum icin gecerlidir - kullanicinin
+    /// daha once ACIKCA kaydettigi GECERLI bir deger (ör. "Normal", "Koyu")
+    /// oldugu gibi KORUNUR, bu varsayilan onu asla EZMEZ.
     /// </summary>
-    public string Theme { get; set; } = "Normal";
+    public string Theme { get; set; } = "Lime";
 
     /// <summary>
     /// [Sonuç sınırı - kullanıcı tercihi] "En fazla sonuç" girdisinin kalıcı

@@ -26,14 +26,19 @@
              blokta, adlandirilmis tek bir kaynak. -->
         <SolidColorBrush x:Key="CardSecondaryTextBrush" Color="#FF6B6B6B" />
 
-        <!-- Tema-bagimli renkler: baslangic degerleri "Normal" temasidir (bkz.
-             Lens.Desktop.AppTheme/ThemePalette). MainWindow.SetTheme burada AYNI
-             anahtarlari YENI SolidColorBrush nesneleriyle degistirir (Resources[key]=...)
-             - DynamicResource kullanan her yerde (Style Setter'lari dahil) aninda
-             gunceller. NeutralBackgroundBrush/kart ici metinler BU KAYNAKLARI
-             KULLANMAZ (ayri, sabit kaynak - bkz. SelectableFileNameStyle varsayilan
-             Foreground'u), boylece "kart ici koyu yazi" ile "ana zemin uzerindeki
-             yazi" hep farkli kaynaklardan gelir. -->
+        <!-- Tema-bagimli renkler: buradaki degerler yalnizca XAML/InitializeComponent
+             ilk ayristirma anindaki "Normal" temali TASARIM-ZAMANI yer tutuculardir -
+             kullanicinin GERCEKTE gordugu ilk renkler DEGILDIR. MainWindow constructor'i
+             InitializeComponent()'ten HEMEN SONRA, pencere hic gosterilmeden once,
+             SetTheme(ParseTheme(userSettings.Theme), persist:false) cagirir - bu, kayitli
+             gecerli bir tema varsa onu, yoksa/gecersizse [2026-09-08] yeni varsayilan
+             Lime'i uygulayip asagidaki anahtarlari YENI SolidColorBrush nesneleriyle
+             degistirir (Resources[key]=...) - DynamicResource kullanan her yerde (Style
+             Setter'lari dahil) aninda gunceller. Bu yuzden ekranda GORULEBILIR bir
+             Normal->Lime "parlama/flash" OLUSMAZ - burada tekrar Lime yazmak GEREKSIZDIR.
+             NeutralBackgroundBrush/kart ici metinler BU KAYNAKLARI KULLANMAZ (ayri, sabit
+             kaynak - bkz. SelectableFileNameStyle varsayilan Foreground'u), boylece "kart
+             ici koyu yazi" ile "ana zemin uzerindeki yazi" hep farkli kaynaklardan gelir. -->
         <SolidColorBrush x:Key="MainBackgroundBrush" Color="#FF64748B" />
         <SolidColorBrush x:Key="NeutralTextBrush" Color="White" />
         <SolidColorBrush x:Key="SectionHeaderBrush" Color="White" />
@@ -43,8 +48,9 @@
         <!-- [Polish] Dorde cikti - panelin KENDI foreground/secondary-text kaynaklari da var,
              cunku panel artik ana zeminden turetilmiyor (bkz. MainWindow.GetSettingsPanelColors) -
              bazi temalarda panel BEYAZA yakinken ana NeutralTextBrush de beyaz olabilir (Normal/
-             Koyu), o zaman metin kaybolurdu. Dorda de MainWindow.SetTheme icinde atanir; burada
-             yalnizca ilk XAML render'i icin "Normal" varsayilani. -->
+             Koyu), o zaman metin kaybolurdu. Dorda de MainWindow.SetTheme icinde atanir (yukaridaki
+             ana tema renkleriyle AYNI turda, pencere gosterilmeden once) - burada yalnizca ilk XAML
+             ayristirma anindaki tasarim-zamani yer tutucusu, GERCEK ilk gorunum degil. -->
         <SolidColorBrush x:Key="SettingsPanelBackgroundBrush" Color="#FFF8FAFC" />
         <SolidColorBrush x:Key="SettingsPanelForegroundBrush" Color="#FF1F2937" />
         <SolidColorBrush x:Key="SettingsPanelSecondaryTextBrush" Color="#FF6B7280" />
