@@ -8,6 +8,51 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [DENEY - Sorgu/Arama Ayarları Yerleşimi] — 2026-09-08
+
+> **Durum: Deney branch'inde (`codex/query-settings-layout-experiment`)
+> uygulanmıştır; canlı görsel kabul ve `main`'e merge beklemektedir.** Bu
+> girdi `main`'de yayınlanmış bir değişikliği ANLATMAZ - yalnızca deney
+> branch'indeki değişikliğin kaydıdır. Kullanıcı canlı kabul verip merge
+> onaylamadan bu girdi kalıcı/nihai sayılmaz.
+
+### Değişti (deney branch'i - main'e henüz yansımadı)
+- **"Sorgu Görseli Seç" butonu kaldırıldı:** Orta sütunun üst kısmına artık
+  doğrudan `Ara`/`Yeni Arama` yerleşiyor (eşit genişlikte, yan yana). Boş
+  sorgu çerçevesinin kendisi tıklanabilir/klavye-erişilebilir hale geldi
+  (tek tık/Enter/Space ile dosya seçme, `MainWindow.OpenQuerySelectDialog`
+  - eski `SelectQueryButton_Click` mantığının yeniden adlandırılmış hali,
+  kopyalanmadı).
+- **Sorgu çerçevesinde boş-durum yönlendirmesi:** "Sorgu görselini seçin" /
+  "Tıklayın veya buraya sürükleyin" iki satırlık, yarı saydam, tıklamayı
+  engellemeyen (`IsHitTestVisible=False`) bir watermark katmanı eklendi.
+  Çerçeve altındaki kalıcı "Görsel seçin veya buraya sürükleyin • çift tık:
+  büyüt" bilgisi KORUNDU (kullanıcı talebi - "tekrar" gerekçesiyle
+  kaldırılmadı).
+- **Seçilen Sonuç çerçevesinde de benzer bir "Henüz sonuç seçilmedi"
+  placeholder'ı eklendi.**
+- **Sorgu/sonuç görsel çerçeveleri kareden (300×300) 4:3 yatay dikdörtgene
+  geçti** (geniş pencere hedefi ~320×240 DIP, dar pencerede ~240×180 DIP,
+  oran her zaman 4:3). `MainWindow.UpdateResponsiveLayout` artık yalnızca
+  pencere genişliğine değil, kullanılabilir yüksekliğe de bakıyor.
+- **"ARAMA AYARLARI" paneli:** Minimum benzerlik / en fazla sonuç / otomatik
+  indeksleme kutucuğu artık tema-türetilmiş (ana pencere renginden
+  hesaplanan, `AppTheme.cs`/tema paletlerine DOKUNULMADAN) ince kenarlıklı
+  bir panel içinde toplandı.
+- **Sayısal giriş kutuları (`ThresholdTextBox`/`MaxResultsTextBox`)
+  daraltıldı:** 84 DIP → 56 DIP (sabit, pencere genişliğiyle artık
+  değişmiyor). `NumericInputFilter` DEĞİŞTİRİLMEDİ.
+- **Sonuç alanına daha fazla dikey alan:** Orta blok üst/alt margin'i
+  (32/20 → 20/12) ve görsellerin kare→4:3 geçişiyle kazanılan yükseklik
+  sayesinde `EN BENZER SONUÇLAR` alanı normal pencerede gözle görülür
+  biçimde daha fazla dikey alan kullanıyor.
+- Değiştirilmeyen alanlar (bilinçli olarak dokunulmadı): CLIP modeli,
+  embedding/benzerlik/eşik mantığı, sonuç sıralaması, 200 üst sınırı,
+  %80/20 varsayılanları, index formatı, otomatik index mantığı, kullanıcı
+  ayar dosyası, klasör seçme/varsayılan klasör davranışları, üst klasör
+  satırı yerleşimi, tema paletleri, alt bilgi sürüm sistemi, sonuç
+  kartlarının veri modeli, busy kilidi, arama sonrası kaydırma kuralları.
+
 ## [Küçük Arayüz Düzeltmeleri ve 3-Rakam Sınırı] — 2026-09-07
 
 ### Değişti

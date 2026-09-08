@@ -104,6 +104,11 @@ public partial class MainWindow : Window
         // bkz. talimat); "Ara" sirasinda kutu bos/yalnizca-bosluklu birakilirsa AYNI
         // sabit tekrar kullanilir (bkz. SearchButton_Click -> SimilarityThreshold.ResolveOrDefault).
         ThresholdTextBox.Text = SimilarityThreshold.DefaultPercent.ToString(CultureInfo.InvariantCulture);
+        // [Yerlesim - deney] Baslangic durumu XAML varsayilanlariyla ZATEN tutarli (ikisi de
+        // Visible) - burada acikca cagirmak, kodun state'e nasil baglandigini XAML'e GUVENMEDEN
+        // gostermek icin savunmaci bir adim, davranis DEGISTIRMEZ.
+        UpdateQueryEmptyStateVisibility();
+        UpdateComparisonEmptyStateVisibility();
         // [Tema turu] persist:false - acilista SADECE kayitli tercih uygulanir, tekrar
         // diske YAZILMAZ (bkz. talimat "acilista tema yukleme olaylari yanlislikla
         // varsayilani kaydedip mevcut tercihi ezmemeli").
@@ -164,39 +169,36 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// [Yerlesim - Eylul 2026 taslak duzeltmesi] Genis pencere hedefleri (300 DIP
-    /// gorsel, 260 DIP ayar sutunu, 120 DIP buton, 40/32 DIP bosluklar) ile dar
-    /// pencere hedefleri (200 DIP gorsel, 240 DIP ayar sutunu, 104 DIP buton, 16
-    /// DIP bosluklar - bkz. talimat tablosu) arasinda PENCERE GENISLIGINE gore
-    /// DOGRUSAL (lineer) interpolasyon yapar - t=0 Window.MinWidth'te (860),
-    /// t=1 "tam genis hedef" toplam genisliginde (~1136, asagida hesaplanir),
-    /// ikisinin disinda CLAMP edilir (pencere buyudukce gorseller/ayarlar/
-    /// butonlar SINIRSIZ buyumez - fazla alan disariya, ComparisonRowGrid'in
-    /// HorizontalAlignment=Center'i sayesinde esit dagilir). AYNI t, TUM
-    /// olculere UYGULANIR - farkli yerlerde celiskili sabitler TEKRARLANMAZ.
-    /// Bir RenderTransform/Viewbox KULLANILMAZ ki surukle-birak hit-testing
-    /// (QueryDropZone_DragEnter/Over/Drop) ve cift-tik buyutme
-    /// (TryOpenImagePreview) davranisi hicbir sekilde degismesin. Girislerin
-    /// YUKSEKLIGI (36/42/34 DIP) BILEREK sabit kalir - yalnizca GENISLIKLER
-    /// (gorsel/ayar-sutunu/buton/bosluk) daralir (bkz. talimat "daraldi diye
-    /// tekrar ince kutulara donusturme").
+    /// [Yerlesim - deney] Genis pencere hedefleri (320 DIP gorsel GENISLIGI - yukseklik
+    /// 4:3 orandan turetilir, 260 DIP ayar sutunu butcesi, 120 DIP buton, 40/32 DIP
+    /// bosluklar) ile dar pencere hedefleri (240 DIP gorsel genisligi, 240 DIP ayar
+    /// sutunu butcesi, 104 DIP buton, 16 DIP bosluklar) arasinda PENCERE GENISLIGINE
+    /// gore DOGRUSAL (lineer) interpolasyon yapar - t=0 Window.MinWidth'te (860), t=1
+    /// "tam genis hedef" toplam genisliginde, ikisinin disinda CLAMP edilir. Gorsel
+    /// GENISLIGI ayrica pencerenin KULLANILABILIR YUKSEKLIGINE gore de sinirlanir (bkz.
+    /// asagida availableHeightForImage) - genislik-lerp SONUCU ile yukseklik-butcesinden
+    /// turetilen azami genislikten KUCUK OLANI kullanilir, boylece dusuk dikey cozunurlukte
+    /// (kisa pencere/ekran) gorseller buyudukce sonuc alanini EZMEZ. Gorsel YUKSEKLIGI
+    /// HER ZAMAN genislik*0.75 (4:3) - ayri bir dar/genis yukseklik tablosu YOK, tek
+    /// formulden turetilir (talimattaki 240x180/300x225/320x240 uc noktasi da bu
+    /// formule uyar). Bir RenderTransform/Viewbox KULLANILMAZ ki surukle-birak hit-testing
+    /// (QueryDropZone_DragEnter/Over/Drop) ve cift-tik buyutme (TryOpenImagePreview)
+    /// davranisi hicbir sekilde degismesin. Girislerin YUKSEKLIGI (36/42/34 DIP) BILEREK
+    /// sabit kalir - yalnizca GENISLIKLER (gorsel/ayar-sutunu/buton/bosluk) daralir.
+    /// Sayisal giris kutulari (ThresholdTextBox/MaxResultsTextBox) ARTIK bu hesaba DAHIL
+    /// DEGIL - genislikleri XAML'de SABIT 56 DIP (talimat: "yaklasik 52-60 DIP, uc rakamin
+    /// sigacagi kompakt genislik", ayrica dar/genis tablosu VERILMEDI).
     /// </summary>
     private void UpdateResponsiveLayout()
     {
-        if (RootGrid.ActualWidth <= 0)
+        if (RootGrid.ActualWidth <= 0 || RootGrid.ActualHeight <= 0)
         {
             return;
         }
 
         const double narrowWindowWidth = 860; // Window.MinWidth
-        const double narrowImage = 200, wideImage = 300;
+        const double narrowImage = 240, wideImage = 320;
         const double narrowSettingsColumn = 240, wideSettingsColumn = 260;
-        // [Orta form hizalama duzeltmesi] Sayisal giris sutunu (ThresholdTextBox/
-        // MaxResultsTextBox) SABIT 84 DIP - pencere genisligiyle DEGISMEZ (bkz. talimat
-        // "Sayısal girişler 84 DIP olarak eşit kalsın"). "Ayar alani" (narrow/wideSettingsColumn)
-        // hala etiket+giris TOPLAMINI ifade eder; etiket sutunu bu toplamdan sabit giris
-        // genisligi CIKARILARAK hesaplanir (asagida).
-        const double settingsInputColumnWidth = 84;
         const double narrowButtonWidth = 104, wideButtonWidth = 120;
         const double narrowGap = 16, wideGapOuter = 40, wideGapInner = 32;
         // [Ust satir taslak hizalama duzeltmesi] Klasor yolu kutusunun (FolderPathTextBox)
@@ -230,7 +232,6 @@ public partial class MainWindow : Window
 
         static double Lerp(double a, double b, double t) => a + (b - a) * t;
 
-        var imageSize = Lerp(narrowImage, wideImage, t);
         var settingsColumnWidth = Lerp(narrowSettingsColumn, wideSettingsColumn, t);
         var buttonWidth = Lerp(narrowButtonWidth, wideButtonWidth, t);
         var gapOuter = Lerp(narrowGap, wideGapOuter, t);
@@ -240,20 +241,61 @@ public partial class MainWindow : Window
         var productInfoMaxWidth = Lerp(narrowProductInfoMax, wideProductInfoMax, t);
         ProductInfoPanel.MaxWidth = productInfoMaxWidth;
 
-        QueryDropZone.Width = imageSize;
-        QueryDropZone.Height = imageSize;
-        ComparisonResultBorder.Width = imageSize;
-        ComparisonResultBorder.Height = imageSize;
-        QueryFileNameText.Width = imageSize;
-        ComparisonFileNameText.Width = imageSize;
-        QueryDropHintText.Width = imageSize;
+        var settingsButtonsGroupWidth = settingsColumnWidth + gapInner + buttonWidth;
+
+        // [Yukseklik farkindaligi - deney, talimat "hesap yalnizca genisilge bakmamali"]
+        // Genislik-lerp'ten gelen goruntu genisligini, pencerenin GERCEKTEN kullanilabilir
+        // dikey alanina gore de sinirlariz. TopAreaGrid/FooterGrid GERCEK olculmus
+        // yukseklikleridir (bu noktada Loaded/SizeChanged sonrasi gecerli); geri kalanlar
+        // (queryChromeHeight, resultsHeaderHeight, minResultsReserve) XAML yapisindan
+        // STATIK olarak tahmin edilmis sabitlerdir (CANLI DPI olcumu DEGIL - bkz. son rapor).
+        // queryChromeHeight: gorsel basligi + dosya-adi kutusu + kalici ipucu satiri (gorselin
+        // KENDISI HARIC, yalnizca cevresindeki sabit metin/margin toplami).
+        const double queryChromeHeight = 66;
+        // resultsHeaderHeight: "EN BENZER SONUÇLAR (N)" basligi (SectionHeaderStyle: FontSize
+        // 12 + Margin alt 6).
+        const double resultsHeaderHeight = 26;
+        // minResultsReserve: sonuc alani icin ayrilan asgari yukseklik - talimat "en azindan
+        // kullanilabilir bir sonuc alani gorunmeli" kabul olcutunu somutlastirir (kismi bir
+        // kart sirasi + kaydirma cubugu icin kabaca yeterli).
+        const double minResultsReserve = 120;
+        const double comparisonRowVerticalMargin = 32; // ComparisonRowGrid Margin (0,20,0,12)
+        const double rootMargins = 24; // RootGrid Margin=12 (ust+alt)
+
+        var availableForMiddleRow = RootGrid.ActualHeight
+            - TopAreaGrid.ActualHeight
+            - FooterGrid.ActualHeight
+            - rootMargins
+            - comparisonRowVerticalMargin
+            - resultsHeaderHeight
+            - minResultsReserve;
+        var maxImageHeightFromSpace = availableForMiddleRow - queryChromeHeight;
+        var maxImageWidthFromSpace = maxImageHeightFromSpace / 0.75;
+
+        var imageWidth = Math.Clamp(Math.Min(Lerp(narrowImage, wideImage, t), maxImageWidthFromSpace), narrowImage, wideImage);
+        // [4:3 - talimat] Yukseklik AYRI bir dar/genis tablo DEGIL, DAIMA genislik*0.75 -
+        // talimattaki 240x180/300x225/320x240 uc noktasi da bu TEK formule uyar.
+        var imageHeight = imageWidth * 0.75;
+
+        QueryDropZone.Width = imageWidth;
+        QueryDropZone.Height = imageHeight;
+        ComparisonResultBorder.Width = imageWidth;
+        ComparisonResultBorder.Height = imageHeight;
+        QueryFileNameText.Width = imageWidth;
+        ComparisonFileNameText.Width = imageWidth;
+        QueryDropHintText.Width = imageWidth;
+        // [Bos-durum metni tasma korumasi] Watermark/placeholder metinleri cerceve genisligini
+        // ASMASIN diye TextWrapping=Wrap'in sarabilecegi bir ust sinir verilir (kucuk bir ic pay ile).
+        QueryEmptyStatePanel.MaxWidth = Math.Max(0, imageWidth - 24);
+        ComparisonEmptyStateText.MaxWidth = Math.Max(0, imageWidth - 24);
 
         ComparisonGapLeftColumn.Width = new GridLength(gapOuter);
         ComparisonGapRightColumn.Width = new GridLength(gapOuter);
-        SettingsLabelColumn.Width = new GridLength(Math.Max(0, settingsColumnWidth - settingsInputColumnWidth));
-        SettingsButtonsGapColumn.Width = new GridLength(gapInner);
-        SearchButton.Width = buttonWidth;
-        NewSearchButton.Width = buttonWidth;
+        // [Yerlesim - deney] SettingsButtonsGrid'in TOPLAM genisligi TEK noktadan atanir -
+        // Ara/Yeni Arama butonlari (star sutunlar) ve altlarindaki ARAMA AYARLARI paneli
+        // (ColumnSpan=3) bu genisligi PAYLASIR, boylece "tek bir sutun gibi hizali" garantisi
+        // Grid motorunun kendisinden gelir (manuel esit-bolme hesabi GEREKMEZ).
+        SettingsButtonsGrid.Width = settingsButtonsGroupWidth;
 
         // [Talimat - KESIN sart DEGIL ama acikca istendi] Ust satirdaki varsayilan buton
         // grubunun (SetDefaultButton'dan baslayarak, sutun 4-5) sol baslangicini,
@@ -263,10 +305,9 @@ public partial class MainWindow : Window
         // ARTIK SADECE varsayilan buton grubunu (4-5) kapsar - MenuSpacerColumn(6)/MenuColumn(7)
         // buraya DAHIL DEGIL, cunku menu artik bu gruptan BAGIMSIZ, gercek bir "*" sutunla
         // (MenuSpacerColumn) her zaman en sag kenara sabitleniyor (bkz. XAML yorumu).
-        var settingsButtonsGroupWidth = settingsColumnWidth + gapInner + buttonWidth;
-        var comparisonTotalWidth = imageSize + gapOuter + settingsButtonsGroupWidth + gapOuter + imageSize;
+        var comparisonTotalWidth = imageWidth + gapOuter + settingsButtonsGroupWidth + gapOuter + imageWidth;
         var comparisonLeftEdgeX = Math.Max(0, (RootGrid.ActualWidth - comparisonTotalWidth) / 2);
-        var rightImageStartX = comparisonLeftEdgeX + imageSize + gapOuter + settingsButtonsGroupWidth + gapOuter;
+        var rightImageStartX = comparisonLeftEdgeX + imageWidth + gapOuter + settingsButtonsGroupWidth + gapOuter;
 
         // [Sinir-durumu duzeltmesi] FolderPathColumn.ActualWidth BURADA KULLANILMAZ - ActualWidth
         // bu satirin birkac satir YUKARISINDA ayarlanan Width'i henuz YANSITMAZ (WPF, Width
@@ -338,6 +379,17 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// [Yerlesim - deney, Arama Ayarlari paneli] Bir rengi hedef renge dogru (0=degismez,
+    /// 1=hedefin aynisi) kanal-bazli DOGRUSAL harmanlar - SettingsPanelBackgroundBrush'in
+    /// AppTheme.cs'e HIC DOKUNMADAN, ana pencere renginden turetilmesi icin.
+    /// </summary>
+    private static Color BlendToward(Color baseColor, Color target, double amount)
+    {
+        byte Mix(byte a, byte b) => (byte)Math.Round(a + ((b - a) * amount));
+        return Color.FromRgb(Mix(baseColor.R, target.R), Mix(baseColor.G, target.G), Mix(baseColor.B, target.B));
+    }
+
+    /// <summary>
     /// [Tema turu] Temayi UYGULAR (Resources[...] icindeki renk kaynaklarini degistirir,
     /// menudeki check isaretini gunceller, ekranda ZATEN gorunen imperatif renkleri
     /// yeniden hesaplar) ve istenirse KALICI hale getirir. Arama/threshold/indeksleme/
@@ -354,6 +406,15 @@ public partial class MainWindow : Window
         Resources["SecondaryTextBrush"] = new SolidColorBrush(colors.SecondaryText);
         Resources["SuccessBrush"] = new SolidColorBrush(colors.Success);
         Resources["WarningBrush"] = new SolidColorBrush(colors.Warning);
+        // [Yerlesim - deney, Arama Ayarlari paneli] AppTheme.cs/ThemePalette'e DOKUNULMADI
+        // (talimat: "tema paletleri" bu gorev kapsaminda degistirilmeyecek) - panel yuzeyi/
+        // kenarligi burada, MEVCUT tema renklerinden (colors.MainBackground/SecondaryText)
+        // TURETILIR. Zemin, ana pencere renginin siyaha dogru %12 harmanlanmis hali - her
+        // temada (Acik/Koyu/Sepya/Lime) zeminden HAFIFCE ayrisan, ama asiri kontrastli
+        // OLMAYAN sade bir yuzey verir. Kenarlik, zaten bu TAM zemin uzerinde okunabilir
+        // olacak sekilde secilmis SecondaryText rengini kullanir (ayrica hesaplama gerekmez).
+        Resources["SettingsPanelBackgroundBrush"] = new SolidColorBrush(BlendToward(colors.MainBackground, Colors.Black, 0.12));
+        Resources["SettingsPanelBorderBrush"] = new SolidColorBrush(colors.SecondaryText);
 
         UpdateThemeMenuChecks(theme);
         RefreshThemeDependentForegrounds();
@@ -1213,13 +1274,20 @@ public partial class MainWindow : Window
         _queryImagePath = null;
         QueryPreviewImage.Source = null;
         QueryFileNameText.Text = string.Empty;
+        UpdateQueryEmptyStateVisibility();
         _results.Clear();
         UpdateResultsHeaderText();
         ClearComparison();
         ResetResultsScroll();
     }
 
-    private void SelectQueryButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// [Yerlesim - deney] Eskiden ayri "Sorgu Görseli Seç" butonunun Click olayiydi; buton
+    /// orta sutundan kaldirildigi icin (bkz. talimat) artik bos sorgu cercevesine tek tik
+    /// (QueryDropZone_MouseLeftButtonDown) ve Enter/Space (QueryDropZone_KeyDown) ile
+    /// PAYLASILAN tek giris noktasi - dosya secme mantigi kopyalanmadan TEK yerde kalir.
+    /// </summary>
+    private void OpenQuerySelectDialog()
     {
         var dialog = new OpenFileDialog
         {
@@ -1261,10 +1329,22 @@ public partial class MainWindow : Window
             AlertWindow.Show(this, $"Görsel önizlemesi yüklenemedi:\n{ex.Message}", "Görsel okunamadı", AlertKind.Error);
         }
 
+        UpdateQueryEmptyStateVisibility();
         _results.Clear();
         UpdateResultsHeaderText();
         ClearComparison();
         ResetResultsScroll();
+    }
+
+    /// <summary>
+    /// [Yerlesim - deney, bos-durum watermark] QueryEmptyStatePanel ("Sorgu görselini seçin" /
+    /// "Tıklayın veya buraya sürükleyin"), _queryImagePath null oldugu SÜRECE gorunur - sorgu
+    /// gorseli yuklendiginde TAMAMEN gizlenir, Yeni Arama ile temizlendiginde tekrar gorunur
+    /// (bkz. talimat). Cagrilma noktalari: LoadQueryImage (basari/hata) ve NewSearchButton_Click.
+    /// </summary>
+    private void UpdateQueryEmptyStateVisibility()
+    {
+        QueryEmptyStatePanel.Visibility = _queryImagePath is null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void QueryDropZone_DragEnter(object sender, DragEventArgs e)
@@ -1473,11 +1553,52 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// [Yerlesim - deney] "En guvenli davranis" (talimat): gorsel YOKKEN tek tik dosya secme
+    /// penceresini acar (eski SelectQueryButton'un YERINE gecti); gorsel VARKEN tek tik SADECE
+    /// odaklanir (yeni bir gorsel YUKLEMEZ) ki hemen ardindan gelebilecek ikinci tikin
+    /// ClickCount=2 ile tetikledigi buyuk onizleme davranisi HICBIR SEKILDE bozulmasin. Cift tik
+    /// (ClickCount=2) her zaman - gorsel yuklu oldugu surece - onizlemeyi acar.
+    /// </summary>
     private void QueryDropZone_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount == 2)
         {
             TryOpenImagePreview(_queryImagePath);
+            return;
+        }
+
+        if (IsBusy)
+        {
+            return;
+        }
+
+        if (_queryImagePath is null)
+        {
+            OpenQuerySelectDialog();
+        }
+        else
+        {
+            QueryDropZone.Focus();
+        }
+    }
+
+    /// <summary>
+    /// [Yerlesim - deney] Klavyeyle QueryDropZone'a odaklanip Enter/Space ile dosya secme
+    /// penceresini acar (talimat) - tek-tik ile AYNI kural: yalnizca gorsel YOKKEN (gorsel
+    /// varken klavyeden yeni bir gorsel YUKLENMEZ, tek-tik davranisiyla TUTARLI).
+    /// </summary>
+    private void QueryDropZone_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (IsBusy || _queryImagePath is not null)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter || e.Key == Key.Space)
+        {
+            e.Handled = true;
+            OpenQuerySelectDialog();
         }
     }
 
@@ -1615,6 +1736,7 @@ public partial class MainWindow : Window
         ComparisonResultImage.Source = result.Thumbnail;
         ComparisonFileNameText.Text = result.FileName;
         ComparisonScoreText.Text = result.ScoreText;
+        UpdateComparisonEmptyStateVisibility();
         // [Faz 4D polish] Yalnizca goruntulenen deger tam %100 oldugunda
         // basari/yesil vurgusu - diger skorlar notr kalir. SuccessBrush/NeutralTextBrush
         // artik tema-bagimli (bkz. SetTheme) - ayrica bir "OnDark..." varyanti gerekmez.
@@ -1649,6 +1771,17 @@ public partial class MainWindow : Window
         ComparisonFileNameText.Text = string.Empty;
         ComparisonScoreText.Text = string.Empty;
         ComparisonScoreText.Foreground = (Brush)FindResource("NeutralTextBrush");
+        UpdateComparisonEmptyStateVisibility();
+    }
+
+    /// <summary>
+    /// [Yerlesim - deney, bos-durum placeholder] ComparisonEmptyStateText ("Henüz sonuç
+    /// seçilmedi"), _selectedResult null oldugu SÜRECE gorunur - bir sonuc secildiginde
+    /// TAMAMEN gizlenir (bkz. talimat). Cagrilma noktalari: SelectResult ve ClearComparison.
+    /// </summary>
+    private void UpdateComparisonEmptyStateVisibility()
+    {
+        ComparisonEmptyStateText.Visibility = _selectedResult is null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -2047,7 +2180,6 @@ public partial class MainWindow : Window
 
         SelectFolderButton.IsEnabled = !isBusy;
         UpdateIndexButton.IsEnabled = !isBusy;
-        SelectQueryButton.IsEnabled = !isBusy;
         SearchButton.IsEnabled = !isBusy;
         NewSearchButton.IsEnabled = !isBusy;
         ThresholdTextBox.IsEnabled = !isBusy;

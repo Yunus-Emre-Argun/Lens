@@ -17,6 +17,14 @@
         <SolidColorBrush x:Key="AccentBrush" Color="#FF2F6FED" />
         <SolidColorBrush x:Key="AccentBrushLight" Color="#FFEAF1FE" />
         <SolidColorBrush x:Key="NeutralBorderBrush" Color="#FF3A3A3A" />
+        <!-- [Yerlesim - deney, sorgu/sonuc bos-durum metni] QueryDropZone/ComparisonResultBorder
+             zemini yukarida aciklandigi gibi HER TEMADA sabit beyaz kalir - bu yuzden uzerlerindeki
+             bos-durum metinleri de (SelectableFileNameStyle'daki dosya adi metniyle AYNI mantik)
+             ana pencere zeminine gore degisen SecondaryTextBrush DEGIL, beyaz zeminde HER temada
+             okunabilir SABIT bir renk kullanir. Rastgele XAML'e serpistirilmis ciplak hex DEGIL -
+             diger "sabit/temadan bagimsiz" kaynaklarla (AccentBrush, NeutralBorderBrush) AYNI
+             blokta, adlandirilmis tek bir kaynak. -->
+        <SolidColorBrush x:Key="CardSecondaryTextBrush" Color="#FF6B6B6B" />
 
         <!-- Tema-bagimli renkler: baslangic degerleri "Normal" temasidir (bkz.
              Lens.Desktop.AppTheme/ThemePalette). MainWindow.SetTheme burada AYNI
@@ -32,6 +40,13 @@
         <SolidColorBrush x:Key="SecondaryTextBrush" Color="#FFDCE1E8" />
         <SolidColorBrush x:Key="SuccessBrush" Color="#FF7CE495" />
         <SolidColorBrush x:Key="WarningBrush" Color="#FFFF8A80" />
+        <!-- [Yerlesim - deney, Arama Ayarlari paneli] Bu ikisi de MainWindow.SetTheme
+             tarafindan (diger tema-bagimli kaynaklarla AYNI yerde) ana pencere zemininden
+             (MainBackground) TURETILEREK yeniden atanir - AppTheme.cs/ThemePalette'e YENI
+             renk EKLENMEDI (talimat: "tema paletleri" bu gorev kapsaminda degistirilmeyecek).
+             Buradaki degerler yalnizca ilk XAML render'i icin "Normal" tema varsayilanidir. -->
+        <SolidColorBrush x:Key="SettingsPanelBackgroundBrush" Color="#1F000000" />
+        <SolidColorBrush x:Key="SettingsPanelBorderBrush" Color="#FFDCE1E8" />
 
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -251,24 +266,23 @@
                     Foreground="#FFB00020" />
         </Grid>
 
-        <!-- [Yerlesim - Eylul 2026 taslak duzeltmesi] Orta blok: sorgu gorseli -> arama
-             ayarlari+islem butonlari (SettingsButtonsGrid, tek alt Grid) -> secilen sonuc
-             gorseli, TEK bir grup olarak pencerede birlikte ortalanir (dis Grid'in kendisi
-             HorizontalAlignment=Center ile sadece grubun dogal genisligi kadar yer kaplar,
-             boylece pencere genisledikce fazla alan grubun İKİ YANINA esit dagilir - eski
-             220+40+220 ikili duzenin AYNI ilkesi). "SORGU VE KARŞILAŞTIRMA" genel basligi
-             BILEREK YOK (kullanici talimati) - "Sorgulanan Görsel"/"Seçilen Sonuç" alt
-             basliklari korunuyor. Bes sutun: [0]gorsel [1]ComparisonGapLeftColumn(bosluk)
-             [2]SettingsButtonsGrid [3]ComparisonGapRightColumn(bosluk) [4]gorsel - hepsi
-             x:Name ile ADLANDIRILDI (INDEKS DEGIL) ki Grid yapisi ileride tekrar degisirse
-             MainWindow.UpdateResponsiveLayout yanlis sutunu OLCMESIN/AYARLAMASIN. Gorsel
-             kutularinin Width/Height'i, iki bosluk sutununun genisligi, SettingsLabelColumn'un
-             genisligi ve Ara/Yeni Arama butonlarinin genisligi ARTIK SABIT DEGIL - hepsi
-             UpdateResponsiveLayout tarafindan TEK bir pencere-genisligi hesabiyla (200-300 DIP
-             gorsel, 240-260 DIP ayar sutunu, 104-120 DIP buton, 16-40 DIP bosluk araligi)
-             KOD ILE ayarlanir; bir RenderTransform/Viewbox KULLANILMADI ki surukle-birak
-             hit-testing ve cift-tik buyutme davranisi hicbir sekilde etkilenmesin. -->
-        <Grid x:Name="ComparisonRowGrid" Grid.Row="1" Margin="0,32,0,20" HorizontalAlignment="Center">
+        <!-- [Yerlesim - deney, sorgu/ayar/sonuc yeniden duzeni] Orta blok: sorgu gorseli ->
+             Ara/Yeni Arama + Arama Ayarlari paneli (SettingsButtonsGrid, tek alt Grid) ->
+             secilen sonuc gorseli, TEK bir grup olarak pencerede birlikte ortalanir (dis
+             Grid'in kendisi HorizontalAlignment=Center ile sadece grubun dogal genisligi
+             kadar yer kaplar, boylece pencere genisledikce fazla alan grubun İKİ YANINA esit
+             dagilir). "SORGU VE KARŞILAŞTIRMA" genel basligi BILEREK YOK (kullanici talimati) -
+             "Sorgulanan Görsel"/"Seçilen Sonuç" alt basliklari korunuyor. Bes sutun: [0]gorsel
+             [1]ComparisonGapLeftColumn(bosluk) [2]SettingsButtonsGrid [3]ComparisonGapRightColumn
+             (bosluk) [4]gorsel. Gorsel kutulari ARTIK KARE DEGIL, 4:3 yatay dikdortgen (bkz.
+             MainWindow.UpdateResponsiveLayout - imageWidth pencere genisligine, imageHeight =
+             imageWidth*0.75'e gore KOD ILE ayarlanir, ayrica kullanilabilir YUKSEKLIK de hesaba
+             katilir ki sonuc alani ezilmesin). Ust/alt Margin, eski kare yerlesime gore
+             kucultuldu (32/20 -> 20/12) - kazanilan dikey alanin cogu ZATEN 300->240 (genis
+             pencerede) yukseklik azalmasindan gelir, bu sadece ek bir katki. Bir
+             RenderTransform/Viewbox KULLANILMADI ki surukle-birak hit-testing ve cift-tik
+             buyutme davranisi hicbir sekilde etkilenmesin. -->
+        <Grid x:Name="ComparisonRowGrid" Grid.Row="1" Margin="0,20,0,12" HorizontalAlignment="Center">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition x:Name="ComparisonGapLeftColumn" Width="40" />
@@ -277,138 +291,192 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- Sorgulanan görsel - 300x300 (genis pencere hedefi), MainWindow.UpdateResponsiveLayout
-                 tarafindan pencere genisligine gore (200-300 DIP arasinda, en-boy orani hep 1:1) KOD ILE
-                 ayarlanir; bir RenderTransform/Viewbox KULLANILMAZ ki surukle-birak hit-testing ve
-                 cift-tik buyutme davranisi hicbir sekilde etkilenmesin. -->
+            <!-- Sorgulanan görsel - 320x240 (genis pencere hedefi, 4:3), MainWindow.
+                 UpdateResponsiveLayout tarafindan pencere genisligi+yuksekligine gore KOD ILE
+                 ayarlanir. Ayri "Sorgu Görseli Seç" butonu KALDIRILDI (talimat) - bos cerceve
+                 artik KENDISI tiklanabilir (bkz. QueryDropZone_MouseLeftButtonDown/_KeyDown):
+                 gorsel yokken tek tik/Enter/Space dosya sec, gorsel VARKEN tek tik yalnizca
+                 odaklanir (cift-tikla onizlemeyi bozmamak icin), cift tik her zaman buyuk
+                 onizleme acar. QueryEmptyStatePanel, cercevenin USTUNE binen ayri bir Grid
+                 katmani - IsHitTestVisible=False ile tiklama/surukle-birak'i HICBIR SEKILDE
+                 engellemez, yalnizca METINLERE Opacity uygulanir (cercevenin/gorselin kendisi
+                 DEGIL). Renk kasitli olarak SecondaryTextBrush DEGIL, CardSecondaryTextBrush -
+                 cerceve zemini her temada sabit BEYAZ kaldigindan (bkz. yukaridaki kaynak
+                 yorumu). -->
             <StackPanel Grid.Column="0">
                 <TextBlock Text="Sorgulanan Görsel" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" HorizontalAlignment="Center"
                            Foreground="{DynamicResource NeutralTextBrush}" />
-                <Border x:Name="QueryDropZone" BorderBrush="{StaticResource NeutralBorderBrush}" BorderThickness="2" Width="300" Height="300"
-                        Background="White" AllowDrop="True" Cursor="Hand"
-                        DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragOver"
-                        DragLeave="QueryDropZone_DragLeave"
-                        Drop="QueryDropZone_Drop" MouseLeftButtonDown="QueryDropZone_MouseLeftButtonDown">
-                    <Image x:Name="QueryPreviewImage" Stretch="Uniform" Margin="4" />
-                </Border>
-                <TextBox x:Name="QueryFileNameText" Text="" Width="300" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
+                <Grid>
+                    <Border x:Name="QueryDropZone" BorderBrush="{StaticResource NeutralBorderBrush}" BorderThickness="2" Width="320" Height="240"
+                            Background="White" AllowDrop="True" Cursor="Hand" Focusable="True"
+                            AutomationProperties.Name="Sorgu görseli seç veya sürükleyip bırakın"
+                            DragEnter="QueryDropZone_DragEnter" DragOver="QueryDropZone_DragOver"
+                            DragLeave="QueryDropZone_DragLeave"
+                            Drop="QueryDropZone_Drop" MouseLeftButtonDown="QueryDropZone_MouseLeftButtonDown"
+                            KeyDown="QueryDropZone_KeyDown">
+                        <Image x:Name="QueryPreviewImage" Stretch="Uniform" Margin="4" />
+                    </Border>
+                    <StackPanel x:Name="QueryEmptyStatePanel" IsHitTestVisible="False"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="Sorgu görselini seçin" FontSize="15" FontWeight="SemiBold" Opacity="0.55"
+                                   TextAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{StaticResource CardSecondaryTextBrush}" />
+                        <TextBlock Text="Tıklayın veya buraya sürükleyin" FontSize="11" Opacity="0.55" Margin="0,4,0,0"
+                                   TextAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{StaticResource CardSecondaryTextBrush}" />
+                    </StackPanel>
+                </Grid>
+                <TextBox x:Name="QueryFileNameText" Text="" Width="320" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
                          Foreground="{DynamicResource SecondaryTextBrush}" />
+                <!-- [Kalici kullanim bilgisi - KORUNDU] Kullanici bu satirin, cerceve icindeki
+                     yeni empty-state ile "tekrar" olusturdugu bilinerek ozellikle korunmasini
+                     istedi - kaldirilmadi. -->
                 <TextBlock x:Name="QueryDropHintText" Text="Görsel seçin veya buraya sürükleyin  •  çift tık: büyüt" FontStyle="Italic"
-                           Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" Width="300" />
+                           Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11" Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" Width="320" />
             </StackPanel>
 
             <!-- Sutun 1: bosluk (~40 DIP genis pencerede, dar pencerede kucculur - bkz. UpdateResponsiveLayout) -->
 
-            <!-- [Yerlesim - Eylul 2026 taslak duzeltmesi] Arama ayarlari + Ara/Yeni Arama butonlari
-                 ARTIK TEK bir alt Grid (SettingsButtonsGrid) - iki bagimsiz StackPanel/tahmini
-                 Margin DEGIL: "Ara" ile esik satiri, "Yeni Arama" ile sonuc-limiti satiri AYNI
-                 paylasilan Grid satirinda, boylece dikey merkezleri GARANTI hizali kalir (pencere/
-                 font/dogrulama-mesaji degisse bile). Ust kenari, gorsel basliginin (~20 DIP) hemen
-                 altina ~8 DIP payla baslamasi icin VerticalAlignment=Top + Margin ile konumlanir
-                 (tum blogun dikey ORTALANMASI degil - aksi halde "Sorgu Görseli Seç" pencere/
-                 dogrulama durumuna gore yukari-asagi ZIPLARDI). -->
-            <!-- [Yerlesim - Eylul 2026 orta form hizalama duzeltmesi] Minimum/maksimum
-                 satirlarindaki iki bagimsiz yatay StackPanel KALDIRILDI - etiket dogal
-                 genisligi farkli oldugundan (StackPanel icinde HorizontalAlignment=Right
-                 ORTAK bir sutun OLUSTURMAZ), ThresholdTextBox ve MaxResultsTextBox farkli
-                 X'te basliyordu (KOK NEDEN). Artik TUM ayar+buton kontrolleri AYNI 4 sutunlu
-                 Grid'i paylasir: [0]etiket [1]84 DIP sabit sayisal giris [2]responsive bosluk
-                 [3]Ara/Yeni Arama. Iki TextBox AYNI Grid.Column="1" oldugu icin sol/sag
-                 kenarlari ve genislikleri HER ZAMAN garanti esit - font/tema/pencere boyutu
-                 degisse bile (tahmini Margin DEGIL, gercek sutun siniri). -->
+            <!-- [Yerlesim - deney] Ara/Yeni Arama butonlari + Arama Ayarlari paneli TEK bir alt
+                 Grid (SettingsButtonsGrid). Eskiden burada tek basina duran "Sorgu Görseli Seç"
+                 butonunun YERINE, eski uc/dort sutunlu duz yerlesim yerine ARTIK iki katman var:
+                 (1) satir 0 - Ara/Yeni Arama, iki ESIT ("*") sutun ile YAN YANA - Grid'in star
+                 sutunlandirmasi genislik esitligini GARANTI eder (tahmini/manuel bolme DEGIL);
+                 (2) satir 2 - "ARAMA AYARLARI" baslikli bir Border icinde threshold/max-sonuc/
+                 checkbox, ayni Ara/Yeni Arama ile AYNI toplam genislikte (Grid.ColumnSpan=3) -
+                 boylece iki buton ve altindaki panel GERCEKTEN tek bir sutun gibi hizali.
+                 SettingsButtonsGrid.Width, MainWindow.UpdateResponsiveLayout tarafindan TEK bir
+                 pencere-genisligi hesabiyla (eski settingsColumnWidth+gapInner+buttonWidth
+                 TOPLAMIYLA AYNI butce - ust satirdaki varsayilan-buton-grubu hizalama hesabi
+                 BURADAN ETKILENMEDI/DEGISMEDI) atanir. -->
             <Grid x:Name="SettingsButtonsGrid" Grid.Column="2" VerticalAlignment="Top" Margin="0,28,0,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="SettingsLabelColumn" Width="176" />
-                    <ColumnDefinition x:Name="SettingsInputColumn" Width="84" />
-                    <ColumnDefinition x:Name="SettingsButtonsGapColumn" Width="32" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition x:Name="SettingsButtonsGapColumn" Width="12" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="22" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="20" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="24" />
+                    <RowDefinition Height="10" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Satir 0: Sorgu Görseli Seç - etiket+giris sutunlarinin TOPLAMI kadar genis
-                     (Grid.ColumnSpan=2, Stretch), ~42 DIP yukseklik. -->
-                <Button Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" x:Name="SelectQueryButton" Content="Sorgu Görseli Seç" Style="{StaticResource QueryActionButtonStyle}"
-                        Height="42" FontSize="14" HorizontalAlignment="Stretch" Click="SelectQueryButton_Click" />
-                <!-- Satir 1: sabit ~22 DIP bosluk (icerik yok). -->
+                <!-- Satir 0: Ara / Yeni Arama - esit genislik (star sutunlar), ayni yukseklik (42 DIP,
+                     eski Sorgu Görseli Seç/Ara ile AYNI sabit yukseklik - talimat "girislerin
+                     yuksekligi sabit kalir" burada da gecerli). Click olaylari/stiller AYNEN korundu. -->
+                <Button Grid.Row="0" Grid.Column="0" x:Name="SearchButton" Content="Ara" Style="{StaticResource PrimaryButtonStyle}"
+                        Height="42" FontSize="14" HorizontalAlignment="Stretch" VerticalAlignment="Center" Click="SearchButton_Click" />
+                <Button Grid.Row="0" Grid.Column="2" x:Name="NewSearchButton" Content="Yeni Arama" Style="{StaticResource QueryActionButtonStyle}"
+                        Height="42" FontSize="14" HorizontalAlignment="Stretch" VerticalAlignment="Center" Click="NewSearchButton_Click" />
 
-                <!-- Satir 2: Minimum benzerlik satırı + "Ara" (AYNI satır - dikey merkez hizası garanti).
-                     Etiketin sag Margin'i (0,0,10,0) ile giris kutusunun sutun sinirina (Column=1)
-                     kadar ~10 DIP bosluk birakilir - TextBox'in KENDISI 0 sol-margin ile Column=1'i
-                     TAM doldurur, boylece kutu genisligi/kenarlari sutunla BIREBIR eslesir. -->
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Minimum benzerlik (%)" VerticalAlignment="Center" FontSize="14"
-                           TextWrapping="Wrap" Margin="0,0,10,0"
-                           Foreground="{DynamicResource NeutralTextBrush}" />
-                <!-- [Sayısal giriş - 2026-09-07] Harf/geçersiz karakter yazma VE yapıştırma
-                     PreviewTextInput + DataObject.Pasting ile ENGELLENİR (bkz. MainWindow.
-                     NumericTextBox_PreviewTextInput/_Pasting - karar mantığı Lens.Core.Search.
-                     NumericInputFilter'da, WPF'siz test edilebilir). TextChanged, IME/beklenmedik
-                     giriş yollarına karşı SON güvenlik ağıdır. Bu filtre yalnızca KARAKTER
-                     düzeyinde çalışır - 0-100 aralık/varsayılan/boş-girdi sözleşmesi tamamen
-                     SimilarityThreshold'da kalır, burada TEKRARLANMAZ/DEĞİŞTİRİLMEZ. -->
-                <TextBox Grid.Row="2" Grid.Column="1" x:Name="ThresholdTextBox" Width="84" MinHeight="36" VerticalContentAlignment="Center"
-                         HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                         PreviewTextInput="NumericTextBox_PreviewTextInput" DataObject.Pasting="NumericTextBox_Pasting"
-                         TextChanged="NumericTextBox_TextChanged" />
-                <Button Grid.Row="2" Grid.Column="3" x:Name="SearchButton" Content="Ara" Style="{StaticResource PrimaryButtonStyle}"
-                        Width="120" Height="42" FontSize="14" VerticalAlignment="Center" Click="SearchButton_Click" />
-                <!-- Uyarı: gizliyken SIFIR yükseklik (mevcut satır aralığını bozmaz), görünürken
-                     satıra sararak alanın altında belirir - "Ara" (satır 2, YUKARIDA) etkilenmez,
-                     yalnızca satır 4 (sonuç limiti) ve altındakiler aşağı kayar (bkz. talimat
-                     "işlem butonları yanlış satırla hizalanmasın"). -->
-                <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" x:Name="ThresholdValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
-                           FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
+                <!-- Satir 1: sabit 10 DIP bosluk (icerik yok). -->
 
-                <!-- Satir 4: sabit ~20 DIP bosluk. -->
+                <!-- Satir 2: "ARAMA AYARLARI" paneli - butonlarin TOPLAM genisligiyle AYNI
+                     (ColumnSpan=3). Zemin/kenarlik SettingsPanelBackgroundBrush/
+                     SettingsPanelBorderBrush - ikisi de MainWindow.SetTheme icinde ana pencere
+                     zemininden turetilir (bkz. Resources yorumu), sabit beyaz/gri DEGIL. -->
+                <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
+                        Background="{DynamicResource SettingsPanelBackgroundBrush}"
+                        BorderBrush="{DynamicResource SettingsPanelBorderBrush}" BorderThickness="1"
+                        CornerRadius="3" Padding="14,10,14,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <!-- Etiket sutunu "*" - kalan TUM genisligi alir, boylece sayisal
+                                 giris kutusunun (asagida) SABIT/kompakt genisligi disinda kalan
+                                 alani otomatik doldurur (manuel Label=Toplam-Giris hesabi ARTIK
+                                 GEREKMIYOR). -->
+                            <ColumnDefinition Width="*" />
+                            <!-- [Sayisal kutu genisligi - deney] Talimat: "yaklasik 52-60 DIP,
+                                 uc rakamin rahatca sigacagi kompakt genislik". 56 DIP, bu araligin
+                                 ortasi - pencere genisligiyle DEGISMEZ (digerlerinin aksine BILEREK
+                                 lerp EDILMEDI, talimatta bu kutu icin ayri dar/genis tablosu
+                                 verilmedi - tek, sabit "kompakt" hedef var). ThresholdTextBox/
+                                 MaxResultsTextBox AYNI sutunu paylastigi icin genislikleri HER ZAMAN
+                                 esit. -->
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="8" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="8" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                <!-- Satir 5: En fazla sonuç satırı + "Yeni Arama" (AYNI satır, AYNI sutun yapisi). -->
-                <TextBlock Grid.Row="5" Grid.Column="0" Text="En fazla sonuç" VerticalAlignment="Center" FontSize="14"
-                           TextWrapping="Wrap" Margin="0,0,10,0"
-                           Foreground="{DynamicResource NeutralTextBrush}" />
-                <!-- [Sayısal giriş - 2026-09-07] ThresholdTextBox ile AYNI ortak filtre (bkz.
-                     yukarıdaki yorum) - allowDecimal=false (yalnızca tam sayı, ondalık ayırıcı
-                     dahi kabul edilmez). 1-200 aralık/varsayılan/200-üstü uyarı sözleşmesi
-                     tamamen MaxResultsPreference'da kalır, burada TEKRARLANMAZ/DEĞİŞTİRİLMEZ. -->
-                <TextBox Grid.Row="5" Grid.Column="1" x:Name="MaxResultsTextBox" Width="84" MinHeight="36" VerticalContentAlignment="Center"
-                         HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                         PreviewTextInput="NumericTextBox_PreviewTextInput" DataObject.Pasting="NumericTextBox_Pasting"
-                         TextChanged="NumericTextBox_TextChanged" />
-                <Button Grid.Row="5" Grid.Column="3" x:Name="NewSearchButton" Content="Yeni Arama" Style="{StaticResource QueryActionButtonStyle}"
-                        Width="120" Height="42" FontSize="14" VerticalAlignment="Center" Click="NewSearchButton_Click" />
-                <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" x:Name="MaxResultsValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
-                           FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Text="ARAMA AYARLARI" FontWeight="SemiBold" FontSize="11"
+                                   Foreground="{DynamicResource NeutralTextBrush}" />
+                        <!-- Satir 1: sabit 8 DIP bosluk. -->
 
-                <!-- Satir 7: sabit ~24 DIP bosluk. -->
+                        <!-- Satir 2: Minimum benzerlik. Etiketin sag Margin'i (0,0,10,0) ile giris
+                             kutusunun sutun sinirina kadar ~10 DIP bosluk birakilir - TextBox'in
+                             KENDISI 0 sol-margin ile Column=1'i TAM doldurur. -->
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Minimum benzerlik (%)" VerticalAlignment="Center" FontSize="14"
+                                   TextWrapping="Wrap" Margin="0,0,10,0"
+                                   Foreground="{DynamicResource NeutralTextBrush}" />
+                        <!-- [Sayısal giriş - 2026-09-07, DEĞİŞTİRİLMEDİ] Harf/geçersiz karakter yazma
+                             VE yapıştırma PreviewTextInput + DataObject.Pasting ile ENGELLENİR (bkz.
+                             MainWindow.NumericTextBox_PreviewTextInput/_Pasting - karar mantığı
+                             Lens.Core.Search.NumericInputFilter'da, WPF'siz test edilebilir).
+                             TextChanged, IME/beklenmedik giriş yollarına karşı SON güvenlik ağıdır. -->
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="ThresholdTextBox" MinHeight="36" VerticalContentAlignment="Center"
+                                 HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                 PreviewTextInput="NumericTextBox_PreviewTextInput" DataObject.Pasting="NumericTextBox_Pasting"
+                                 TextChanged="NumericTextBox_TextChanged" />
+                        <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" x:Name="ThresholdValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
+                                   FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
 
-                <!-- Satir 8: otomatik indeks kutucuğu - ayar etiketleriyle AYNI sol kenardan
-                     (Grid.Column=0) baslar, etiket+giris sutunlarinin toplam genisligini kaplar. -->
-                <CheckBox Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2" x:Name="AutoIndexCheckBox" VerticalAlignment="Center"
-                          Checked="AutoIndexCheckBox_CheckedChanged" Unchecked="AutoIndexCheckBox_CheckedChanged">
-                    <TextBlock Text="Arama öncesi indeksi otomatik kontrol et ve güncelle" TextWrapping="Wrap" Width="230" FontSize="14"
-                               Foreground="{DynamicResource NeutralTextBrush}" />
-                </CheckBox>
+                        <!-- Satir 4: sabit 8 DIP bosluk. -->
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="En fazla sonuç" VerticalAlignment="Center" FontSize="14"
+                                   TextWrapping="Wrap" Margin="0,0,10,0"
+                                   Foreground="{DynamicResource NeutralTextBrush}" />
+                        <!-- [Sayısal giriş - 2026-09-07, DEĞİŞTİRİLMEDİ] ThresholdTextBox ile AYNI
+                             ortak filtre - allowDecimal=false (yalnızca tam sayı). -->
+                        <TextBox Grid.Row="5" Grid.Column="1" x:Name="MaxResultsTextBox" MinHeight="36" VerticalContentAlignment="Center"
+                                 HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                 PreviewTextInput="NumericTextBox_PreviewTextInput" DataObject.Pasting="NumericTextBox_Pasting"
+                                 TextChanged="NumericTextBox_TextChanged" />
+                        <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" x:Name="MaxResultsValidationText" Text="" Foreground="{DynamicResource WarningBrush}"
+                                   FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
+
+                        <!-- Satir 7: sabit 10 DIP bosluk. -->
+
+                        <!-- Satir 8: otomatik indeks kutucuğu - panelin TAM genisligini kaplar
+                             (ColumnSpan=2), Width sabiti KALDIRILDI - artik panelin gercek ic
+                             genisligine gore SARAR (iki satira kadar - talimat "3+ satira
+                             bolunmemeli" ile kompakt panel eninde dogal olarak uyumlu). -->
+                        <CheckBox Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2" x:Name="AutoIndexCheckBox" VerticalAlignment="Center"
+                                  Checked="AutoIndexCheckBox_CheckedChanged" Unchecked="AutoIndexCheckBox_CheckedChanged">
+                            <TextBlock Text="Arama öncesi indeksi otomatik kontrol et ve güncelle" TextWrapping="Wrap" FontSize="14"
+                                       Foreground="{DynamicResource NeutralTextBrush}" />
+                        </CheckBox>
+                    </Grid>
+                </Border>
             </Grid>
 
             <!-- Sutun 3: bosluk (~40 DIP genis pencerede, dar pencerede kucculur) -->
 
-            <!-- Seçilen sonuç - 300x300, sorgu görseliyle EŞİT (bkz. yukarıdaki not). -->
+            <!-- Seçilen sonuç - sorgu görseliyle EŞİT 320x240 (4:3, bkz. yukaridaki not). -->
             <StackPanel Grid.Column="4">
                 <TextBlock Text="Seçilen Sonuç" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" HorizontalAlignment="Center"
                            Foreground="{DynamicResource NeutralTextBrush}" />
-                <Border x:Name="ComparisonResultBorder" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="300" Height="300"
-                        Background="White" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
-                    <Image x:Name="ComparisonResultImage" Stretch="Uniform" Margin="4" />
-                </Border>
-                <TextBox x:Name="ComparisonFileNameText" Text="" Width="300" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
+                <Grid>
+                    <Border x:Name="ComparisonResultBorder" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Width="320" Height="240"
+                            Background="White" Cursor="Hand" MouseLeftButtonDown="ComparisonResultBorder_MouseLeftButtonDown">
+                        <Image x:Name="ComparisonResultImage" Stretch="Uniform" Margin="4" />
+                    </Border>
+                    <!-- [Bos-durum, deney] Sonuc secilmemisken sade/yari saydam ipucu -
+                         CardSecondaryTextBrush ile AYNI gerekce (cerceve zemini sabit beyaz). -->
+                    <TextBlock x:Name="ComparisonEmptyStateText" Text="Henüz sonuç seçilmedi" IsHitTestVisible="False"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" Opacity="0.55"
+                               TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{StaticResource CardSecondaryTextBrush}" />
+                </Grid>
+                <TextBox x:Name="ComparisonFileNameText" Text="" Width="320" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
                          Foreground="{DynamicResource SecondaryTextBrush}" />
                 <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" FontSize="14" Margin="0,4,0,0" HorizontalAlignment="Center"
                            Foreground="{DynamicResource NeutralTextBrush}" />
@@ -484,7 +552,7 @@
              asla kirpilmaz), sag sutun kalan TUM genisligi kullanir; TextWrapping=Wrap
              (yeni - savunma amacli) 860 DIP minimum genislikte bile iki metnin ust
              uste binmesini/pencere disina tasmasini engeller. -->
-        <Grid Grid.Row="3" Margin="0,8,0,0">
+        <Grid Grid.Row="3" x:Name="FooterGrid" Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />

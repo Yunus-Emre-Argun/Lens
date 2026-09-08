@@ -8,6 +8,37 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 **Open Question** = henüz netleşmedi, karar bekliyor.
 **Later Phase** = ilk PoC/MVP kapsamı dışında, ileride değerlendirilecek.
 
+## Son Durum — 2026-09-08 (DENEY BRANCH'İ — Sorgu/Arama Ayarları Yerleşimi)
+
+> **Bu kayıt `main` için değil, `codex/query-settings-layout-experiment`
+> deney branch'i içindir.** `main` hâlâ #81'deki durumda; aşağıdaki hiçbir
+> değişiklik `main`'e commit/push/merge EDİLMEDİ, publish ÜRETİLMEDİ.
+> Deney branch'i canlı görsel kabul ve merge onayı BEKLİYOR (karar #82).
+
+Yönetici geri bildirimine göre orta bölüm (sorgu görseli / arama ayarları /
+seçilen sonuç) yeniden düzenlendi, amaç `EN BENZER SONUÇLAR` alanına daha
+fazla dikey alan kazandırmaktı. Özet: ayrı "Sorgu Görseli Seç" butonu
+kaldırıldı (yerine üstte `Ara`/`Yeni Arama`, eşit genişlik); boş sorgu
+çerçevesi artık kendisi tıklanabilir/klavye-erişilebilir ve içinde
+yarı-saydam bir boş-durum yönlendirmesi var (çerçeve altındaki kalıcı
+kullanım ipucu KORUNDU); sorgu/sonuç görsel çerçeveleri kareden (300×300)
+4:3 yatay dikdörtgene (320×240 geniş, ~240×180 dar) geçti; "ARAMA AYARLARI"
+etrafına ince kenarlıklı, tema-türetilmiş bir panel eklendi; sayısal giriş
+kutuları 84→56 DIP daraltıldı. Detay: `CHANGELOG.md` "[DENEY - Sorgu/Arama
+Ayarları Yerleşimi]", `docs/DECISIONS.md` karar #82.
+
+`dotnet build Lens.sln` Debug/Release 0 warning/0 error; `Lens.AiProof
+hardeningtest` 204/204 PASS (Lens.Core'a dokunulmadı). `git diff --stat`
+yalnızca `src/Lens.Desktop/MainWindow.xaml` ve `.xaml.cs`. Canlı görsel
+doğrulama YAPILMADI (talimat gereği kullanıcı izni olmadan uygulama
+açılmadı) - watermark görünürlüğü, tek/çift tık ayrımı, 4:3 responsive
+hesap (özellikle 860×680 minimum pencere ve yüksek DPI) ve panel renk
+kontrastının kullanıcı tarafından gerçek ekranda kontrolü bekleniyor.
+Devralan için: branch'i `main`'e merge etmeden önce kullanıcının görsel
+kabulünü bekleyin; kabul verilirse karar #82'deki "deneysel supersede"
+kalıcı hale getirilebilir (ve #77'nin kare-görsel kararı resmen supersede
+edilmiş sayılabilir), aksi halde branch elde tutulur veya atılır.
+
 ## Son Durum — 2026-09-07 (Gün Sonu Kontrol Noktası — Sürüm Gösterimi, Sayısal Giriş, Küçük Düzeltmeler)
 
 Günün son kontrol noktası. İki ayrı tur commit kapsamına alındı (kararlar
