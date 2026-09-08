@@ -71,6 +71,11 @@ bloklayan bir "crash/veri kaybı" riski değildir, ama production onayından
   elle silmek — bu turda yapılmadı. **Not:** `publish/` klasörünün kendisi
   Git'e commit EDİLMEDİ (`.gitignore` ile hariç tutuluyor), bu yüzden bu
   risk yalnızca dağıtılan çıktıyı elle paylaşan biri için geçerlidir.
+  **⚠️ [2026-09-08] ClickOnce paketi için bu risk düzeltildi** (bkz.
+  `docs/CLICKONCE.md` "Neden `/p:DebugType=none` Ayrıca Gerekli") — ancak bu
+  düzeltme yalnızca ClickOnce publish profiline uygulandı, **buradaki
+  taşınabilir publish akışı hâlâ etkilenmedi/düzeltilmedi** (kapsam dışı
+  bırakıldı, bkz. `CLAUDE.md` kural 2).
 
 ## Karar Bekleyen Açık Sorular
 
@@ -102,8 +107,17 @@ Kaynak: `docs/ROADMAP.md` FAZ 4E "bilerek ertelenenler".
 - [ ] Log gizliliği/redaction refactor'ü.
 - [ ] `MainWindow`'un büyük refactor'ü / MVVM dönüşümü.
 - [ ] Bağımlılık/.NET sürüm yükseltmeleri.
-- [ ] Code signing.
-- [ ] Installer/MSI.
+- [ ] Code signing. **⚠️ [2026-09-08] ClickOnce manifest imzalama ihtiyacı
+  olarak somutlaştı — bkz. `docs/CLICKONCE.md` §7, `docs/DECISIONS.md`
+  "Not Yet Decided". Gerçek sertifika hâlâ yok, hâlâ açık.**
+- [x] ~~Installer/MSI.~~ **⚠️ [2026-09-08] SUPERSEDED — ClickOnce tabanlı
+  bir kurulum/güncelleme sistemi eklendi ve yerel olarak doğrulandı
+  (kullanıcı talimatı). MSI/WiX DEĞİL, ClickOnce seçildi. Detay:
+  `docs/CLICKONCE.md`. Üretim tamamlanmış SAYILMAZ — bkz. altındaki üç
+  madde (yayıncı adı, güncelleme adresi, sertifika).**
+- [ ] **[2026-09-08] ClickOnce üretim öncesi eksikler** (bkz.
+  `docs/CLICKONCE.md` §0, §13): gerçek yayıncı/şirket adı, gerçek UNC/HTTPS
+  güncelleme adresi, şirket kod imzalama sertifikası.
 - [ ] Vector database (yalnızca ölçek çok büyürse, bkz. `docs/DECISIONS.md` #32).
 
 ## Lisans / Uyumluluk
@@ -119,6 +133,15 @@ Kaynak: `docs/ROADMAP.md` FAZ 4E "bilerek ertelenenler".
 
 ## Manuel Doğrulama Gereken Öğeler (Faz 4E sonrası, otomasyonla test edilemedi)
 
+- [ ] **[2026-09-08] ClickOnce `setup.exe` ile temiz bir bilgisayarda
+  kurulum**, Başlat menüsünden açılış ve model yüklemesi — bu turda yalnızca
+  komut satırından publish çıktısı doğrulandı, gerçek kurulum penceresi
+  kullanıcıdan izin alınmadan açılmadı (bkz. `docs/CLICKONCE.md` §12).
+- [ ] **[2026-09-08] ClickOnce ikinci sürüm güncellemesi**: sürüm artırılıp
+  yeniden yayımlandıktan sonra kurulu uygulamanın güncellemeyi alması ve
+  kullanıcı tercihlerinin (tarama klasörü, eşik, tema) korunması (bkz.
+  `docs/CLICKONCE.md` §12) — kod/doküman incelemesiyle "korunmalı" olarak
+  değerlendirildi, gerçek çevrimiçi güncelleme senaryosu doğrulanmadı.
 - [ ] Gerçek bir UNC pay üzerinde açılış + "İndeksi Güncelle" (ağ kesintisi
   simülasyonu dahil).
 - [ ] Sürükle-bırak görsel geri bildirimi (accent border, fareyi takip eden

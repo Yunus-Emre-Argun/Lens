@@ -8,6 +8,53 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [ClickOnce Kurulum Hazırlığı] — 2026-09-08
+
+> **Durum: `feature/clickonce-deployment` branch'inde (mevcut
+> `codex/query-settings-layout-polish`'in ucundan dallanmıştır) eklenmiştir;
+> `main`'e merge beklemektedir.** Bu girdi `main`'de yayınlanmış bir
+> değişikliği ANLATMAZ. Detay/gerekçe: `docs/DECISIONS.md` karar #84,
+> `docs/CLICKONCE.md`.
+
+### Eklendi
+- **ClickOnce publish profili** (`src/Lens.Desktop/Properties/PublishProfiles/ClickOnce.pubxml`,
+  yeni): kullanıcı bazlı kurulum (`setup.exe`), self-contained win-x64
+  (hedef makinede .NET kurulu olmasına gerek yok), Başlat menüsü kısayolu,
+  çevrimdışı çalışma, açılışta otomatik güncelleme kontrolü
+  (`UpdateEnabled=true`, `UpdateMode=Foreground`). ClickOnce'ın 4 parçalı
+  `ApplicationVersion`'ı ayrı bir sayı DEĞİL, mevcut `FileVersion`'dan
+  (`$(FileVersion)`) türetiliyor — tek sürüm kaynağı korunuyor.
+  `PublisherName` açık bir placeholder (`[PLACEHOLDER] Yayıncı Adı
+  Belirlenmedi`); `InstallUrl`/`UpdateUrl` gerçek adres bilinmediği için
+  bilerek boş (yerel/offline staging publish); `SignManifests=false`
+  (gerçek sertifika yok, sahte sertifika oluşturulmadı).
+- Yeni dokümantasyon: `docs/CLICKONCE.md` — ilk sürüm oluşturma, gerçek
+  yayın/güncelleme adresini tanımlama, sürüm artırma, yeni sürüm yayımlama,
+  imzalama/sertifika gereksinimi, model/`appsettings.json` paket
+  doğrulaması, temiz makinede kurulum+güncelleme kontrol listesi, kaldırma/
+  rollback davranışı, açık kararlar.
+
+### Değişti
+- `src/Lens.Desktop/Lens.Desktop.csproj`: model (`models/clip-vision-b16-openai.onnx`)
+  ve `appsettings.json` öğe tipi `None`'dan `Content`'e taşındı — Visual
+  Studio'nun klasik ClickOnce hedeflerinin yalnızca `Content` öğelerini
+  manifest'e koşulsuz dahil ettiği yerinde test edilerek keşfedildi. Normal
+  `dotnet publish`/mevcut taşınabilir self-contained publish davranışını
+  ETKİLEMEDİ (yerinde doğrulandı).
+- `docs/DEPLOYMENT.md`, `docs/PRODUCTION_CHECKLIST.md`, `docs/DECISIONS.md`:
+  ClickOnce'a çapraz referanslar eklendi; "Installer/MSI" bilinçli-ertelenen
+  maddesi ClickOnce ile SUPERSEDED olarak işaretlendi (üretim hâlâ
+  tamamlanmamış — bkz. açık kararlar).
+
+### Notlar
+- Mevcut taşınabilir publish akışı (`docs/DEPLOYMENT.md` §1) **değişmedi**,
+  bu turda ayrıca yeniden doğrulandı.
+- ClickOnce publish'i `dotnet publish`/`dotnet msbuild` (.NET Core MSBuild)
+  ile ÇALIŞMIYOR (`MSB4803` hatası) — tam .NET Framework MSBuild
+  (Visual Studio veya Build Tools) gerekiyor, bkz. `docs/CLICKONCE.md` §1.
+- Canlı kurulum/güncelleme penceresi bu turda kullanıcı izni olmadan
+  açılmadı — yalnızca komut satırından publish + paket içeriği doğrulandı.
+
 ## [DENEY - Arama Paneli Görsel Polish] — 2026-09-08
 
 > **Durum: `codex/query-settings-layout-polish` branch'inde (önceki

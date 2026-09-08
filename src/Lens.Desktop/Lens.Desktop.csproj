@@ -8,17 +8,32 @@
     <!-- CLIP ONNX model: repo kokunde models/ altinda tutuluyor (buyuk binary,
          git'e commit edilmiyor - bkz. docs/DECISIONS.md #28). Build/publish
          ciktisinda "models\" alt klasorune kopyalanir, MainWindow.ResolveModelPath
-         bunu AppContext.BaseDirectory altinda arar. -->
-    <None Include="..\..\models\clip-vision-b16-openai.onnx"
-          Link="models\clip-vision-b16-openai.onnx"
-          CopyToOutputDirectory="PreserveNewest"
-          Condition="Exists('..\..\models\clip-vision-b16-openai.onnx')" />
+         bunu AppContext.BaseDirectory altinda arar. [ClickOnce - 2026-09-08]
+         item tipi bilerek "None" DEGIL "Content": Visual Studio'nun klasik
+         ClickOnce manifest hedefleri (Microsoft.Common.CurrentVersion.targets,
+         "_ClickOnceContentItems") yalnizca Content ogelerini application
+         manifestine KOSULSUZ dahil eder - None ogeleri (uzantisi .exe/.dll
+         olmayan) yalnizca ozel bir "PublishFile" eslesmesi varsa dahil olur.
+         Normal SDK "dotnet publish"/CopyToOutputDirectory davranisi None ile
+         Content arasinda farksizdir - bu degisiklik taşınabilir publish
+         akisini (docs/DEPLOYMENT.md §1) ETKILEMEZ. Bilerek "IsDataFile"
+         metadata'si YOK - model kullanici verisi degil, normal uygulama
+         dosyasi olarak paketlenir (bkz. docs/CLICKONCE.md). -->
+    <Content Include="..\..\models\clip-vision-b16-openai.onnx"
+             Link="models\clip-vision-b16-openai.onnx"
+             CopyToOutputDirectory="PreserveNewest"
+             Condition="Exists('..\..\models\clip-vision-b16-openai.onnx')" />
 
     <!-- [Faz 4A] Admin default config sablonu: repo'daki hali BOS gelir
          (gercek UNC path hardcode edilmez). IT, publish ciktisindaki
          appsettings.json'i exe ile ayni klasorde elle duzenler -
-         bkz. docs/DECISIONS.md #41-42. -->
-    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+         bkz. docs/DECISIONS.md #41-42. [ClickOnce - 2026-09-08] "None"'dan
+         "Content"'e tasindi - gerekce yukaridaki model yorumuyla ayni.
+         SDK'nin varsayilan item glob'u appsettings.json'i zaten "None" olarak
+         topladigindan, cakismayi (duplicate item) onlemek icin once "None
+         Remove" ile o kaydi cikarilir. -->
+    <None Remove="appsettings.json" />
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -57,5 +72,14 @@
          — v1.0" degeri HER ZAMAN degismeden gorunur. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
+
+  <!-- [ClickOnce - 2026-09-08] ClickOnce'a ozel ayarlar (surum, yayinci,
+       guncelleme adresi, imzalama vb.) BURADA DEGIL,
+       Properties/PublishProfiles/ClickOnce.pubxml icindedir - bu, Visual
+       Studio'nun standart ClickOnce publish-profile semasidir ve mevcut
+       taşınabilir "dotnet publish -r win-x64 (self contained true)" akisini
+       (docs/DEPLOYMENT.md §1) hic etkilemez (profil yalnizca acikca
+       "-p:PublishProfile=ClickOnce" verildiginde devreye girer). Detay/acik
+       kararlar: docs/CLICKONCE.md. -->
 
 </Project>

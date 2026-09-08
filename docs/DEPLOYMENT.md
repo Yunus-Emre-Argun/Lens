@@ -200,3 +200,6 @@ gösterilen metni değiştirebilirdi.
 - Model dosyası ve hash doğrulama: `docs/MODEL_CARD.md`
 - GitHub/release süreci önerisi (CI, tag, signing): `docs/RELEASE_PROCESS.md`
 - Rollout öncesi açık maddeler: `docs/PRODUCTION_CHECKLIST.md`
+- **[2026-09-08] ClickOnce kurulum/otomatik güncelleme (yeni, ek dağıtım
+  yolu — bu dokümandaki taşınabilir publish akışının yerine geçmez):**
+  `docs/CLICKONCE.md`
