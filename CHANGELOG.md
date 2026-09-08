@@ -8,6 +8,34 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Görünen Sürüm Tarihi — İki Haneli Yıl] — 2026-09-08
+
+> **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e
+> merge beklemektedir.** Detay/gerekçe: `docs/DECISIONS.md` karar #86,
+> `docs/DEPLOYMENT.md` §9.
+
+### Değişti
+- Sol alt köşede/Hakkında ekranında gösterilen sürüm metni
+  `07.09.2026 — v1.0` → `08.09.26 — v1.0` (yıl dört haneliden iki haneliye).
+  Tek değişen yer `Lens.Desktop.csproj` → `InformationalVersion`; görünen
+  sürümün TEK okuma kaynağı (`AppVersionInfo.GetDisplayVersion()`)
+  DEĞİŞMEDİ, XAML/C# içine sabit metin YAZILMADI. `v1.0` etiketi AYNEN
+  korundu.
+- `docs/DEPLOYMENT.md` §9: yeni sürüm çıkarma talimatı artık zorunlu biçimi
+  açıkça `GG.AA.YY — vX.Y` (iki haneli yıl) olarak belirtiyor.
+- `docs/CLICKONCE.md` §4: `InformationalVersion` (görünen metin) ile
+  ClickOnce `ApplicationVersion` (4 parçalı sayısal sürüm) arasındaki
+  bağımsızlık ayrıca vurgulandı.
+
+### Notlar
+- `AssemblyVersion`/`FileVersion` (`1.0.0.0`) ve ClickOnce
+  `ApplicationVersion`/güncelleme davranışı bu turda DEĞİŞMEDİ.
+- Tarih derleme zamanında otomatik hesaplanmıyor — yönetici her yeni
+  sürümde elle güncelliyor (mevcut süreç, değişmedi).
+- ClickOnce paketi yeniden üretildi; masaüstü kısayolu ayarı
+  (`co.v1:createDesktopShortcut="true"`, önceki tur) ve yeni görünen sürüm
+  metni birlikte doğrulandı.
+
 ## [ClickOnce Masaüstü Kısayolu] — 2026-09-08
 
 > **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e

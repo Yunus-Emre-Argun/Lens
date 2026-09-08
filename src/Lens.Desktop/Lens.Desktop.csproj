@@ -65,10 +65,10 @@
          surumune gore degisir); en guvenilir/VS-surumunden-bagimsiz yol bu degeri
          doğrudan burada (.csproj dosyasi) duzenlemektir - bkz. docs/DEPLOYMENT.md
          "Surum Guncelleme (Yonetici Sureci)". -->
-    <InformationalVersion>07.09.2026 — v1.0</InformationalVersion>
+    <InformationalVersion>08.09.26 — v1.0</InformationalVersion>
     <!-- Bu proje su an bir SourceLink paketi kullanmadigindan pratikte etkisi yok,
          ama SDK'nin git commit hash'ini InformationalVersion sonuna "+<hash>" olarak
-         OTOMATIK eklemesini (SourceRevisionId mevcutsa) kalici olarak ENGELLER - "07.09.2026
+         OTOMATIK eklemesini (SourceRevisionId mevcutsa) kalici olarak ENGELLER - "08.09.26
          — v1.0" degeri HER ZAMAN degismeden gorunur. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>

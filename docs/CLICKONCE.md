@@ -161,6 +161,15 @@ adımlar" sürecinin bir parçası). `ClickOnce.pubxml`'deki
 `<ApplicationVersion>$(FileVersion)</ApplicationVersion>` bu değeri otomatik
 okur — **ayrı, elle tutulan bir ClickOnce sürüm sayısı yoktur.**
 
+**Dikkat — iki farklı, birbirinden bağımsız "sürüm" kavramı vardır:**
+`ApplicationVersion` (ClickOnce'ın güncelleme kontrolü için kullandığı,
+4 parçalı sayısal `FileVersion` — ör. `1.0.0.0`) ile kullanıcıya sol alt
+köşede/Hakkında ekranında gösterilen serbest metin `InformationalVersion`
+(ör. `08.09.26 — v1.0`, bkz. `docs/DEPLOYMENT.md` §9) **birbirinden
+bağımsızdır**. `InformationalVersion`'ı (görünen tarih/etiket) değiştirmek
+ClickOnce'ın `ApplicationVersion`/güncelleme davranışını **etkilemez** —
+ikisi ayrı MSBuild özellikleridir, birinin değişmesi diğerini tetiklemez.
+
 Adımlar:
 
 1. `docs/DEPLOYMENT.md` §9'daki adımlarla `AssemblyVersion`/`FileVersion`'ı
@@ -340,7 +349,7 @@ doğrulanmalıdır:
    `publish\ClickOnce\setup.exe` ile kurulum yapın.
 2. Lens'i **hem Başlat menüsünden hem masaüstündeki `Lens` kısayolundan**
    açın (§2b), modelin (CLIP ONNX) hatasız yüklendiğini ve sol alt
-   köşedeki sürüm metninin (`07.09.2026 — v1.0`) doğru göründüğünü
+   köşedeki sürüm metninin (`08.09.26 — v1.0`) doğru göründüğünü
    doğrulayın.
 3. `FileVersion`'ı artırıp (§4) yeniden publish alıp aynı `PublishDir`'e
    yayımladıktan sonra (gerçek dağıtımda: gerçek adrese kopyaladıktan sonra),

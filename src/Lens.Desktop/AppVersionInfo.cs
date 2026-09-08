@@ -18,7 +18,7 @@ internal static class AppVersionInfo
     private const string FallbackText = "Sürüm bilgisi yok";
 
     /// <summary>
-    /// Kullanıcıya gösterilecek sürüm metnini döner (ör. "07.09.2026 — v1.0").
+    /// Kullanıcıya gösterilecek sürüm metnini döner (ör. "08.09.26 — v1.0").
     /// Assembly metadata herhangi bir nedenle okunamaz/boşsa uygulama ÇÖKMEZ -
     /// önce sayısal AssemblyVersion'a (eski Hakkında ekranının TEK kaynağıydı,
     /// artık yalnızca SON ÇARE yedeği), o da yoksa <see cref="FallbackText"/>'e

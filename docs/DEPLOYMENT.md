@@ -141,8 +141,9 @@ uygulanmamış) süreç — detay ve gerekçe `docs/RELEASE_PROCESS.md`'de:
 
 ## 9. Sürüm Güncelleme (Yönetici Süreci)
 
-**[2026-09-07]** Ana pencerenin sol alt köşesinde (`Sürüm: 07.09.2026 — v1.0`
-biçiminde) ve Hakkında ekranında gösterilen sürüm metninin **tek kaynağı**
+**[2026-09-07, biçim 2026-09-08'de iki haneli yıla geçirildi]** Ana
+pencerenin sol alt köşesinde (`Sürüm: 08.09.26 — v1.0` biçiminde) ve
+Hakkında ekranında gösterilen sürüm metninin **tek kaynağı**
 derlenen `Lens.Desktop.exe` içindeki Assembly metadata'sıdır — XAML/C# içinde
 sabit bir metin olarak YAZILMAZ (bkz. `Lens.Desktop.MainWindow.xaml`
 `FooterVersionText`, `MainWindow.AboutMenuItem_Click`, ortak okuyucu:
@@ -154,7 +155,7 @@ tarafından otomatik üretilir:
 |---|---|---|---|
 | `AssemblyVersion` | yalnızca `major.minor.build.revision` (sayısal) | `1.0.0.0` | .NET assembly binding/CLR metadata |
 | `FileVersion` | yalnızca `major.minor.build.revision` (sayısal) | `1.0.0.0` | Windows Gezgini "Dosya sürümü" |
-| `InformationalVersion` | serbest metin | `07.09.2026 — v1.0` | Alt bilgi satırı + Hakkında ekranı (**kullanıcının gördüğü değer budur**) |
+| `InformationalVersion` | serbest metin | `08.09.26 — v1.0` | Alt bilgi satırı + Hakkında ekranı (**kullanıcının gördüğü değer budur**) |
 
 `IncludeSourceRevisionInInformationalVersion` bilinçli olarak `false` bırakıldı
 — aksi halde (bu proje ileride bir SourceLink paketi kullanmaya başlarsa)
@@ -181,9 +182,13 @@ gösterilen metni değiştirebilirdi.
    sürümünden bağımsız yol: Solution Explorer'da `Lens.Desktop` projesine
    sağ tıklayıp **"Edit Project File"** (veya Properties sayfasının kendi
    XML/gelişmiş düzenleme seçeneği) ile `Lens.Desktop.csproj`'u açıp
-   `<InformationalVersion>07.09.2026 — v1.0</InformationalVersion>` satırını
+   `<InformationalVersion>08.09.26 — v1.0</InformationalVersion>` satırını
    doğrudan değiştirmektir (bkz. dosyadaki ilgili `PropertyGroup` yorumu).
-   Önerilen biçim: `GG.AA.YYYY — vX.Y` (Türkçe tarih + kısa sürüm etiketi).
+   **Zorunlu biçim (2026-09-08'den itibaren): `GG.AA.YY — vX.Y`** (Türkçe
+   tarih, **yıl İKİ haneli**, kısa sürüm etiketi) — ör. `08.09.26 — v1.0`.
+   Yıl dört haneli (`GG.AA.YYYY`) yazılmamalıdır; tarih derleme sırasında
+   otomatik güncellenmez, bu alanı her sürümde **elle** bugünün tarihine
+   güncellemek yöneticinin sorumluluğundadır.
 4. Gerekirse (büyük bir sürüm atlaması, dağıtım takibi için) adım 2'deki
    sayısal `AssemblyVersion`/`FileVersion` değerlerini de artırın — bu iki
    alanın kullanıcıya gösterilen metinle (`InformationalVersion`) BİREBİR
