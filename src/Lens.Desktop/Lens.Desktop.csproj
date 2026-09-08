@@ -42,7 +42,24 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- [Ikon - 2026-09-08] Derlenen Lens.Desktop.exe'nin Win32 kaynak
+         ikonunu (Gezgin/gorev cubugu/Alt-Tab) belirler - bkz.
+         docs/DEVELOPMENT_SETUP.md veya ilgili ikon dokumani icin
+         Assets/Lens.ico'nun nasil uretildigi. Ayni dosya, pencere basligi
+         ikonu icin asagidaki "Resource" ogesiyle AYRICA (gereksiz kopya
+         OLUSTURMADAN, tek fiziksel dosyadan) WPF pack-URI'ye de acilir. -->
+    <ApplicationIcon>Assets\Lens.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- [Ikon - 2026-09-08] Pencere basligi ikonu (MainWindow.xaml vb.
+         "Icon" ozelligi "/Assets/Lens.ico" pack-URI'siyle bu kaynagi
+         okur) icin WPF derleme-zamani kaynagina dahil edilir. Ana tasarim
+         kaynagi (lens-app-icon-master.png) BILEREK dahil edilmedi - yalnizca
+         gelistirme zamani referans/kaynak dosyasidir, calisma zamaninda
+         kullanilmaz. -->
+    <Resource Include="Assets\Lens.ico" />
+  </ItemGroup>
 
   <!-- [Sürüm bilgisi - 2026-09-07] SDK-style proje: bu üç deger, Visual Studio'da
        Solution Explorer -> Lens.Desktop projesine sag tik -> Properties -> Application

@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:Lens.Desktop"
         mc:Ignorable="d"
         Background="{DynamicResource MainBackgroundBrush}"
-        Title="Lens - Ürün Görsel Arama" Height="840" Width="1060" MinHeight="680" MinWidth="860"
+        Title="Lens - Ürün Görsel Arama" Icon="/Assets/Lens.ico" Height="840" Width="1060" MinHeight="680" MinWidth="860"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <!-- Sabit (temadan bagimsiz) renkler: mavi vurgu ve sorgu panelinin

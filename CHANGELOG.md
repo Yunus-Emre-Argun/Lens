@@ -8,6 +8,44 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Lens Uygulama ve ClickOnce İkonu] — 2026-09-08
+
+> **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e
+> merge beklemektedir.** Detay/gerekçe: `docs/DECISIONS.md` karar #87,
+> `docs/CLICKONCE.md` §2c.
+
+### Eklendi
+- Lens'in resmi uygulama ikonu: lime yeşili yuvarlatılmış zemin, koyu
+  lacivert büyüteç, kırmızı/mercan tonlarında beş yapraklı çiçek (sarı-altın
+  merkez, yazı/harf yok). **Kaynak notu:** Görev sırasında kullanıcı final
+  tasarımı değiştirdi — ilk sunulan geometrik/mavi-beyaz örgülü varyant
+  yerine bu çiçekli varyant final olarak seçildi; geometrik ara çıktılar
+  hiçbir yere bağlanmadan silindi.
+- `src/Lens.Desktop/Assets/lens-app-icon-master.png` — kullanıcının
+  onayladığı (damalı sahte-şeffaflık içeren) kaynak PNG'den, gerçek RGBA
+  alpha kanallı, kenar bandı temizlenmiş (gri/beyaz hale yok) ana tasarım
+  kaynağı. Yalnızca geliştirme zamanı — derleme/publish çıktısına dahil
+  değil.
+- `src/Lens.Desktop/Assets/Lens.ico` — 9 çözünürlüklü (16/20/24/32/40/48/64/128/256 px)
+  Windows ICO, her boyut teknik olarak doğrulanmış gerçek bitmap karesi.
+- `Lens.Desktop.csproj`: `ApplicationIcon` (EXE Win32 ikonu) ve `Resource`
+  (WPF pencere ikonu pack-URI'si) eklendi — tek fiziksel dosyadan.
+- Tüm pencereler (`MainWindow`, `AlertWindow`, `ImagePreviewWindow`,
+  `ProblemFilesWindow`, `SettingsWindow`) `Icon="/Assets/Lens.ico"` ile
+  aynı ikonu kullanıyor.
+
+### Notlar
+- ClickOnce masaüstü kısayolu (bkz. `[ClickOnce Masaüstü Kısayolu]`
+  girdisi) ve Başlat menüsü kaydı, ayrı bir ikon ayarı olmadan aynı EXE
+  ikonunu miras alıyor. `setup.exe`/`Launcher.exe` için ayrı ikon
+  atanmadı.
+- ClickOnce paketi yeniden üretildi (temiz `bin`/`obj` + `/p:DebugType=none`);
+  masaüstü kısayolu ayarı, model, `appsettings.json`, self-contained
+  win-x64, güncelleme/sürüm davranışı DEĞİŞMEDİ.
+- Taşınabilir publish akışı ayrıca doğrulandı, etkilenmedi.
+- Pencere düzenine, temalara, arama davranışına dokunulmadı.
+- Canlı arayüz/kurulum penceresi kullanıcı izni olmadan açılmadı.
+
 ## [Görünen Sürüm Tarihi — İki Haneli Yıl] — 2026-09-08
 
 > **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e

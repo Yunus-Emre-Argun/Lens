@@ -140,6 +140,60 @@ co.v1:createDesktopShortcut="true">`). Gerçek kurulum penceresi açılıp
 masaüstünde kısayolun fiilen oluştuğu bu turda **denenmedi** — bkz.
 §12 "Kullanıcıdan Beklenen Canlı Test Adımları".
 
+## 2c. Uygulama İkonu
+
+**[2026-09-08]** Lens'in resmi uygulama ikonu eklendi — lime yeşili
+yuvarlatılmış zemin üzerinde koyu lacivert büyüteç, kırmızı/mercan tonlarında
+beş yapraklı çiçek ve sarı-altın merkez (yazı/harf yok). Bu tasarım,
+kullanıcı tarafından onaylanmış, proje için özel üretilmiş özgün bir
+tasarımdır (ilk sunulan geometrik/mavi-beyaz örgülü varyant yerine bu
+çiçekli varyant final olarak seçildi — bkz. `docs/DECISIONS.md`).
+
+**Dosyalar:**
+- `src/Lens.Desktop/Assets/lens-app-icon-master.png` — temiz, gerçek RGBA
+  alpha kanallı ana tasarım kaynağı (1254×1254). Kullanıcının onayladığı
+  kaynak görsel, damalı sahte-şeffaflık içeriyordu (24bpp RGB, gerçek alpha
+  yoktu) — bağlantılı-bileşen (connected component) flood-fill ile arka
+  plan tespit edilip gerçek şeffaflığa çevrildi, kenar bandındaki gri
+  karışımı "decontaminate" edilip (en yakın temiz ön-plan rengiyle
+  değiştirilerek) hale/gri kenar oluşması önlendi. Bu dosya yalnızca
+  **geliştirme zamanı kaynağıdır** — derleme/publish çıktısına dahil
+  edilmez (`.csproj`'da herhangi bir Copy/Include öğesi yok).
+- `src/Lens.Desktop/Assets/Lens.ico` — yukarıdaki ana PNG'den üretilen,
+  **9 çözünürlüklü** (16, 20, 24, 32, 40, 48, 64, 128, 256 px) gerçek
+  Windows ICO dosyası; her boyut ayrı, gerçekten var olan bir bitmap
+  karesidir (yalnızca metadata etiketi değil — publish sonrası
+  `Image.open(...).info['sizes']` ile teknik olarak doğrulandı). 48px ve
+  altı boyutlarda hafif bir keskinleştirme (`UnsharpMask`) uygulanır —
+  tasarımı değiştirmez, yalnızca küçük boyutlarda downsampling
+  bulanıklığını kısmen telafi eder.
+
+**Bağlantılar (tek fiziksel `Lens.ico` dosyasından, gereksiz kopya
+oluşturulmadan):**
+- `Lens.Desktop.csproj` → `<ApplicationIcon>Assets\Lens.ico</ApplicationIcon>`
+  — derlenen `Lens.Desktop.exe`'nin Win32 kaynak ikonu (Gezgin/görev
+  çubuğu/Alt-Tab), yerinde `System.Drawing.Icon.ExtractAssociatedIcon` ile
+  doğrulandı.
+- `Lens.Desktop.csproj` → `<Resource Include="Assets\Lens.ico" />` — WPF
+  pack-URI (`/Assets/Lens.ico`) üzerinden pencere başlığı ikonu için.
+- `MainWindow.xaml`, `AlertWindow.xaml`, `ImagePreviewWindow.xaml`,
+  `ProblemFilesWindow.xaml`, `SettingsWindow.xaml` → hepsinde
+  `Icon="/Assets/Lens.ico"` — **tüm** pencereler aynı ikonu gösterir,
+  hiçbiri Windows'un varsayılan WPF simgesine dönmez.
+- **ClickOnce masaüstü kısayolu (§2b) ve Başlat menüsü kaydı** aynı
+  `Lens.Desktop.exe`'nin (dolayısıyla aynı `Lens.ico`'nun) simgesini
+  kullanır — ayrı bir kısayol-ikonu ayarı YOKTUR, ikon EXE'den miras alınır.
+  `setup.exe`/`Launcher.exe` için ayrı bir ikon **atanmadı** (görev
+  talimatı gereği öncelik kurulan uygulama ve kısayollarıdır).
+
+**⚠️ İkon her değiştiğinde ClickOnce paketi yeniden yayımlanmalıdır**
+(bkz. §2 — temiz `bin`/`obj` + `/p:DebugType=none` ile republish) — aksi
+halde `publish/ClickOnce/` içindeki eski paket önceki ikonu taşımaya devam
+eder.
+
+**Windows ikon önbelleği notu:** Zaten kurulu bir ClickOnce sürümü varsa,
+Windows'un simge önbelleği yeni ikonu hemen göstermeyebilir — bkz. §12.
+
 ## 3. Paket İçeriği Doğrulaması (her yayından önce elle kontrol edin)
 
 ```
@@ -345,10 +399,14 @@ Bu tur yalnızca komut satırından doğrulama yaptı, gerçek kurulum/güncelle
 penceresi **açılmadı**. Aşağıdaki adımlar kullanıcı tarafından elle
 doğrulanmalıdır:
 
-1. Varsa eski bir ClickOnce Lens kurulumunu kaldırın, ardından
-   `publish\ClickOnce\setup.exe` ile kurulum yapın.
+1. Aynı ClickOnce sürümü daha önce kurulduysa **önce eski Lens kurulumunu
+   kaldırın** (Windows ikon önbelleği nedeniyle üzerine kurulum yeni ikonu
+   hemen göstermeyebilir — bkz. §2c), ardından yenilenen `publish\ClickOnce\`
+   klasöründeki `setup.exe` ile temiz kurulum yapın.
 2. Lens'i **hem Başlat menüsünden hem masaüstündeki `Lens` kısayolundan**
-   açın (§2b), modelin (CLIP ONNX) hatasız yüklendiğini ve sol alt
+   açın (§2b); masaüstü, Başlat menüsü, uygulama penceresi başlığı ve görev
+   çubuğundaki simgelerin yeni ikonu (lime zemin + çiçekli büyüteç)
+   gösterdiğini, modelin (CLIP ONNX) hatasız yüklendiğini ve sol alt
    köşedeki sürüm metninin (`08.09.26 — v1.0`) doğru göründüğünü
    doğrulayın.
 3. `FileVersion`'ı artırıp (§4) yeniden publish alıp aynı `PublishDir`'e

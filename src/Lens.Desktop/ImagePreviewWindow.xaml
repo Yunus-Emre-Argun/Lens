@@ -1,7 +1,7 @@
 <Window x:Class="Lens.Desktop.ImagePreviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Önizleme" Height="500" Width="600" MinHeight="280" MinWidth="360"
+        Title="Önizleme" Icon="/Assets/Lens.ico" Height="500" Width="600" MinHeight="280" MinWidth="360"
         WindowStartupLocation="CenterOwner" Background="#FF1E1E1E"
         PreviewKeyDown="Window_PreviewKeyDown">
     <Grid ClipToBounds="True">
