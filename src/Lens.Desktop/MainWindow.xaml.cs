@@ -169,25 +169,12 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// [Yerlesim - deney] Genis pencere hedefleri (320 DIP gorsel GENISLIGI - yukseklik
-    /// 4:3 orandan turetilir, 260 DIP ayar sutunu butcesi, 120 DIP buton, 40/32 DIP
-    /// bosluklar) ile dar pencere hedefleri (240 DIP gorsel genisligi, 240 DIP ayar
-    /// sutunu butcesi, 104 DIP buton, 16 DIP bosluklar) arasinda PENCERE GENISLIGINE
-    /// gore DOGRUSAL (lineer) interpolasyon yapar - t=0 Window.MinWidth'te (860), t=1
-    /// "tam genis hedef" toplam genisliginde, ikisinin disinda CLAMP edilir. Gorsel
-    /// GENISLIGI ayrica pencerenin KULLANILABILIR YUKSEKLIGINE gore de sinirlanir (bkz.
-    /// asagida availableHeightForImage) - genislik-lerp SONUCU ile yukseklik-butcesinden
-    /// turetilen azami genislikten KUCUK OLANI kullanilir, boylece dusuk dikey cozunurlukte
-    /// (kisa pencere/ekran) gorseller buyudukce sonuc alanini EZMEZ. Gorsel YUKSEKLIGI
-    /// HER ZAMAN genislik*0.75 (4:3) - ayri bir dar/genis yukseklik tablosu YOK, tek
-    /// formulden turetilir (talimattaki 240x180/300x225/320x240 uc noktasi da bu
-    /// formule uyar). Bir RenderTransform/Viewbox KULLANILMAZ ki surukle-birak hit-testing
-    /// (QueryDropZone_DragEnter/Over/Drop) ve cift-tik buyutme (TryOpenImagePreview)
-    /// davranisi hicbir sekilde degismesin. Girislerin YUKSEKLIGI (36/42/34 DIP) BILEREK
-    /// sabit kalir - yalnizca GENISLIKLER (gorsel/ayar-sutunu/buton/bosluk) daralir.
-    /// Sayisal giris kutulari (ThresholdTextBox/MaxResultsTextBox) ARTIK bu hesaba DAHIL
-    /// DEGIL - genislikleri XAML'de SABIT 56 DIP (talimat: "yaklasik 52-60 DIP, uc rakamin
-    /// sigacagi kompakt genislik", ayrica dar/genis tablosu VERILMEDI).
+    /// [Polish] Tek pencere-genisligi orani "t" (0=Window.MinWidth, 1=hesaplanan "tam genis
+    /// hedef"), gorsel genisligi (240..320, sonra height-budget ile ayrica sinirlanir - bkz.
+    /// asagi), orta sutun genisligi (280..320, Ara/Yeni Arama+ARAMA AYARLARI paneli AYNI) ve
+    /// iki gorsel-panel boslugu (24..50) icin ORTAK olarak kullanilir. Sonda, hesaplanan toplam
+    /// genislik RootGrid.ActualWidth'i asarsa sirayla (1) bosluk (2) orta sutun (3) gorsel
+    /// kucultulerek yatay tasma engellenir (bkz. talimat "kucculme sirasi").
     /// </summary>
     private void UpdateResponsiveLayout()
     {
@@ -198,67 +185,31 @@ public partial class MainWindow : Window
 
         const double narrowWindowWidth = 860; // Window.MinWidth
         const double narrowImage = 240, wideImage = 320;
-        const double narrowSettingsColumn = 240, wideSettingsColumn = 260;
-        const double narrowButtonWidth = 104, wideButtonWidth = 120;
-        const double narrowGap = 16, wideGapOuter = 40, wideGapInner = 32;
-        // [Ust satir taslak hizalama duzeltmesi] Klasor yolu kutusunun (FolderPathTextBox)
-        // hedef genisligi - dar pencerede FolderPathColumn'un gercek tabani olan 180 DIP'te
-        // baslar (860 DIP minimum pencerede "Bu Klasörü Varsayılan Yap"/"Varsayılanı Temizle"/
-        // MenuButton'a yer birakmak icin OLCULEREK dogrulandi - bkz. asagidaki sinir-durumu
-        // notu), genis pencerede ~530 DIP'e kadar buyur (talimat tablosundaki ~500-560 araligi);
-        // asagidaki AYNI "t" (pencere genisligi orani) ile Lerp edilir, boylece TEK ve anlasilir
-        // bir egri kullanilir - ayri/tutarsiz ikinci bir hesap YOK. FolderPathColumn'daki
-        // MinWidth=180/MaxWidth=560 gercek bir GUVENLIK AGI - bu Lerp bir sekilde araligin
-        // disina cikarsa bile Grid motoru sert sinirlari uygular.
+        const double narrowMiddleColumn = 280, wideMiddleColumn = 320;
+        const double narrowGap = 24, wideGapOuter = 50;
         const double narrowFolderPath = 180, wideFolderPath = 530;
-        // [Ust satir sinir-durumu duzeltmesi] Urun sayisi/kaynak WrapPanel'inin (ProductInfoPanel)
-        // ust genislik siniri - 860 DIP minimumda ~160 DIP (gercek metinler FormattedText ile
-        // olculdu: en uzun urun-sayisi metni ~143 DIP, en uzun sabit kaynak etiketi ~118 DIP -
-        // ikisi YAN YANA 160'a sigmaz, WrapPanel DirectorySourceText'i alt satira SARAR, kolon
-        // genisligi ~143 DIP'e duser), genis pencerede ~600 DIP (pratikte sinirsiz, mevcut
-        // yan-yana gorunumu KORUR). Ayni "t" ile Lerp edilir.
         const double narrowProductInfoMax = 160, wideProductInfoMax = 600;
 
-        // "Tam genis hedef" toplam genislik: iki gorsel + iki dis bosluk +
-        // (ayar sutunu + ic bosluk + buton) + RootGrid kenar bosluklari (12+12)
-        // + pencere cercevesi icin kabaca bir pay. Bu SABIT, asagidaki lerp'in
-        // ust ucudur (t=1) - baska hicbir yerde farkli bir "genis pencere"
-        // sayisi TEKRARLANMAZ.
-        const double wideSettingsButtonsGroup = wideSettingsColumn + wideGapInner + wideButtonWidth;
-        const double wideTotalContent = wideImage + wideGapOuter + wideSettingsButtonsGroup + wideGapOuter + wideImage;
+        const double wideTotalContent = wideImage + wideGapOuter + wideMiddleColumn + wideGapOuter + wideImage;
         const double wideWindowWidth = wideTotalContent + 24 /*RootGrid Margin*/ + 20 /*pencere cercevesi payi*/;
 
         var t = Math.Clamp((RootGrid.ActualWidth - narrowWindowWidth) / (wideWindowWidth - narrowWindowWidth), 0, 1);
 
         static double Lerp(double a, double b, double t) => a + (b - a) * t;
 
-        var settingsColumnWidth = Lerp(narrowSettingsColumn, wideSettingsColumn, t);
-        var buttonWidth = Lerp(narrowButtonWidth, wideButtonWidth, t);
+        var middleColumnWidth = Lerp(narrowMiddleColumn, wideMiddleColumn, t);
         var gapOuter = Lerp(narrowGap, wideGapOuter, t);
-        var gapInner = Lerp(narrowGap, wideGapInner, t);
         var folderPathWidth = Lerp(narrowFolderPath, wideFolderPath, t);
         FolderPathColumn.Width = new GridLength(folderPathWidth);
         var productInfoMaxWidth = Lerp(narrowProductInfoMax, wideProductInfoMax, t);
         ProductInfoPanel.MaxWidth = productInfoMaxWidth;
 
-        var settingsButtonsGroupWidth = settingsColumnWidth + gapInner + buttonWidth;
-
-        // [Yukseklik farkindaligi - deney, talimat "hesap yalnizca genisilge bakmamali"]
-        // Genislik-lerp'ten gelen goruntu genisligini, pencerenin GERCEKTEN kullanilabilir
-        // dikey alanina gore de sinirlariz. TopAreaGrid/FooterGrid GERCEK olculmus
-        // yukseklikleridir (bu noktada Loaded/SizeChanged sonrasi gecerli); geri kalanlar
-        // (queryChromeHeight, resultsHeaderHeight, minResultsReserve) XAML yapisindan
-        // STATIK olarak tahmin edilmis sabitlerdir (CANLI DPI olcumu DEGIL - bkz. son rapor).
-        // queryChromeHeight: gorsel basligi + dosya-adi kutusu + kalici ipucu satiri (gorselin
-        // KENDISI HARIC, yalnizca cevresindeki sabit metin/margin toplami).
-        const double queryChromeHeight = 66;
-        // resultsHeaderHeight: "EN BENZER SONUÇLAR (N)" basligi (SectionHeaderStyle: FontSize
-        // 12 + Margin alt 6).
-        const double resultsHeaderHeight = 26;
-        // minResultsReserve: sonuc alani icin ayrilan asgari yukseklik - talimat "en azindan
-        // kullanilabilir bir sonuc alani gorunmeli" kabul olcutunu somutlastirir (kismi bir
-        // kart sirasi + kaydirma cubugu icin kabaca yeterli).
-        const double minResultsReserve = 120;
+        // [Yukseklik butcesi] TopAreaGrid/FooterGrid GERCEK olculmus yukseklikler; digerleri
+        // (queryChromeHeight/resultsHeaderHeight/minResultsReserve) XAML yapisindan STATIK
+        // tahmin - canli DPI olcumu DEGIL (bkz. son rapor).
+        const double queryChromeHeight = 66; // gorsel basligi + dosya-adi + kalici ipucu satiri
+        const double resultsHeaderHeight = 26; // "EN BENZER SONUÇLAR (N)" basligi
+        const double minResultsReserve = 120; // sonuc alani icin asgari rezerv
         const double comparisonRowVerticalMargin = 32; // ComparisonRowGrid Margin (0,20,0,12)
         const double rootMargins = 24; // RootGrid Margin=12 (ust+alt)
 
@@ -272,10 +223,40 @@ public partial class MainWindow : Window
         var maxImageHeightFromSpace = availableForMiddleRow - queryChromeHeight;
         var maxImageWidthFromSpace = maxImageHeightFromSpace / 0.75;
 
-        var imageWidth = Math.Clamp(Math.Min(Lerp(narrowImage, wideImage, t), maxImageWidthFromSpace), narrowImage, wideImage);
-        // [4:3 - talimat] Yukseklik AYRI bir dar/genis tablo DEGIL, DAIMA genislik*0.75 -
-        // talimattaki 240x180/300x225/320x240 uc noktasi da bu TEK formule uyar.
-        var imageHeight = imageWidth * 0.75;
+        // [Polish - taşma düzeltmesi] Eskiden alt sinir narrowImage(240) idi, yukseklik butcesi
+        // bunun altini istese bile gorsel kucultulemiyordu ("120 DIP rezerv garantisi" yanlisti).
+        // Mutlak guvenli taban artik 200 - normal responsive taban (240) yalnizca bir HEDEF.
+        const double absoluteFloorImage = 200;
+        var widthDrivenImage = Math.Clamp(Lerp(narrowImage, wideImage, t), narrowImage, wideImage);
+        var imageWidth = Math.Clamp(Math.Min(widthDrivenImage, maxImageWidthFromSpace), absoluteFloorImage, wideImage);
+        var imageHeight = imageWidth * 0.75; // 4:3, tek formul (dar/genis ayri tablo yok)
+
+        // [Yatay tasma guvenligi] Gercek kullanilabilir genislikle karsilastir; asarsa sirayla
+        // (1) dis bosluk (2) orta sutun (3) gorsel (4:3 korunarak) kucultulur.
+        var totalMiddleWidth = (imageWidth * 2) + (gapOuter * 2) + middleColumnWidth;
+        if (totalMiddleWidth > RootGrid.ActualWidth)
+        {
+            var overflow = totalMiddleWidth - RootGrid.ActualWidth;
+
+            const double gapFloor = 16;
+            var gapReduction = Math.Min(overflow, Math.Max(0, (gapOuter - gapFloor) * 2));
+            gapOuter -= gapReduction / 2;
+            overflow -= gapReduction;
+
+            if (overflow > 0)
+            {
+                var middleReduction = Math.Min(overflow, Math.Max(0, middleColumnWidth - narrowMiddleColumn));
+                middleColumnWidth -= middleReduction;
+                overflow -= middleReduction;
+            }
+
+            if (overflow > 0)
+            {
+                var imageReduction = Math.Min(overflow, Math.Max(0, (imageWidth - absoluteFloorImage) * 2));
+                imageWidth -= imageReduction / 2;
+                imageHeight = imageWidth * 0.75;
+            }
+        }
 
         QueryDropZone.Width = imageWidth;
         QueryDropZone.Height = imageHeight;
@@ -284,30 +265,21 @@ public partial class MainWindow : Window
         QueryFileNameText.Width = imageWidth;
         ComparisonFileNameText.Width = imageWidth;
         QueryDropHintText.Width = imageWidth;
-        // [Bos-durum metni tasma korumasi] Watermark/placeholder metinleri cerceve genisligini
-        // ASMASIN diye TextWrapping=Wrap'in sarabilecegi bir ust sinir verilir (kucuk bir ic pay ile).
         QueryEmptyStatePanel.MaxWidth = Math.Max(0, imageWidth - 24);
         ComparisonEmptyStateText.MaxWidth = Math.Max(0, imageWidth - 24);
+        // [Polish] Watermark font boyutu: 18(dar)-22(genis) ana, 12-13 alt satir.
+        QueryEmptyTitleText.FontSize = Lerp(18, 22, t);
+        QueryEmptyHintText.FontSize = Lerp(12, 13, t);
 
         ComparisonGapLeftColumn.Width = new GridLength(gapOuter);
         ComparisonGapRightColumn.Width = new GridLength(gapOuter);
-        // [Yerlesim - deney] SettingsButtonsGrid'in TOPLAM genisligi TEK noktadan atanir -
-        // Ara/Yeni Arama butonlari (star sutunlar) ve altlarindaki ARAMA AYARLARI paneli
-        // (ColumnSpan=3) bu genisligi PAYLASIR, boylece "tek bir sutun gibi hizali" garantisi
-        // Grid motorunun kendisinden gelir (manuel esit-bolme hesabi GEREKMEZ).
-        SettingsButtonsGrid.Width = settingsButtonsGroupWidth;
+        SettingsButtonsGrid.Width = middleColumnWidth;
 
-        // [Talimat - KESIN sart DEGIL ama acikca istendi] Ust satirdaki varsayilan buton
-        // grubunun (SetDefaultButton'dan baslayarak, sutun 4-5) sol baslangicini,
-        // karsilastirma satirindaki SAG gorselin sol kenari CIVARINDA tutar - pencerenin ham
-        // sag kösesine YAPISMAZ. Deger OLCULUR (yukaridaki analitik toplamlar + TopAreaGrid'in
-        // sol sutunlarinin GERCEK ActualWidth'i), tahmini sabit bir margin DEGILDIR. BU HESAP
-        // ARTIK SADECE varsayilan buton grubunu (4-5) kapsar - MenuSpacerColumn(6)/MenuColumn(7)
-        // buraya DAHIL DEGIL, cunku menu artik bu gruptan BAGIMSIZ, gercek bir "*" sutunla
-        // (MenuSpacerColumn) her zaman en sag kenara sabitleniyor (bkz. XAML yorumu).
-        var comparisonTotalWidth = imageWidth + gapOuter + settingsButtonsGroupWidth + gapOuter + imageWidth;
+        // [Ust satir hizalama] Varsayilan buton grubunun (sutun 4-5) sol baslangicini
+        // karsilastirma satirindaki SAG gorselin sol kenari civarinda tutar - bkz. XAML yorumu.
+        var comparisonTotalWidth = (imageWidth * 2) + (gapOuter * 2) + middleColumnWidth;
         var comparisonLeftEdgeX = Math.Max(0, (RootGrid.ActualWidth - comparisonTotalWidth) / 2);
-        var rightImageStartX = comparisonLeftEdgeX + imageWidth + gapOuter + settingsButtonsGroupWidth + gapOuter;
+        var rightImageStartX = comparisonLeftEdgeX + imageWidth + gapOuter + middleColumnWidth + gapOuter;
 
         // [Sinir-durumu duzeltmesi] FolderPathColumn.ActualWidth BURADA KULLANILMAZ - ActualWidth
         // bu satirin birkac satir YUKARISINDA ayarlanan Width'i henuz YANSITMAZ (WPF, Width
@@ -379,15 +351,21 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// [Yerlesim - deney, Arama Ayarlari paneli] Bir rengi hedef renge dogru (0=degismez,
-    /// 1=hedefin aynisi) kanal-bazli DOGRUSAL harmanlar - SettingsPanelBackgroundBrush'in
-    /// AppTheme.cs'e HIC DOKUNMADAN, ana pencere renginden turetilmesi icin.
+    /// [Polish] Arama Ayarlari paneli icin tema basina SABIT yuzey - artik ana pencere
+    /// zemininden turetilmiyor (Lime'da kirli sari-yesil sonuc veriyordu). AppTheme.cs/
+    /// ThemePalette'e DOKUNULMADI - bu, ondan tamamen bagimsiz, yalnizca panel icin ayri bir
+    /// tablo (talimattaki hex degerler).
     /// </summary>
-    private static Color BlendToward(Color baseColor, Color target, double amount)
+    private static (Color Background, Color Foreground, Color SecondaryText, Color Border) GetSettingsPanelColors(AppTheme theme) => theme switch
     {
-        byte Mix(byte a, byte b) => (byte)Math.Round(a + ((b - a) * amount));
-        return Color.FromRgb(Mix(baseColor.R, target.R), Mix(baseColor.G, target.G), Mix(baseColor.B, target.B));
-    }
+        AppTheme.Acik => (Color.FromRgb(0xFF, 0xFF, 0xFF), Color.FromRgb(0x1F, 0x29, 0x37), Color.FromRgb(0x6B, 0x72, 0x80), Color.FromRgb(0xCB, 0xD5, 0xE1)),
+        AppTheme.Lime => (Color.FromRgb(0xFF, 0xFF, 0xFF), Color.FromRgb(0x1F, 0x29, 0x37), Color.FromRgb(0x6B, 0x72, 0x80), Color.FromRgb(0xCB, 0xD5, 0xE1)),
+        AppTheme.AcikSepya => (Color.FromRgb(0xFF, 0xF9, 0xF0), Color.FromRgb(0x2A, 0x21, 0x18), Color.FromRgb(0x6B, 0x5D, 0x4D), Color.FromRgb(0xD8, 0xC7, 0xAD)),
+        AppTheme.Koyu => (Color.FromRgb(0x47, 0x55, 0x69), Colors.White, Color.FromRgb(0xD1, 0xD9, 0xE3), Color.FromRgb(0x64, 0x74, 0x8B)),
+        AppTheme.KoyuSepya => (Color.FromRgb(0x80, 0x6B, 0x54), Colors.White, Color.FromRgb(0xE4, 0xD9, 0xC7), Color.FromRgb(0x9A, 0x84, 0x6A)),
+        // Normal: sorgu/sonuc kartlariyla gorsel butunluk icin cok hafif kirik beyaz.
+        _ => (Color.FromRgb(0xF8, 0xFA, 0xFC), Color.FromRgb(0x1F, 0x29, 0x37), Color.FromRgb(0x6B, 0x72, 0x80), Color.FromRgb(0xCB, 0xD5, 0xE1)),
+    };
 
     /// <summary>
     /// [Tema turu] Temayi UYGULAR (Resources[...] icindeki renk kaynaklarini degistirir,
@@ -406,15 +384,11 @@ public partial class MainWindow : Window
         Resources["SecondaryTextBrush"] = new SolidColorBrush(colors.SecondaryText);
         Resources["SuccessBrush"] = new SolidColorBrush(colors.Success);
         Resources["WarningBrush"] = new SolidColorBrush(colors.Warning);
-        // [Yerlesim - deney, Arama Ayarlari paneli] AppTheme.cs/ThemePalette'e DOKUNULMADI
-        // (talimat: "tema paletleri" bu gorev kapsaminda degistirilmeyecek) - panel yuzeyi/
-        // kenarligi burada, MEVCUT tema renklerinden (colors.MainBackground/SecondaryText)
-        // TURETILIR. Zemin, ana pencere renginin siyaha dogru %12 harmanlanmis hali - her
-        // temada (Acik/Koyu/Sepya/Lime) zeminden HAFIFCE ayrisan, ama asiri kontrastli
-        // OLMAYAN sade bir yuzey verir. Kenarlik, zaten bu TAM zemin uzerinde okunabilir
-        // olacak sekilde secilmis SecondaryText rengini kullanir (ayrica hesaplama gerekmez).
-        Resources["SettingsPanelBackgroundBrush"] = new SolidColorBrush(BlendToward(colors.MainBackground, Colors.Black, 0.12));
-        Resources["SettingsPanelBorderBrush"] = new SolidColorBrush(colors.SecondaryText);
+        var panelColors = GetSettingsPanelColors(theme);
+        Resources["SettingsPanelBackgroundBrush"] = new SolidColorBrush(panelColors.Background);
+        Resources["SettingsPanelForegroundBrush"] = new SolidColorBrush(panelColors.Foreground);
+        Resources["SettingsPanelSecondaryTextBrush"] = new SolidColorBrush(panelColors.SecondaryText);
+        Resources["SettingsPanelBorderBrush"] = new SolidColorBrush(panelColors.Border);
 
         UpdateThemeMenuChecks(theme);
         RefreshThemeDependentForegrounds();
@@ -2057,6 +2031,91 @@ public partial class MainWindow : Window
         textBox.CaretIndex = Math.Min(caret, cleaned.Length);
     }
 
+    /// <summary>[NumberBox - Polish] Yukarı/Aşağı ok tuşları da spinner düğmeleriyle AYNI adımı uygular.</summary>
+    private void NumericTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Up && e.Key != Key.Down)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        var direction = e.Key == Key.Up ? 1 : -1;
+        if (ReferenceEquals(sender, ThresholdTextBox))
+        {
+            StepThreshold(direction);
+        }
+        else
+        {
+            StepMaxResults(direction);
+        }
+    }
+
+    private void ThresholdUpButton_Click(object sender, RoutedEventArgs e) => StepThreshold(1);
+    private void ThresholdDownButton_Click(object sender, RoutedEventArgs e) => StepThreshold(-1);
+    private void MaxResultsUpButton_Click(object sender, RoutedEventArgs e) => StepMaxResults(1);
+    private void MaxResultsDownButton_Click(object sender, RoutedEventArgs e) => StepMaxResults(-1);
+
+    /// <summary>
+    /// [NumberBox - Polish] ThresholdTextBox'ı ±1 adımlar. Mevcut metin <see cref="SimilarityThreshold"/>
+    /// sözleşmesiyle geçersizse (boş → 80 varsayılan, aralık-dışı ör. "999" → güvenli sınıra
+    /// çekilir) önce güvenli bir başlangıç değerine oturtulur, sonra adım uygulanır - hiçbir
+    /// zaman exception/taşma olmaz. Ondalık ayırıcı (varsa) ve basamak sayısı KORUNUR (80,5 → 81,5).
+    /// </summary>
+    private void StepThreshold(int direction)
+    {
+        var current = ResolveSteppableValue(ThresholdTextBox.Text, SimilarityThreshold.MinPercent, SimilarityThreshold.MaxPercent, SimilarityThreshold.DefaultPercent);
+        var next = Math.Clamp(current + direction, SimilarityThreshold.MinPercent, SimilarityThreshold.MaxPercent);
+        ThresholdTextBox.Text = FormatSteppedNumber(next, ThresholdTextBox.Text);
+        ThresholdTextBox.CaretIndex = ThresholdTextBox.Text.Length;
+    }
+
+    /// <summary>[NumberBox - Polish] StepThreshold ile AYNI desen, <see cref="MaxResultsPreference"/> sözleşmesiyle (tam sayı, 1-200, varsayılan 20).</summary>
+    private void StepMaxResults(int direction)
+    {
+        var current = ResolveSteppableValue(MaxResultsTextBox.Text, MaxResultsPreference.MinAllowed, MaxResultsPreference.MaxAllowed, MaxResultsPreference.Default);
+        var next = Math.Clamp(current + direction, MaxResultsPreference.MinAllowed, MaxResultsPreference.MaxAllowed);
+        MaxResultsTextBox.Text = next.ToString("0", CultureInfo.InvariantCulture);
+        MaxResultsTextBox.CaretIndex = MaxResultsTextBox.Text.Length;
+    }
+
+    /// <summary>
+    /// [NumberBox - Polish] Bir spinner adımı için "mevcut deger" - bos ise varsayilan, gecerli
+    /// aralikta ise oldugu gibi, aralik-disi ama SAYISAL ise (ör. "999", NumericInputFilter'in
+    /// 3-rakam sinirinin izin verdigi ama SimilarityThreshold/MaxResultsPreference'in reddettigi
+    /// bir deger) guvenli sinira Clamp edilir - boylece bir sonraki adim asla exception atmaz.
+    /// </summary>
+    private static double ResolveSteppableValue(string text, double min, double max, double defaultValue)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return defaultValue;
+        }
+
+        if (double.TryParse(text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var raw)
+            && !double.IsNaN(raw) && !double.IsInfinity(raw))
+        {
+            return Math.Clamp(raw, min, max);
+        }
+
+        return defaultValue;
+    }
+
+    /// <summary>[NumberBox - Polish] Adim SONUCUNU, orijinal metnin ondalik ayiricisini/basamak sayisini KORUYARAK bicimlendirir (80,5 + 1 → 81,5; ayirici yoksa tam sayi). MaxResultsTextBox'ta ayirici hicbir zaman olusmaz (StepMaxResults bu metodu kullanmaz).</summary>
+    private static string FormatSteppedNumber(double value, string originalText)
+    {
+        var separatorIndex = originalText.IndexOfAny(new[] { ',', '.' });
+        if (separatorIndex < 0)
+        {
+            return value.ToString("0", CultureInfo.InvariantCulture);
+        }
+
+        var separatorChar = originalText[separatorIndex];
+        var decimalDigits = Math.Max(1, originalText.Length - separatorIndex - 1);
+        var formatted = value.ToString("0." + new string('0', decimalDigits), CultureInfo.InvariantCulture);
+        return separatorChar == ',' ? formatted.Replace('.', ',') : formatted;
+    }
+
     /// <summary>[Faz 1] Gecersiz threshold: odak hatali alana doner, sade (modal olmayan) bir mesaj gosterilir.</summary>
     private void ShowThresholdValidationError()
     {
@@ -2184,6 +2243,10 @@ public partial class MainWindow : Window
         NewSearchButton.IsEnabled = !isBusy;
         ThresholdTextBox.IsEnabled = !isBusy;
         MaxResultsTextBox.IsEnabled = !isBusy;
+        ThresholdUpButton.IsEnabled = !isBusy;
+        ThresholdDownButton.IsEnabled = !isBusy;
+        MaxResultsUpButton.IsEnabled = !isBusy;
+        MaxResultsDownButton.IsEnabled = !isBusy;
         AutoIndexCheckBox.IsEnabled = !isBusy;
         SetDefaultButton.IsEnabled = !isBusy && _productFolder is not null && _directoryOrigin != DirectoryOrigin.UserOverride;
         ClearDefaultButton.IsEnabled = !isBusy;

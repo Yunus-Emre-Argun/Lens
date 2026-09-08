@@ -8,6 +8,53 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [DENEY - Arama Paneli Görsel Polish] — 2026-09-08
+
+> **Durum: `codex/query-settings-layout-polish` branch'inde (önceki
+> `codex/query-settings-layout-experiment` deneyi TEMEL ALINARAK) deneysel
+> olarak uygulanmıştır; canlı görsel kabul ve `main`'e merge beklemektedir.**
+> Bu girdi `main`'de yayınlanmış bir değişikliği ANLATMAZ.
+
+### Değişti (deney branch'i - main'e henüz yansımadı)
+- **ARAMA AYARLARI paneli renkleri tema başına SABİT hale geldi:** Önceki
+  turda panel yüzeyi ana pencere renginden (`BlendToward` ile siyaha %12
+  harmanlanarak) türetiliyordu - Lime temada kirli sarı-yeşil bir sonuç
+  veriyordu. Artık `MainWindow.GetSettingsPanelColors` her tema için ayrı,
+  sabit bir yüzey/yazı/kenarlık seti döndürüyor (Açık/Lime/Normal beyaza
+  yakın, Açık Sepya sıcak krem, Koyu/Koyu Sepya ana zeminden ayrışan koyu
+  yüzey). Dört yeni kaynak: `SettingsPanelBackgroundBrush`,
+  `SettingsPanelForegroundBrush`, `SettingsPanelSecondaryTextBrush`,
+  `SettingsPanelBorderBrush`. `AppTheme.cs`/`ThemePalette`'e DOKUNULMADI.
+- **Gerçek artırma/azaltma düğmeli sayısal girişler:** `ThresholdTextBox`/
+  `MaxResultsTextBox` artık sağlarında iki `RepeatButton` (▲/▼) bulunan bir
+  "NumberBox" görünümünde (TextBox + RepeatButton kompozisyonu, yeni NuGet
+  paketi YOK). `StepThreshold`/`StepMaxResults` mevcut
+  `SimilarityThreshold`/`MaxResultsPreference` sözleşmesini (0-100/1-200,
+  virgül/nokta, boş→80/20 varsayılan) kullanır; `NumericInputFilter`
+  değiştirilmedi. Yukarı/Aşağı ok tuşları da aynı adımı uygular
+  (`NumericTextBox_PreviewKeyDown`).
+- **Sorgu boş-durum yazıları büyütüldü:** "Sorgu görselini seçin" 15→18-22
+  DIP (responsive), "Tıklayın veya buraya sürükleyin" 11→12-13 DIP;
+  opacity 0.55→0.64/0.62.
+- **Panel iç boşlukları ferahlatıldı:** Padding 14,10,14,12 → 16 (tüm
+  kenarlar); satır araları 8/8/10 → 13/12/14 DIP.
+- **Görsel-panel mesafesi (dış boşluk) ve orta sütun genişliği artık
+  DOĞRUDAN hedeflenir:** Eski `settingsColumnWidth + gapInner + buttonWidth`
+  formülü (dar ~360, geniş ~412 DIP, gereğinden uzun butonlar) kaldırıldı;
+  yerine orta sütun için doğrudan 280 (dar) → 320 (geniş) DIP hedefi,
+  dış boşluk için 24 (dar) → 50 (geniş) DIP hedefi kullanılıyor.
+- **Yatay taşma güvenliği eklendi:** Her `UpdateResponsiveLayout` turunda
+  toplam orta grup genişliği `RootGrid.ActualWidth` ile karşılaştırılıyor;
+  aşarsa sırayla dış boşluk → orta sütun → görsel (4:3 korunarak, artık
+  240 değil 200 DIP'e kadar) küçültülüyor. Önceki turdaki "sonuç alanına
+  her zaman 120 DIP ayrılıyor" iddiası, görsel genişliğinin 240'ın altına
+  inememesi nedeniyle gerçek anlamda garanti edilmiyordu - düzeltildi.
+- Değiştirilmeyenler (görev kapsamı dışı bırakıldı): 4:3 görsel kararı,
+  eşit görsel boyutu, tıklama/sürükle-bırak/çift tık, Ara/Yeni Arama
+  işlevleri, busy kilidi, benzerlik/eşik/sıralama mantığı, 200 üst sınırı,
+  %80/20 varsayılanları, index/model, üst klasör satırı, sonuç kartları,
+  kaydırma kuralları, sürüm sistemi, tema adları/ana tema renkleri.
+
 ## [DENEY - Sorgu/Arama Ayarları Yerleşimi] — 2026-09-08
 
 > **Durum: Deney branch'inde (`codex/query-settings-layout-experiment`)

@@ -8,6 +8,36 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 **Open Question** = henüz netleşmedi, karar bekliyor.
 **Later Phase** = ilk PoC/MVP kapsamı dışında, ileride değerlendirilecek.
 
+## Son Durum — 2026-09-08 (DENEY BRANCH'İ — Arama Paneli Görsel Polish)
+
+> **Bu kayıt `main` için değil, `codex/query-settings-layout-polish`
+> deney branch'i içindir** (bir önceki `codex/query-settings-layout-experiment`
+> branch'i temel alınarak açıldı). `main` hâlâ #81'deki durumda,
+> `codex/query-settings-layout-experiment` hâlâ #82'deki durumda; bu
+> branch'teki hiçbir değişiklik ikisine de commit/push/merge EDİLMEDİ,
+> publish ÜRETİLMEDİ.
+
+Bir önceki deneyin (karar #82) canlı kabul aşamasında fark edilen görsel
+sorunlar hızlı bir turda düzeltildi: (1) ARAMA AYARLARI paneli artık her
+temada sabit, tasarımda verilen renklerde (Lime'daki "kirli" görünüm
+giderildi) - `MainWindow.GetSettingsPanelColors`. (2) Sayısal alanlar artık
+gerçek artırma/azaltma okları olan bir NumberBox görünümünde (yeni paket
+yok, mevcut doğrulama sözleşmesi aynen kullanılıyor). (3) Sorgu boş-durum
+yazıları büyütüldü. (4) Panel iç boşlukları ferahlatıldı. (5) Orta grup
+genişliği artık doğrudan hedeflenir (eski, kullanılmayan formül kaldırıldı).
+(6) Görsel genişliğinin yükseklik bütçesi altında 240'ın altına
+inememesinden kaynaklanan taşma/rezerv çelişkisi düzeltildi, ayrıca her
+turda gerçek yatay taşma kontrolü eklendi. Detay: `CHANGELOG.md` "[DENEY -
+Arama Paneli Görsel Polish]", `docs/DECISIONS.md` karar #83.
+
+`dotnet build Lens.sln` Debug/Release 0 warning/0 error (Debug'da geçici bir
+dosya-kilidi retry uyarısı vardı, sonuç değişmedi); `Lens.AiProof
+hardeningtest` 204/204 PASS. `git diff --check` temiz, değişiklik yalnızca
+`MainWindow.xaml`/`.xaml.cs`. Canlı görsel doğrulama YAPILMADI - panel
+kontrastı (özellikle Koyu/Koyu Sepya), spinner davranışı ve responsive
+taşma hesabı yalnızca statik bir hesap tablosuyla doğrulandı, kullanıcının
+gerçek ekranda kontrolü bekleniyor.
+
 ## Son Durum — 2026-09-08 (DENEY BRANCH'İ — Sorgu/Arama Ayarları Yerleşimi)
 
 > **Bu kayıt `main` için değil, `codex/query-settings-layout-experiment`
