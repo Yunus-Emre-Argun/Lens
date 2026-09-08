@@ -54,6 +54,20 @@ dönüştürmesini engellemek için.)
 `/p:DebugType=none` **komut satırında ayrıca verilmelidir** — bkz.
 §"Neden `/p:DebugType=none` Ayrıca Gerekli" aşağıda.
 
+**⚠️ Artımlı (incremental) build tuzağı — yerinde tespit edildi:** Yalnızca
+kaynak koda küçük bir değişiklik yapıp (ör. XAML metni) `bin`/`obj`'u
+temizlemeden doğrudan yukarıdaki komutu tekrar çalıştırmak, MSBuild'in
+`Lens.Core` için **eski, önbelleklenmiş bir `obj\Release\net8.0\` çıktısını**
+yeniden kullanmasına ve `Lens.Core.dll` içine **yine** derleme makinesinin
+yerel yolunu (`C:\Users\...\Lens.Core.pdb`) gömmesine yol açabiliyor —
+`/p:DebugType=none` verilmiş olsa bile. Her ClickOnce publish öncesi
+`Lens.Desktop`/`Lens.Core`'un `bin`/`obj` klasörlerini silip **temiz**
+başlamak güvenlidir:
+
+```
+rm -rf src/Lens.Desktop/bin src/Lens.Desktop/obj src/Lens.Core/bin src/Lens.Core/obj
+```
+
 Çıktı, `Properties/PublishProfiles/ClickOnce.pubxml`'deki `PublishDir`'e göre
 repo kökünde `publish\ClickOnce\` altına üretilir (bu klasör `.gitignore`
 ile hariç tutulur, tıpkı mevcut `publish/` gibi):
