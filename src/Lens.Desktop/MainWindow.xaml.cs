@@ -58,10 +58,22 @@ public partial class MainWindow : Window
     /// olmasi icin AppTheme.Lime yapildi - pratikte gozlemlenebilir bir fark yaratmaz.</summary>
     private AppTheme _currentTheme = AppTheme.Lime;
 
-    /// <summary>[Tema turu] SetIndexStatus'un en son success parametresi - tema degistiginde
-    /// IndexStatusText.Foreground'u METNE DOKUNMADAN yeniden hesaplamak icin (bkz.
-    /// RefreshThemeDependentForegrounds).</summary>
+    /// <summary>[Tema turu] En son EKRANDA GORUNEN durum metninin success parametresi (arama-ozel
+    /// gecici mesajlar dahil) - tema degistiginde IndexStatusText.Foreground'u METNE DOKUNMADAN
+    /// yeniden hesaplamak icin (bkz. RefreshThemeDependentForegrounds).</summary>
     private bool? _lastIndexStatusSuccess;
+
+    /// <summary>
+    /// [Yeni Arama - durum ayrımı, 2026-09-08] En son GERÇEK indeks/klasör durum mesajı
+    /// (SetIndexStatus tarafından yazılır - klasör yükleme, indeksleme, freshness kontrolü,
+    /// kilit/kaydetme hatası vb.). Aramaya özgü GEÇİCİ mesajlar ("Aranıyor...", "N sonuç
+    /// gösteriliyor.", "Arama başarısız oldu." vb. - bkz. SetSearchStatus, SearchButton_Click)
+    /// BU ALANLARA YAZILMAZ. "Yeni Arama" (NewSearchButton_Click), arama-özel geçici mesajı
+    /// kaldırıp RestoreIndexStatus ile bu son GERÇEK duruma döner - böylece gerçek bir index
+    /// hatası/uyarısı varsa sahte bir "hazır" mesajıyla ÖRTÜLMEZ (bkz. talimat).
+    /// </summary>
+    private string _lastIndexOrFolderStatusText = "—";
+    private bool? _lastIndexOrFolderStatusSuccess;
 
     /// <summary>
     /// [Sorgu kilidi] SetBusy(true)/(false) cagrilarinin ic ice (nested) gelme
@@ -318,11 +330,40 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// [Faz 4D] Ana ekrandaki durum metnini, sonucun niteligine gore hafif bir
-    /// renk vurgusuyla gosterir (success=yesil, warning/hata=kirmizimsi,
+    /// [Faz 4D] GERÇEK indeks/klasör durumu için (klasör yükleme, indeksleme, freshness
+    /// kontrolü, kilit/kaydetme hatası vb.) - ana ekrandaki durum metnini, sonucun niteligine
+    /// gore hafif bir renk vurgusuyla gosterir (success=yesil, warning/hata=kirmizimsi,
     /// null=notr). Salt UI vurgusu - IndexUpdateStats/log icerigini etkilemez.
+    /// [2026-09-08] Ayrıca en son GERÇEK durumu (_lastIndexOrFolderStatus*) kaydeder ki
+    /// "Yeni Arama" sonrası RestoreIndexStatus buraya dönebilsin - aramaya özgü GEÇİCİ
+    /// mesajlar için bunun yerine SetSearchStatus kullanılmalıdır (bkz. "durumların
+    /// kapsamını karıştırma" talimatı).
     /// </summary>
     private void SetIndexStatus(string text, bool? success = null)
+    {
+        _lastIndexOrFolderStatusText = text;
+        _lastIndexOrFolderStatusSuccess = success;
+        ApplyStatusText(text, success);
+    }
+
+    /// <summary>
+    /// [Yeni Arama - durum ayrımı, 2026-09-08] Aramaya ÖZGÜ GEÇİCİ durum mesajları için
+    /// ("Aranıyor...", "N sonuç gösteriliyor.", "Arama başarısız oldu." vb. - bkz.
+    /// SearchButton_Click). SetIndexStatus'un aksine _lastIndexOrFolderStatus* BASELINE'ini
+    /// GÜNCELLEMEZ - böylece "Yeni Arama" (RestoreIndexStatus), bu geçici mesajı atlayıp
+    /// en son GERÇEK indeks/klasör durumuna güvenle dönebilir.
+    /// </summary>
+    private void SetSearchStatus(string text, bool? success = null) => ApplyStatusText(text, success);
+
+    /// <summary>
+    /// [Yeni Arama - durum ayrımı, 2026-09-08] "Yeni Arama" sırasında, önceki aramadan kalan
+    /// geçici durum mesajını ("N sonuç gösteriliyor." vb.) kaldırıp en son GERÇEK indeks/
+    /// klasör durumuna (SetIndexStatus tarafından yazılan) döner. Gerçek bir index hatası/
+    /// kalıcı uyarı varsa AYNEN korunur - sahte bir "hazır" mesajıyla ÖRTÜLMEZ.
+    /// </summary>
+    private void RestoreIndexStatus() => ApplyStatusText(_lastIndexOrFolderStatusText, _lastIndexOrFolderStatusSuccess);
+
+    private void ApplyStatusText(string text, bool? success)
     {
         IndexStatusText.Text = text;
         _lastIndexStatusSuccess = success;
@@ -1246,6 +1287,14 @@ public partial class MainWindow : Window
     /// [Faz 4D polish] "Geri" degil, "Yeni Arama": sorgu/karsilastirma/Top-10
     /// durumunu temizler ama urun klasoru, index ve cache'e dokunmaz -
     /// kullanici tekrar klasor secmek zorunda kalmaz.
+    /// [Durum ayrımı, 2026-09-08] Önceki aramadan kalan geçici durum mesajını
+    /// ("N sonuç gösteriliyor.", "Sonuç bulunamadı.", "Arama başarısız oldu." vb.)
+    /// de RestoreIndexStatus ile temizler - en son GERÇEK indeks/klasör durumuna
+    /// (varsa gerçek bir hata/uyarı DAHİL) döner, sahte bir "hazır" mesajıyla
+    /// ÖRTMEZ. Tarama istatistikleri (_lastSuccessfulStats/DetailedStatsText) ve
+    /// sorunlu dosya listesi (_lastIssues/ProblemFilesButton) BİLEREK
+    /// DOKUNULMADAN bırakılır - bunlar sorguya değil, seçili klasörün son indeks
+    /// taramasına bağlıdır (bkz. talimat).
     /// </summary>
     private void NewSearchButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1266,6 +1315,7 @@ public partial class MainWindow : Window
         UpdateResultsHeaderText();
         ClearComparison();
         ResetResultsScroll();
+        RestoreIndexStatus();
     }
 
     /// <summary>
@@ -1858,11 +1908,11 @@ public partial class MainWindow : Window
         UpdateResultsHeaderText();
         ClearComparison();
         ResetResultsScroll();
-        SetIndexStatus("Aranıyor...");
+        SetSearchStatus("Aranıyor...");
 
         if (!TryEnsureEmbedder(out var modelError))
         {
-            SetIndexStatus("Model yüklenemedi, arama yapılamadı.", success: false);
+            SetSearchStatus("Model yüklenemedi, arama yapılamadı.", success: false);
             AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
             return;
         }
@@ -1880,7 +1930,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            SetIndexStatus("Aranıyor...");
+            SetSearchStatus("Aranıyor...");
             var searchStopwatch = Stopwatch.StartNew();
 
             var queryPath = _queryImagePath;
@@ -1954,7 +2004,7 @@ public partial class MainWindow : Window
                 // karşılayan toplam eşleşme SimilaritySearch.MaxResults'ı (200) aşarsa bu
                 // sayı yalnızca EKRANDA GORUNEN (kesilmis) listeyi yansıtır, toplam
                 // eşleşme sayısını değil (toplam sayı ayrıca izlenmiyor/gösterilmiyor).
-                SetIndexStatus($"{_results.Count} sonuç gösteriliyor.", success: true);
+                SetSearchStatus($"{_results.Count} sonuç gösteriliyor.", success: true);
             }
             else
             {
@@ -1963,7 +2013,7 @@ public partial class MainWindow : Window
                 // modal gosterilmez - kullanici threshold'u degistirip
                 // tekrar arayabilir.
                 ClearComparison();
-                SetIndexStatus("Seçilen minimum benzerlik değerini karşılayan sonuç bulunamadı.");
+                SetSearchStatus("Seçilen minimum benzerlik değerini karşılayan sonuç bulunamadı.");
             }
 
             _logger.Info("Search", file: Path.GetFileName(queryPath),
@@ -1971,7 +2021,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SetIndexStatus("Arama başarısız oldu.", success: false);
+            SetSearchStatus("Arama başarısız oldu.", success: false);
             _logger.Error("Search", file: _queryImagePath, reason: ex.Message);
             AlertWindow.Show(this, $"Arama sırasında hata oluştu:\n{ex.Message}", "Hata", AlertKind.Error);
         }

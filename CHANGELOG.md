@@ -8,6 +8,47 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Düzeltme — "Yeni Arama" Eski Sonuç Durumunu Temizlemiyordu] — 2026-09-08
+
+> **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e
+> merge beklemektedir.** Detay/gerekçe: `docs/DECISIONS.md` karar #89.
+
+### Düzeltildi
+- "Yeni Arama" sonrasında sorgu/sonuçlar temizlense de üst durum alanında
+  önceki aramadan kalan `N sonuç gösteriliyor.` / `Sonuç bulunamadı.` /
+  `Arama başarısız oldu.` gibi eski mesajlar ekranda kalmaya devam
+  ediyordu. Kök neden: `IndexStatusText`, hem gerçek indeks/klasör
+  durumu hem aramaya özgü geçici mesajlar için aynı metotla yazılıyordu;
+  "Yeni Arama" bu metni hiç sıfırlamıyordu.
+
+### Değişti
+- `MainWindow`'a iki ayrı, açık metot eklendi: `SetIndexStatus` (gerçek
+  indeks/klasör durumunu hem gösterir hem "baseline" olarak kaydeder) ve
+  `SetSearchStatus` (yalnızca aramaya özgü geçici mesajı gösterir,
+  baseline'ı değiştirmez). `NewSearchButton_Click` artık `RestoreIndexStatus()`
+  çağırarak en son gerçek indeks/klasör durumuna döner — gerçek bir hata/
+  uyarı varsa bunu sahte bir "hazır" mesajıyla örtmez.
+
+### Korundu (değişmedi)
+- `Son başarılı tarama` istatistikleri (`_lastSuccessfulStats`/
+  `DetailedStatsText`) ve `Sorunlu / Atlanan Dosyalar` butonu/listesi
+  (`_lastIssues`) — bunlar sorguya değil seçili klasörün son indeks
+  taramasına bağlıdır, "Yeni Arama"da hiç dokunulmadı.
+- Seçili tarama klasörü, yüklenmiş indeks, ürün sayısı, tema, minimum
+  benzerlik, en fazla sonuç, otomatik indeks tercihi, kullanıcı ayarları.
+- Arama algoritması, benzerlik hesaplaması, sonuç limiti, index yapısı,
+  model, tema renkleri/Lime varsayılanı, ikon, ClickOnce kısayolu.
+
+### Notlar
+- Bu değişiklik yalnızca `Lens.Desktop` (WPF) katmanında — `Lens.Core`'a
+  dokunulmadı, bu yüzden `Lens.AiProof`'a yeni otomatik test eklenemedi
+  (mevcut, belgeli mimari sınır — `ParseTheme` ile aynı durum); 9 kabul
+  senaryosu kod incelemesiyle doğrulandı, gerçek ekran kontrolü kullanıcıya
+  bırakıldı.
+- ClickOnce paketi yeniden üretildi; masaüstü kısayolu, ikon, Lime
+  varsayılanı, model, `appsettings.json`, sürüm davranışı (artırılmadı)
+  değişmedi.
+
 ## [Yeni Kullanıcılarda Varsayılan Tema: Lime] — 2026-09-08
 
 > **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e
