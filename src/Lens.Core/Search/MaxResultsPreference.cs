@@ -5,7 +5,7 @@ namespace Lens.Core.Search;
 /// <summary>
 /// "En fazla sonuç" kullanıcı girdisinin validasyonu (bkz. SimilarityThreshold -
 /// aynı desen: pahalı işlemlerden ÖNCE çağrılması amaçlanır). Sabit teknik üst
-/// sınır <see cref="SimilaritySearch.MaxResults"/> (200) ile senkron tutulur -
+/// sınır <see cref="SimilaritySearch.MaxResults"/> (300) ile senkron tutulur -
 /// kullanıcının seçebileceği üst sınır budur. Boş, metin, ondalıklı, negatif,
 /// 0 veya üst sınırı aşan değer geçersiz sayılır - keyfi bir değere sessizce
 /// dönüştürülmez, yalnızca doğrulanır.
@@ -76,7 +76,7 @@ public static class MaxResultsPreference
     /// [Arama varsayılanları] <see cref="TryParse"/>'in KATI sözleşmesine bir
     /// şey EKLEMEZ/DEĞİŞTİRMEZ - yalnızca boş/yalnızca-boşluklu girdiyi
     /// <see cref="Default"/>'a (20) çözer, diğer HER ŞEYİ (metin, ondalık,
-    /// negatif, 0, 200 üstü) olduğu gibi TryParse'e devreder (yani geçersiz
+    /// negatif, 0, 300 üstü) olduğu gibi TryParse'e devreder (yani geçersiz
     /// kalır) - "0" GEÇERSİZDİR (varsayılana çevrilmez), yalnızca gerçekten
     /// BOŞ girdi varsayılan alır.
     /// </summary>

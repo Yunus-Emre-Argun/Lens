@@ -5,10 +5,10 @@ namespace Lens.Core.Search;
 /// için tuş/yapıştırma seviyesinde harf ve geçersiz karakterleri engelleyen SAF
 /// karar mantığı - WPF'ye bağımlı DEĞİL (bkz. Lens.AiProof hardeningtest Grup M).
 /// Bu sınıf bir SON DOĞRULAMA DEĞİLDİR - <see cref="SimilarityThreshold"/>/
-/// <see cref="MaxResultsPreference"/>'in katı sözleşmesinin (0-100 / 1-200 aralık
+/// <see cref="MaxResultsPreference"/>'in katı sözleşmesinin (0-100 / 1-300 aralık
 /// kontrolü, boş girdi varsayılanı vb.) YERİNE GEÇMEZ; yalnızca kullanıcının harf/
 /// geçersiz karakter YAZMASINI/YAPIŞTIRMASINI önceden engeller. Aralık dışı ama
-/// karakter olarak geçerli bir sayı (ör. "101", "201") burada REDDEDİLMEZ - o
+/// karakter olarak geçerli bir sayı (ör. "101", "301") burada REDDEDİLMEZ - o
 /// tamamen Resolve/TryParse katmanında kalır.
 /// </summary>
 public static class NumericInputFilter
@@ -16,8 +16,8 @@ public static class NumericInputFilter
     /// <summary>
     /// [2026-09-07 ek kural] Her iki alanda da (ondalık ayırıcı HARİÇ) en fazla bu
     /// kadar rakam kabul edilir - ör. "80,55" (4 rakam) reddedilir, "9,99" (3 rakam)
-    /// kabul edilir. Aralık dışı ama rakam-sayısı-geçerli bir değer (ör. "201")
-    /// burada reddedilmez - "200'ü aşan" uyarısı hâlâ Ara sırasında gösterilir.
+    /// kabul edilir. Aralık dışı ama rakam-sayısı-geçerli bir değer (ör. "301")
+    /// burada reddedilmez - "300'ü aşan" uyarısı hâlâ Ara sırasında gösterilir.
     /// </summary>
     public const int MaxDigitCount = 3;
 

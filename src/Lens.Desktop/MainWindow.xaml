@@ -17,6 +17,12 @@
         <SolidColorBrush x:Key="AccentBrush" Color="#FF2F6FED" />
         <SolidColorBrush x:Key="AccentBrushLight" Color="#FFEAF1FE" />
         <SolidColorBrush x:Key="NeutralBorderBrush" Color="#FF3A3A3A" />
+        <!-- [İşlem ilerleme paneli - deney] Overlay katmanı ve kart başlığı da
+             AccentBrush/NeutralBorderBrush gibi temadan bağımsız sabit -
+             kart HER ZAMAN beyaz olduğundan içeriği hiçbir temaya göre
+             değişmemeli (bkz. MainWindow.BeginOperation/SetOperationStage). -->
+        <SolidColorBrush x:Key="OperationOverlayBrush" Color="#66101317" />
+        <SolidColorBrush x:Key="OperationCardTitleBrush" Color="#FF1F2937" />
         <!-- [Yerlesim - deney, sorgu/sonuc bos-durum metni] QueryDropZone/ComparisonResultBorder
              zemini yukarida aciklandigi gibi HER TEMADA sabit beyaz kalir - bu yuzden uzerlerindeki
              bos-durum metinleri de (SelectableFileNameStyle'daki dosya adi metniyle AYNI mantik)
@@ -587,6 +593,39 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- [İşlem ilerleme paneli - deney] Ana karşılaştırma (Row=1) ve sonuç
+             (Row=2) bölümünün üzerini kaplayan yarı saydam katman + ortalanmış
+             beyaz kart. Grid.RowSpan=2 ile YALNIZCA bu iki satırı örter - üstteki
+             klasör yolu satırı (Row=0) ve alt bilgi (Row=3) daima görünür/
+             etkileşimli kalır. Kaynak sırası (bu Grid, ComparisonRowGrid ve
+             sonuç Grid'inden SONRA, Footer'dan ÖNCE eklendi) WPF'te z-order'ı
+             belirler - ikisinin de ÜZERİNDE render olur. Varsayılan Collapsed;
+             MainWindow.BeginOperation/EndOperation görünürlüğü yönetir (250ms
+             gecikmeli göster - bkz. o metotlar). Yeni pencere/modal/Windows
+             bildirimi DEĞİL - ana pencerenin kendi içinde bir katman. -->
+        <Grid Grid.Row="1" Grid.RowSpan="2" x:Name="OperationOverlay" Background="{StaticResource OperationOverlayBrush}"
+              Visibility="Collapsed">
+            <Border x:Name="OperationCard" Background="White" BorderBrush="LightGray" BorderThickness="1"
+                    CornerRadius="7" Padding="22" MinWidth="360" MaxWidth="420"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    AutomationProperties.Name="İşlem devam ediyor">
+                <StackPanel>
+                    <TextBlock x:Name="OperationTitleText" Text="" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource OperationCardTitleBrush}" TextWrapping="Wrap" TextAlignment="Center"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock x:Name="OperationDescriptionText" Text="" FontSize="12" Margin="0,6,0,0"
+                               Foreground="{StaticResource CardSecondaryTextBrush}" TextWrapping="Wrap" TextAlignment="Center"
+                               Visibility="Collapsed" />
+                    <ProgressBar x:Name="OperationProgressBar" Height="6" Margin="0,16,0,0" Minimum="0" Maximum="100"
+                                 Foreground="{StaticResource AccentBrush}" IsIndeterminate="True"
+                                 AutomationProperties.Name="İşlem ilerlemesi" />
+                    <TextBlock x:Name="OperationProgressText" Text="" FontSize="12" Margin="0,8,0,0"
+                               Foreground="{StaticResource CardSecondaryTextBrush}" TextAlignment="Center"
+                               Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
             </Border>
         </Grid>
 

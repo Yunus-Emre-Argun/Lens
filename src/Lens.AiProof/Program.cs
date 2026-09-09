@@ -525,12 +525,12 @@ static void RunHardeningTest()
 
     Console.WriteLine();
 
-    // ---- Grup F: arama sozlesmesi (threshold inclusive + azalan sira + en fazla 200) ----
-    // [200-limit karari] Onceki "en fazla 15" sozlesmesi "en fazla 200"e yukseltildi -
-    // kullaniciya yeni bir sayi girisi EKLENMEDI, sadece SimilaritySearch.MaxResults
-    // sabiti degisti. Bu grup artik 0/1/15/200/200-uzeri eslesme senaryolarini
-    // (bkz. kullanici talimati) ayri ayri kapsar.
-    Console.WriteLine("[F] Arama sözleşmesi: threshold (inclusive) + azalan sıra + en fazla 200 sonuç");
+    // ---- Grup F: arama sozlesmesi (threshold inclusive + azalan sira + en fazla 300) ----
+    // [300-limit karari] Onceki "en fazla 200" sozlesmesi "en fazla 300"e
+    // yukseltildi (bkz. docs/DECISIONS.md - SUPERSEDES #72/#73) - kullaniciya
+    // yeni bir davranis EKLENMEDI, sadece SimilaritySearch.MaxResults sabiti
+    // degisti. Bu grup 0/1/15/300/300-uzeri eslesme senaryolarini ayri ayri kapsar.
+    Console.WriteLine("[F] Arama sözleşmesi: threshold (inclusive) + azalan sıra + en fazla 300 sonuç");
     {
         static List<ImageIndexEntry> MakeEntries(params float[] scores)
         {
@@ -562,20 +562,20 @@ static void RunHardeningTest()
 
         var scores15 = Enumerable.Range(0, 15).Select(i => 0.9f - i * 0.01f).ToArray();
         var f6 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores15), minSimilarityPercent: 0);
-        Check("F6 15 qualifying (200 sınırının ALTINDA) -> hepsi 15, artık kesilmiyor", f6.Count == 15);
+        Check("F6 15 qualifying (300 sınırının ALTINDA) -> hepsi 15, artık kesilmiyor", f6.Count == 15);
         Check("F6b azalan sıralı", f6.SequenceEqual(f6.OrderByDescending(r => r.Score)));
 
-        var scores200 = Enumerable.Range(0, 200).Select(i => 1f - i * 0.001f).ToArray();
-        var f11 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores200), minSimilarityPercent: 0);
-        Check("F11 tam 200 qualifying -> hepsi 200 (sınırda kesilme yok)", f11.Count == 200);
+        var scores300 = Enumerable.Range(0, 300).Select(i => 1f - i * 0.001f).ToArray();
+        var f11 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores300), minSimilarityPercent: 0);
+        Check("F11 tam 300 qualifying -> hepsi 300 (sınırda kesilme yok)", f11.Count == 300);
         Check("F11b azalan sıralı", f11.SequenceEqual(f11.OrderByDescending(r => r.Score)));
 
-        var scores250 = Enumerable.Range(0, 250).Select(i => 1f - i * 0.001f).ToArray();
-        var f3 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores250), minSimilarityPercent: 0);
-        Check("F3 250 qualifying -> en fazla 200 sonuç (200'ü aşan doldurma/padding YOK)", f3.Count == 200);
+        var scores350 = Enumerable.Range(0, 350).Select(i => 1f - i * 0.001f).ToArray();
+        var f3 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(scores350), minSimilarityPercent: 0);
+        Check("F3 350 qualifying -> en fazla 300 sonuç (300'ü aşan doldurma/padding YOK)", f3.Count == 300);
         Check("F4 azalan sıralı", f3.SequenceEqual(f3.OrderByDescending(r => r.Score)));
-        Check("F5 en iyi 200 alındı (ilk 1.00, 200. ~0.801 - 201-250 arası ATILDI)",
-            Math.Abs(f3[0].Score - 1.0f) < 1e-5 && Math.Abs(f3[199].Score - 0.801f) < 1e-4);
+        Check("F5 en iyi 300 alındı (ilk 1.00, 300. ~0.701 - 301-350 arası ATILDI)",
+            Math.Abs(f3[0].Score - 1.0f) < 1e-5 && Math.Abs(f3[299].Score - 0.701f) < 1e-4);
 
         var f9 = SimilaritySearch.SearchWithThreshold(query, MakeEntries(0.99995f), minSimilarityPercent: 100);
         Check("F9 %100 eşiğinde küçük float farkı (0.99995) yine de DAHİL (epsilon toleransı)", f9.Count == 1);
@@ -722,11 +722,14 @@ static void RunHardeningTest()
         bool MRejects(string? input) => !MaxResultsPreference.TryParse(input, out _);
 
         Check("J1 '1' -> geçerli (alt sınır dahil)", MOk("1", 1));
-        Check("J2 '200' -> geçerli (üst sınır dahil)", MOk("200", 200));
+        Check("J2 '300' -> geçerli (üst sınır dahil)", MOk("300", 300));
+        Check("J2b '250' -> geçerli", MOk("250", 250));
+        Check("J2c '299' -> geçerli", MOk("299", 299));
         Check("J3 '15' -> geçerli", MOk("15", 15));
         Check("J4 '0' -> reddedilir", MRejects("0"));
         Check("J5 '-5' (negatif) -> reddedilir", MRejects("-5"));
-        Check("J6 '201' (üst sınırın üstü) -> reddedilir", MRejects("201"));
+        Check("J6 '301' (üst sınırın üstü) -> reddedilir", MRejects("301"));
+        Check("J6b '999' (3 hane, üst sınırın çok üstü) -> reddedilir", MRejects("999"));
         Check("J7 '15.5' (ondalık nokta) -> reddedilir", MRejects("15.5"));
         Check("J8 '15,5' (ondalık virgül) -> reddedilir", MRejects("15,5"));
         Check("J9 'abc' (metin) -> reddedilir", MRejects("abc"));
@@ -734,12 +737,12 @@ static void RunHardeningTest()
         Check("J11 null -> reddedilir", MRejects((string?)null));
         Check("J12 '   ' (yalnızca boşluk) -> reddedilir", MRejects("   "));
 
-        // [UI mesaj ayrımı] "200'den büyük" ile "diğer tüm geçersiz durumlar" ARAYÜZDE
+        // [UI mesaj ayrımı] "300'den büyük" ile "diğer tüm geçersiz durumlar" ARAYÜZDE
         // farklı iki mesajla gösterilir (bkz. SearchButton_Click) - IsAboveMaxAllowed
         // bu ayrımı yapan yardımcı.
-        Check("J12b IsAboveMaxAllowed('201') -> true (geçerli tam sayı ama üst sınırı aşıyor)", MaxResultsPreference.IsAboveMaxAllowed("201"));
-        Check("J12c IsAboveMaxAllowed('300') -> true", MaxResultsPreference.IsAboveMaxAllowed("300"));
-        Check("J12d IsAboveMaxAllowed('200') -> false (üst sınırın kendisi, GEÇERLİ)", !MaxResultsPreference.IsAboveMaxAllowed("200"));
+        Check("J12b IsAboveMaxAllowed('301') -> true (geçerli tam sayı ama üst sınırı aşıyor)", MaxResultsPreference.IsAboveMaxAllowed("301"));
+        Check("J12c IsAboveMaxAllowed('999') -> true", MaxResultsPreference.IsAboveMaxAllowed("999"));
+        Check("J12d IsAboveMaxAllowed('300') -> false (üst sınırın kendisi, GEÇERLİ)", !MaxResultsPreference.IsAboveMaxAllowed("300"));
         Check("J12e IsAboveMaxAllowed('0') -> false (genel mesaja düşer)", !MaxResultsPreference.IsAboveMaxAllowed("0"));
         Check("J12f IsAboveMaxAllowed('-5') -> false", !MaxResultsPreference.IsAboveMaxAllowed("-5"));
         Check("J12g IsAboveMaxAllowed('abc') -> false (tam sayı değil, genel mesaja düşer)", !MaxResultsPreference.IsAboveMaxAllowed("abc"));
@@ -754,7 +757,9 @@ static void RunHardeningTest()
         Check("J14 ValidateOrDefault(0) -> güvenli varsayılan 20", MaxResultsPreference.ValidateOrDefault(0) == 20);
         Check("J15 ValidateOrDefault(500) (aralık dışı, bozuk kayıtlı değer) -> güvenli varsayılan 20", MaxResultsPreference.ValidateOrDefault(500) == 20);
         Check("J16 ValidateOrDefault(-3) -> güvenli varsayılan 20", MaxResultsPreference.ValidateOrDefault(-3) == 20);
-        Check("J17 ValidateOrDefault(200) (üst sınır) geçerli, aynen döner", MaxResultsPreference.ValidateOrDefault(200) == 200);
+        Check("J17 ValidateOrDefault(200) eski geçerli bir tercih, aynen döner (300'e ÇEVRİLMEZ)", MaxResultsPreference.ValidateOrDefault(200) == 200);
+        Check("J17b ValidateOrDefault(300) (yeni üst sınır) geçerli, aynen döner", MaxResultsPreference.ValidateOrDefault(300) == 300);
+        Check("J17c ValidateOrDefault(301) (yeni üst sınırın üstü) -> güvenli varsayılan 20", MaxResultsPreference.ValidateOrDefault(301) == 20);
 
         // ---- UserSettings.PreferredMaxResults - JSON sözleşmesi (Grup I ile aynı desen) ----
         var oldJsonWithoutField = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"AutoIndexBeforeSearch\":true,\"Theme\":\"Normal\"}";
@@ -774,7 +779,11 @@ static void RunHardeningTest()
 
         var saved200Json = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"PreferredMaxResults\":200}";
         var loaded200 = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(saved200Json);
-        Check("J19c kayıtlı GEÇERLİ 200 -> 20'ye ÇEVRİLMEZ, 200 olarak kalır", loaded200 is not null && loaded200.PreferredMaxResults == 200);
+        Check("J19c kayıtlı ESKİ GEÇERLİ 200 -> 20'ye ÇEVRİLMEZ, 200 olarak kalır (eski tercih korunur)", loaded200 is not null && loaded200.PreferredMaxResults == 200);
+
+        var saved300Json = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"PreferredMaxResults\":300}";
+        var loaded300 = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(saved300Json);
+        Check("J19d kayıtlı GEÇERLİ 300 (yeni üst sınır) -> 20'ye ÇEVRİLMEZ, 300 olarak kalır", loaded300 is not null && loaded300.PreferredMaxResults == 300);
 
         var explicitJson = "{\"UserOverrideProductDirectory\":null,\"UseUserOverride\":false,\"PreferredMaxResults\":50}";
         var loadedExplicit = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(explicitJson);
@@ -783,8 +792,13 @@ static void RunHardeningTest()
 
         var roundTripJson = JsonSerializer.Serialize(new Lens.Core.Config.UserSettings { PreferredMaxResults = 200 });
         var roundTripped = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(roundTripJson);
-        Check("J21 200 -> serialize -> deserialize round-trip korunur",
+        Check("J21 200 -> serialize -> deserialize round-trip korunur (eski tercih)",
             roundTripped is not null && roundTripped.PreferredMaxResults == 200);
+
+        var roundTripJson300 = JsonSerializer.Serialize(new Lens.Core.Config.UserSettings { PreferredMaxResults = 300 });
+        var roundTripped300 = JsonSerializer.Deserialize<Lens.Core.Config.UserSettings>(roundTripJson300);
+        Check("J21b 300 (yeni üst sınır) -> serialize -> deserialize round-trip korunur",
+            roundTripped300 is not null && roundTripped300.PreferredMaxResults == 300);
 
         // PreferredMaxResults kaydı diger alanlari (Theme/AutoIndexBeforeSearch/UserOverride/klasor tercihi) EZMEMELI.
         var combinedJson = "{\"UserOverrideProductDirectory\":\"C:\\\\urunler\",\"UseUserOverride\":true,\"AutoIndexBeforeSearch\":false,\"Theme\":\"Koyu\",\"PreferredMaxResults\":75}";
@@ -821,8 +835,8 @@ static void RunHardeningTest()
         var j25 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(scores100), minSimilarityPercent: 0, maxResults: 50);
         Check("J25 limit=50, 100 qualifying -> en iyi 50, azalan sıra", j25.Count == 50 && j25.SequenceEqual(j25.OrderByDescending(r => r.Score)));
 
-        var j26 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(scores100), minSimilarityPercent: 0, maxResults: 200);
-        Check("J26 limit=200 (üst sınır), yalnızca 100 qualifying -> hepsi 100 (doldurma YOK)", j26.Count == 100);
+        var j26 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(scores100), minSimilarityPercent: 0, maxResults: 300);
+        Check("J26 limit=300 (üst sınır), yalnızca 100 qualifying -> hepsi 100 (doldurma YOK)", j26.Count == 100);
 
         var j27 = SimilaritySearch.SearchWithThreshold(jquery, MakeScoredEntries(0.9f, 0.5f, 0.2f), minSimilarityPercent: 0, maxResults: 50);
         Check("J27 limit=50, yalnızca 3 qualifying -> 3 (yetersiz eşleşmede doldurma YOK)", j27.Count == 3);
@@ -841,8 +855,9 @@ static void RunHardeningTest()
         }
 
         Check("J28 çekirdek katman: maxResults=0 -> ArgumentOutOfRangeException (sessizce başka sayıya çevrilmez)", ThrowsOutOfRange(0));
-        Check("J29 çekirdek katman: maxResults=201 -> ArgumentOutOfRangeException", ThrowsOutOfRange(201));
+        Check("J29 çekirdek katman: maxResults=301 -> ArgumentOutOfRangeException", ThrowsOutOfRange(301));
         Check("J30 çekirdek katman: maxResults=-5 -> ArgumentOutOfRangeException", ThrowsOutOfRange(-5));
+        Check("J31 çekirdek katman: maxResults=200 (eski üst sınır, şimdi normal bir değer) -> ARTIK reddedilmez", !ThrowsOutOfRange(200));
     }
 
     Console.WriteLine();
@@ -892,10 +907,12 @@ static void RunHardeningTest()
         Check("K17 maxResults: '15' -> GEÇERLİ, 15 (20'ye ÇEVRİLMEZ)", MOk("15", 15));
         Check("K18 maxResults: '50' -> GEÇERLİ, 50 (20'ye ÇEVRİLMEZ)", MOk("50", 50));
         Check("K19 maxResults: '1' (alt sınır) -> GEÇERLİ, 1", MOk("1", 1));
-        Check("K20 maxResults: '200' (üst sınır) -> GEÇERLİ, 200", MOk("200", 200));
+        Check("K20 maxResults: '300' (üst sınır) -> GEÇERLİ, 300", MOk("300", 300));
+        Check("K20b maxResults: '200' (eski üst sınır, artık normal bir değer) -> GEÇERLİ, 200", MOk("200", 200));
         Check("K21 maxResults: '0' -> HÂLÂ reddedilir (benzerlikteki 0'ın aksine, sonuç sayısında 0 GEÇERSİZ)", MRejects("0"));
         Check("K22 maxResults: '-5' (negatif) -> HÂLÂ reddedilir", MRejects("-5"));
-        Check("K23 maxResults: '201' (200 üstü) -> HÂLÂ reddedilir", MRejects("201"));
+        Check("K23 maxResults: '301' (300 üstü) -> HÂLÂ reddedilir", MRejects("301"));
+        Check("K23b maxResults: '999' -> HÂLÂ reddedilir", MRejects("999"));
         Check("K24 maxResults: '15.5' (ondalık) -> HÂLÂ reddedilir", MRejects("15.5"));
         Check("K25 maxResults: 'abc' (metin) -> HÂLÂ reddedilir", MRejects("abc"));
         Check("K26 Default sabiti 20", MaxResultsPreference.Default == 20);
@@ -939,7 +956,7 @@ static void RunHardeningTest()
 
     // ---- Grup M: Sayısal giriş filtresi (NumericInputFilter) - karakter düzeyi ----
     // [Sayısal giriş - 2026-09-07] Bu grup YALNIZCA karakter/tuş/yapıştırma düzeyinde
-    // "yazılmasına/yapıştırılmasına İZİN VERİLİR mi" sorusunu test eder - 0-100/1-200
+    // "yazılmasına/yapıştırılmasına İZİN VERİLİR mi" sorusunu test eder - 0-100/1-300
     // ARALIK doğrulaması burada test EDİLMEZ (o zaten Grup K'de SimilarityThreshold/
     // MaxResultsPreference üzerinden kapsanıyor). Bu yüzden ör. "101"/"201" gibi
     // aralık-dışı ama KARAKTER olarak geçerli sayılar burada true (izinli) döner -

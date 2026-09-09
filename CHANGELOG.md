@@ -8,6 +8,73 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Deney — İşlem İlerleme Paneli ve Sonuç Sınırı 300] — 2026-09-09
+
+> **Durum: `feature/operation-progress-ui` deney branch'inde eklenmiştir;
+> `main`'e merge/push YAPILMADI, publish/ClickOnce paketleri
+> güncellenmedi.** Detay/gerekçe: `docs/DECISIONS.md` karar #90, #91.
+
+### Eklendi
+- Arama, model hazırlama ve indeksleme sırasında ana pencerenin İÇİNDE
+  çalışan bir işlem ilerleme paneli: karşılaştırma+sonuç bölümünün üzerini
+  kaplayan yarı saydam bir katman ve ortalanmış beyaz bir kart (başlık +
+  gerekirse açıklama + progress bar + ilerleme metni). Yeni pencere/modal/
+  Windows bildirimi DEĞİL. Klasör yolu satırı katmanın dışında, işlem
+  boyunca görünür ve seçilip kopyalanabilir kalır.
+- İndeksleme (manuel "İndeksi Güncelle" ve arama öncesi otomatik indeksleme
+  AYNI kod yolundan) gerçek `Done/Total`'a dayalı belirli ilerleme gösterir:
+  "Desenler indeksleniyor…" başlığı, "1.248 / 5.000 — %25" biçiminde
+  ilerleme metni. Arama sırasında ("Benzer desenler aranıyor…") belirsiz
+  (sürekli hareket eden) ilerleme; sonuç/thumbnail hazırlama aşaması
+  ("Sonuçlar hazırlanıyor…") kendi `Done/Total`'ıyla belirli ilerlemeye
+  geçer. Tek bir arama içinde otomatik indeksleme gerekirse panel kapanıp
+  tekrar açılmadan yalnızca başlık/ilerleme türü değişir.
+- Kısa işlemlerde panelin yanıp sönmesini önlemek için 250ms gecikmeli
+  açılış: işlem bu süreden kısa sürerse panel hiç görünmez; yeni bir işlem
+  başladığında önceki işlemin gecikmiş gösterimi yeni paneli etkilemez.
+- Maksimum sonuç sınırı 200'den **300'e** çıkarıldı (varsayılan sonuç
+  sayısı **20 olarak değişmedi**). Kullanıcının girebileceği aralık artık
+  1-300; "En fazla 300 sonuç listeleyebilirsiniz." ve "Lütfen 1-300
+  arasında bir tam sayı girin." uyarıları, sayı kutusu artırma/azaltma
+  okları ve sonuç hazırlama sırasındaki ilerleme metni buna göre çalışır.
+
+### Değişti
+- Model yükleme (`ClipEmbedder` oluşturma) artık arka planda çalışıyor —
+  önceden UI thread'inde senkrondu ve ilk arama/indekslemede fark edilir
+  bir donmaya yol açabiliyordu. Aynı anda iki model oluşturulması bir
+  kilitle engellenir; başarılı model örneği tekrar kullanılır.
+- 5.000 dosyalık bir indekslemede UI mesaj kuyruğunu gereksiz doldurmamak
+  için ilerleme güncellemeleri (indeksleme ve sonuç/thumbnail hazırlama)
+  yüzde değiştiğinde veya ~100ms'de bir yapılır; son değer (%100 / tüm
+  sonuçlar hazır) bu sınırlamadan bağımsız her zaman gösterilir.
+- `SimilaritySearch.MaxResults` (tek teknik kaynak) 200'den 300'e çıktı;
+  `MaxResultsPreference.MaxAllowed` bundan türemeye devam ettiği için diğer
+  hiçbir katmanda ayrı bir "300" sabiti eklenmedi.
+
+### Korundu (değişmedi)
+- Mevcut `_busyDepth`/`IsBusy`/`SetBusy` sorgu kilidi mantığı — panel bu
+  kilide, onu yeniden yazmadan "biniyor" (arama/indeksleme sırasında sorgu
+  görseli değişimi, sürükle-bırak, minimum benzerlik/sonuç sayısı girişleri,
+  ikinci bir işlemin başlaması gibi korumalar aynen sürüyor).
+- `SetIndexStatus`/`SetSearchStatus`/`RestoreIndexStatus` ayrımı, doğrulama
+  hatalarında panelin hiç açılmaması, sonuç bulunamamasının hata sayılmaması,
+  başarı/hatada panelin her zaman kapanması (`try/finally`).
+- Sonuç sıralaması/eşik filtresi, benzerlik hesaplaması, index formatı,
+  tema renkleri, ClickOnce/publish çıktısı.
+- `NumericInputFilter`in 3 haneli giriş sınırı (300 zaten 3 hane).
+
+### Notlar
+- Bu artış, önceki bir konuşmada saptanan "gerçek ürün kataloğunda
+  beklenenden benzer bir desenin arama sonuçlarında hiç çıkmaması"
+  sorununu ÇÖZMEZ — o sorunun kök nedeni ayrı; bu değişiklik yalnızca
+  hedef sonuç sırası 201-300 arasında olan durumlarda görünürlük sağlar.
+- Yeni üçüncü taraf paket/animasyon kütüphanesi eklenmedi. "İptal" düğmesi
+  bilerek eklenmedi — güvenli iptal ayrı bir görev olarak bırakıldı.
+- `dotnet build` Debug/Release 0 warning/0 error; `Lens.AiProof
+  hardeningtest` 217/217 PASS. Canlı GUI kullanıcı izni olmadan açılmadı —
+  gerçek ekranda panelin görünümü/DPI ölçeklerindeki taşma riski kullanıcı
+  tarafından ayrıca doğrulanmalı.
+
 ## [Düzeltme — "Yeni Arama" Eski Sonuç Durumunu Temizlemiyordu] — 2026-09-08
 
 > **Durum: `feature/clickonce-deployment` branch'inde eklenmiştir; `main`'e

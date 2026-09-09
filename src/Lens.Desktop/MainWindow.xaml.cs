@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -46,6 +47,23 @@ public partial class MainWindow : Window
     private SearchResultViewModel? _selectedResult;
     private ImagePreviewWindow? _openPreview;
     private DragPreviewAdorner? _dragPreviewAdorner;
+
+    /// <summary>
+    /// [İşlem ilerleme paneli - deney] Kısa işlemlerde panelin yanıp sönmesini
+    /// önleyen 250ms'lik "iptal edilebilir gecikme". Her <see cref="BeginOperation"/>
+    /// çağrısı bu SAME timer'ı Stop()+Start() ile sıfırlar - bu, hem "yeni bir
+    /// işlem başladığında öncekinin gecikmiş callback'i yeni paneli etkileyemez"
+    /// hem "işlem panel açılmadan bitmişse gecikmiş görev paneli asla açmaz"
+    /// gereksinimlerini AYRI bir generation/token sayacı olmadan karşılar - tek
+    /// bir zamanlayıcı örneği olduğundan bir Tick, o anda GERÇEKTEN armed olan
+    /// (en son Start edilen) çağrıdan başka hiçbir yerden gelemez.
+    /// </summary>
+    private readonly DispatcherTimer _operationShowTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+
+    /// <summary>[Model yükleme - arka plana taşıma] Aynı anda iki ClipEmbedder oluşturulmasını engeller (bkz. TryEnsureEmbedderAsync).</summary>
+    private readonly SemaphoreSlim _embedderInitLock = new(1, 1);
+
+    private static readonly CultureInfo TurkishNumberCulture = CultureInfo.GetCultureInfo("tr-TR");
 
     /// <summary>[Faz 1] Son BAŞARILI taramanın istatistikleri - başarısız bir tarama bunu değiştirmez (bkz. RunIndexUpdateAsync / UpdateStatsUi, Faz 2).</summary>
     private IndexUpdateStats? _lastSuccessfulStats;
@@ -101,6 +119,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         ClampWindowToWorkArea();
+        _operationShowTimer.Tick += OperationShowTimer_Tick;
         ResultsItemsControl.ItemsSource = _results;
         _logger.Info("AppStart");
 
@@ -899,52 +918,63 @@ public partial class MainWindow : Window
         }
 
         SetBusy(true);
-        SetIndexStatus("Klasör kontrol ediliyor...");
-
-        // [Reliability] Bu on-kontrol daha once UI thread'de senkron
-        // calisiyordu - UNC yol yavas/erisilemezse pencereyi donduruyordu.
-        // Artik arka planda calisir ve olasi bir erisim hatasi burada
-        // yakalanip kullanici dostu mesaja cevrilir (uygulama cokmez).
-        bool hasSupportedImage;
+        // [İşlem ilerleme paneli - deney] Tüm gövde tek bir finally ile
+        // korunuyor - önceki dağınık `SetBusy(false); return;` noktaları
+        // (aynı mesaj/davranış korunarak) tek çıkışta birleştirildi ki
+        // panel HER çıkış yolunda (başarı/hata/erken-return) kapansın.
+        BeginOperation("Klasör kontrol ediliyor…");
         try
         {
-            var folder = _productFolder;
-            hasSupportedImage = await Task.Run(() =>
-                Directory.EnumerateFiles(folder)
-                    .Any(f => FileClassifier.Classify(Path.GetExtension(f)) == FileClassification.SupportedImage));
+            SetIndexStatus("Klasör kontrol ediliyor...");
+
+            // [Reliability] Bu on-kontrol daha once UI thread'de senkron
+            // calisiyordu - UNC yol yavas/erisilemezse pencereyi donduruyordu.
+            // Artik arka planda calisir ve olasi bir erisim hatasi burada
+            // yakalanip kullanici dostu mesaja cevrilir (uygulama cokmez).
+            bool hasSupportedImage;
+            try
+            {
+                var folder = _productFolder;
+                hasSupportedImage = await Task.Run(() =>
+                    Directory.EnumerateFiles(folder)
+                        .Any(f => FileClassifier.Classify(Path.GetExtension(f)) == FileClassification.SupportedImage));
+            }
+            catch (Exception ex)
+            {
+                SetIndexStatus("Ürün klasörüne şu anda ulaşılamıyor.", success: false);
+                _logger.Warning("IndexPreflight", file: _productFolder, reason: ex.Message);
+                AlertWindow.Show(this, "Ürün klasörüne şu anda ulaşılamıyor.", "Klasöre ulaşılamıyor", AlertKind.Warning);
+                return;
+            }
+
+            if (!hasSupportedImage)
+            {
+                AlertWindow.Show(this, "Bu klasörde desteklenen görsel (jpg/jpeg/png) bulunamadı.",
+                    "Görsel bulunamadı", AlertKind.Warning);
+                return;
+            }
+
+            SetOperationStage("Arama motoru hazırlanıyor…");
+            var (embedderReady, modelError) = await TryEnsureEmbedderAsync();
+            if (!embedderReady)
+            {
+                AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
+                return;
+            }
+
+            SetIndexStatus("İndeksleniyor...");
+
+            // Manuel "İndeksi Güncelle" her zaman FORCE SCAN yapar (freshness
+            // kontrolünü atlar) VE checkbox tercihinden BAĞIMSIZ olarak çalışır.
+            // Bu, arama öncesi otomatik freshness-check'in ("Ara") de aynı işlevi
+            // görecek olmasından bağımsızdır.
+            await RunIndexUpdateAsync(trigger: "Manual");
         }
-        catch (Exception ex)
+        finally
         {
+            EndOperation();
             SetBusy(false);
-            SetIndexStatus("Ürün klasörüne şu anda ulaşılamıyor.", success: false);
-            _logger.Warning("IndexPreflight", file: _productFolder, reason: ex.Message);
-            AlertWindow.Show(this, "Ürün klasörüne şu anda ulaşılamıyor.", "Klasöre ulaşılamıyor", AlertKind.Warning);
-            return;
         }
-
-        if (!hasSupportedImage)
-        {
-            SetBusy(false);
-            AlertWindow.Show(this, "Bu klasörde desteklenen görsel (jpg/jpeg/png) bulunamadı.",
-                "Görsel bulunamadı", AlertKind.Warning);
-            return;
-        }
-
-        if (!TryEnsureEmbedder(out var modelError))
-        {
-            SetBusy(false);
-            AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
-            return;
-        }
-
-        SetIndexStatus("İndeksleniyor...");
-
-        // Manuel "İndeksi Güncelle" her zaman FORCE SCAN yapar (freshness
-        // kontrolünü atlar) VE checkbox tercihinden BAĞIMSIZ olarak çalışır.
-        // Bu, arama öncesi otomatik freshness-check'in ("Ara") de aynı işlevi
-        // görecek olmasından bağımsızdır.
-        await RunIndexUpdateAsync(trigger: "Manual");
-        SetBusy(false);
     }
 
     /// <summary>
@@ -974,8 +1004,39 @@ public partial class MainWindow : Window
             var folder = _productFolder!;
             var embedder = _embedder!;
             var wasFirstCreation = _indexEntries.Count == 0;
+
+            // [İşlem ilerleme paneli - deney] Hem manuel "İndeksi Güncelle" hem
+            // arama öncesi otomatik indeksleme AYNI bu metodu çağırır - aşama
+            // metni tek noktadan yazılır, iki tetikleyici için ayrı kod YOK.
+            SetOperationStage("Desenler indeksleniyor…", indeterminate: true);
+
+            // [5000 dosyada mesaj kuyruğu taşması - throttle] Progress<T>.Report
+            // her dosyada tetiklenir (~5000 kez); UI mesaj kuyruğunu gereksiz
+            // doldurmamak için görsel güncelleme yüzde değiştiğinde VEYA ~100ms
+            // geçtiğinde yapılır - SON değer (Done==Total, %100) throttle'dan
+            // bağımsız HER ZAMAN geçer. Aynı throttle hem eski durum metnini
+            // (SetIndexStatus) hem yeni paneli besler - iki ayrı mekanizma yok.
+            var lastReportedPercent = -1;
+            var lastReportTimeUtc = DateTime.MinValue;
             var progress = new Progress<(int Done, int Total)>(p =>
-                SetIndexStatus($"İndeksleniyor... {p.Done}/{p.Total}"));
+            {
+                var percent = p.Total > 0 ? (int)(100.0 * p.Done / p.Total) : 100;
+                var isFinal = p.Done >= p.Total;
+                var now = DateTime.UtcNow;
+                if (!isFinal && percent == lastReportedPercent && now - lastReportTimeUtc < TimeSpan.FromMilliseconds(100))
+                {
+                    return;
+                }
+
+                lastReportedPercent = percent;
+                lastReportTimeUtc = now;
+
+                SetIndexStatus($"İndeksleniyor... {p.Done}/{p.Total}");
+                var doneText = p.Done.ToString("N0", TurkishNumberCulture);
+                var totalText = p.Total.ToString("N0", TurkishNumberCulture);
+                SetOperationStage("Desenler indeksleniyor…", indeterminate: false,
+                    progressValue: percent, progressText: $"{doneText} / {totalText} — %{percent}");
+            });
 
             _logger.Info("IndexScan", reason: $"trigger={trigger} başladı");
             var result = await Task.Run(
@@ -1143,6 +1204,7 @@ public partial class MainWindow : Window
         if (_lastFreshnessCheckUtc is null || now - _lastFreshnessCheckUtc >= FreshnessCheckInterval)
         {
             SetIndexStatus("Klasör güncelliği kontrol ediliyor...");
+            SetOperationStage("İndeks güncelliği kontrol ediliyor…");
             var changes = await Task.Run(() => ImageIndex.DetectChanges(folder, _logger));
 
             if (changes.ScanError is not null)
@@ -1910,16 +1972,18 @@ public partial class MainWindow : Window
         ResetResultsScroll();
         SetSearchStatus("Aranıyor...");
 
-        if (!TryEnsureEmbedder(out var modelError))
-        {
-            SetSearchStatus("Model yüklenemedi, arama yapılamadı.", success: false);
-            AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
-            return;
-        }
-
         SetBusy(true);
+        BeginOperation("Arama motoru hazırlanıyor…");
         try
         {
+            var (embedderReady, modelError) = await TryEnsureEmbedderAsync();
+            if (!embedderReady)
+            {
+                SetSearchStatus("Model yüklenemedi, arama yapılamadı.", success: false);
+                AlertWindow.Show(this, modelError, "Model yüklenemedi", AlertKind.Error);
+                return;
+            }
+
             var ready = await EnsureIndexReadyForSearchAsync();
             if (!ready)
             {
@@ -1930,6 +1994,7 @@ public partial class MainWindow : Window
                 return;
             }
 
+            SetOperationStage("Benzer desenler aranıyor…");
             SetSearchStatus("Aranıyor...");
             var searchStopwatch = Stopwatch.StartNew();
 
@@ -1943,21 +2008,54 @@ public partial class MainWindow : Window
             // degeriyle tamamlansin diye alan ayrica arama sirasinda tekrar OKUNMAZ.
             var maxResultsForSearch = maxResults;
 
-            // [200-limit perf] Thumbnail decode'u (TryLoadPreview) da bu arka plan
-            // gorevine tasindi - eskiden UI thread'de, arama sonucu donduk-ten SONRA,
-            // sirayla calisiyordu. 15 sonuçta gozle gorulur bir donma yaratmiyordu, ama
-            // en fazla 200 sonuçta (bkz. SimilaritySearch.MaxResults) UI thread'de art
-            // arda 200 JPEG decode'u fark edilir bir kilitlenmeye yol acabilirdi.
+            // [İşlem ilerleme paneli - deney] Embed+arama, thumbnail hazırlamadan
+            // AYRI bir arka plan görevine bölündü ki aradaki UI-thread dönüşünde
+            // panelin aşama metni "Sonuçlar hazırlanıyor…"a geçebilsin - sıralı/
+            // arka plan decode davranışının KENDİSİ değişmedi, yalnızca ikiye bölündü.
+            var matches = await Task.Run(() =>
+            {
+                var emb = embedder.Embed(queryPath);
+                return SimilaritySearch.SearchWithThreshold(emb, entries, thresholdPercent, maxResultsForSearch);
+            });
+
+            // [300-limit perf] Thumbnail decode'u (TryLoadPreview) bu arka plan
+            // gorevinde kalir - eskiden UI thread'de, arama sonucu donduk-ten SONRA,
+            // sirayla calisiyordu. Az sonucta gozle gorulur bir donma yaratmiyordu, ama
+            // en fazla 300 sonuçta (bkz. SimilaritySearch.MaxResults) UI thread'de art
+            // arda 300 JPEG decode'u fark edilir bir kilitlenmeye yol acabilirdi.
             // BitmapImage.Freeze() (bkz. LoadPreview) sayesinde arka planda olusturulan
             // gorsel donduruldukten sonra thread-safe sekilde UI'ya tasinabiliyor.
             // BILEREK sirali (paralel degil) birakildi - sabit bir donma riskini ortadan
             // kaldirmak yeterli, sinirsiz paralel decode/bellek/CPU baskisi eklenmedi.
+            SetOperationStage("Sonuçlar hazırlanıyor…",
+                indeterminate: matches.Count == 0,
+                progressText: matches.Count > 0 ? $"0 / {matches.Count}" : null);
+
+            // Thumbnail ilerlemesi de indeksleme ile AYNI throttle kalıbını
+            // kullanır (yüzde değişti VEYA ~100ms geçti VEYA son değer) - 300
+            // öğede UI mesaj kuyruğu gereksiz doldurulmaz, son değer asla atlanmaz.
+            var lastReportedPercent = -1;
+            var lastReportTimeUtc = DateTime.MinValue;
+            IProgress<(int Done, int Total)> thumbnailProgress = new Progress<(int Done, int Total)>(p =>
+            {
+                var percent = p.Total > 0 ? (int)(100.0 * p.Done / p.Total) : 100;
+                var isFinal = p.Done >= p.Total;
+                var now = DateTime.UtcNow;
+                if (!isFinal && percent == lastReportedPercent && now - lastReportTimeUtc < TimeSpan.FromMilliseconds(100))
+                {
+                    return;
+                }
+
+                lastReportedPercent = percent;
+                lastReportTimeUtc = now;
+                SetOperationStage("Sonuçlar hazırlanıyor…", indeterminate: false,
+                    progressValue: percent, progressText: $"{p.Done} / {p.Total}");
+            });
+
             var viewModels = await Task.Run(() =>
             {
-                var embedding = embedder.Embed(queryPath);
-                var matches = SimilaritySearch.SearchWithThreshold(embedding, entries, thresholdPercent, maxResultsForSearch);
-
                 var list = new List<SearchResultViewModel>(matches.Count);
+                var done = 0;
                 foreach (var r in matches)
                 {
                     var fullPath = Path.Combine(productFolder, r.RelativePath);
@@ -1970,6 +2068,9 @@ public partial class MainWindow : Window
                         FullPath = fullPath,
                         IsPerfectMatch = scoreText.EndsWith("100.0%", StringComparison.Ordinal),
                     });
+
+                    done++;
+                    thumbnailProgress.Report((done, matches.Count));
                 }
 
                 return list;
@@ -2027,6 +2128,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            EndOperation();
             SetBusy(false);
         }
     }
@@ -2207,32 +2309,124 @@ public partial class MainWindow : Window
         MaxResultsValidationText.Visibility = Visibility.Collapsed;
     }
 
-    private bool TryEnsureEmbedder(out string error)
+    /// <summary>
+    /// [Model yükleme - arka plana taşıma] Önceden `new ClipEmbedder(modelPath)`
+    /// UI thread'inde SENKRON çalışıyordu - CLIP ONNX modelinin ilk yüklenmesi
+    /// (ilk arama veya ilk indeksleme) fark edilir bir donmaya yol açabiliyordu,
+    /// ki bu sırada yeni işlem ilerleme paneli de animasyon YAPAMAZDI (aynı UI
+    /// thread bloklu). Model oluşturma artık `Task.Run` ile arka planda çalışır.
+    /// `_embedderInitLock` (SemaphoreSlim) aynı anda iki model oluşturulmasını
+    /// engeller - iki çağıran (Search/UpdateIndex) zaten `IsBusy` ile karşılıklı
+    /// dışlanır, ama bu ikinci bir savunma katmanıdır. Başarılı örnek `_embedder`
+    /// alanında saklanır ve bir sonraki çağrıda (kilit gerekmeden) tekrar
+    /// kullanılır. Hata mesajları eski senkron sürümle BİREBİR aynı.
+    /// </summary>
+    private async Task<(bool Success, string Error)> TryEnsureEmbedderAsync()
     {
-        error = string.Empty;
         if (_embedder is not null)
         {
-            return true;
+            return (true, string.Empty);
         }
 
-        var modelPath = ResolveModelPath();
-        if (modelPath is null)
-        {
-            error = "CLIP ONNX model dosyası bulunamadı (models\\clip-vision-b16-openai.onnx). "
-                  + "Model dosyasının uygulama klasöründeki 'models' alt klasöründe olduğundan emin olun.";
-            return false;
-        }
-
+        await _embedderInitLock.WaitAsync();
         try
         {
-            _embedder = new ClipEmbedder(modelPath);
-            return true;
+            // Kilidi beklerken baska bir cagiran zaten olusturmus olabilir.
+            if (_embedder is not null)
+            {
+                return (true, string.Empty);
+            }
+
+            var modelPath = ResolveModelPath();
+            if (modelPath is null)
+            {
+                return (false,
+                    "CLIP ONNX model dosyası bulunamadı (models\\clip-vision-b16-openai.onnx). "
+                    + "Model dosyasının uygulama klasöründeki 'models' alt klasöründe olduğundan emin olun.");
+            }
+
+            try
+            {
+                _embedder = await Task.Run(() => new ClipEmbedder(modelPath));
+                return (true, string.Empty);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Model yüklenirken hata oluştu:\n{ex.Message}");
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            error = $"Model yüklenirken hata oluştu:\n{ex.Message}";
-            return false;
+            _embedderInitLock.Release();
         }
+    }
+
+    /// <summary>
+    /// [İşlem ilerleme paneli - deney] Bir kullanıcı işleminin (arama/indeksleme)
+    /// EN DIŞ sınırında BİR KEZ çağrılır - mevcut `SetBusy(true)` ile aynı yerde.
+    /// İlk aşama metnini hemen yazar (bkz. <see cref="SetOperationStage"/>) ve
+    /// 250ms'lik göster-gecikmesini sıfırdan başlatır; panel bu süre boyunca
+    /// GÖRÜNMEZ kalır (`OperationOverlay.Visibility` hâlâ Collapsed) - işlem
+    /// bu sürede biterse <see cref="EndOperation"/> zamanlayıcıyı durdurur ve
+    /// panel HİÇ görünmez.
+    /// </summary>
+    private void BeginOperation(string title, string? description = null)
+    {
+        _operationShowTimer.Stop();
+        OperationOverlay.Visibility = Visibility.Collapsed;
+        SetOperationStage(title, description);
+        _operationShowTimer.Start();
+    }
+
+    /// <summary>
+    /// [İşlem ilerleme paneli - deney] Tek bir işlem İÇİNDE aşama değiştiğinde
+    /// (ör. "İndeks güncelliği kontrol ediliyor…" → "Desenler indeksleniyor…")
+    /// çağrılır - zamanlayıcıya/görünürlüğe DOKUNMAZ, yalnızca kartın metin/
+    /// ilerleme alanlarını günceller. Böylece panel zaten açıksa aşama geçişi
+    /// kapanıp-tekrar-açılma (titreşme) YAPMAZ; henüz gecikme sürüyorsa panel
+    /// ilk kez göründüğünde o anki GÜNCEL aşama metniyle açılır.
+    /// </summary>
+    private void SetOperationStage(
+        string title, string? description = null, bool indeterminate = true,
+        string? progressText = null, double progressValue = 0)
+    {
+        OperationTitleText.Text = title;
+
+        OperationDescriptionText.Text = description ?? string.Empty;
+        OperationDescriptionText.Visibility = string.IsNullOrEmpty(description) ? Visibility.Collapsed : Visibility.Visible;
+
+        OperationProgressBar.IsIndeterminate = indeterminate;
+        OperationProgressBar.Value = indeterminate ? 0 : progressValue;
+
+        OperationProgressText.Text = progressText ?? string.Empty;
+        OperationProgressText.Visibility = string.IsNullOrEmpty(progressText) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OperationShowTimer_Tick(object? sender, EventArgs e)
+    {
+        _operationShowTimer.Stop();
+        OperationOverlay.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// [İşlem ilerleme paneli - deney] Her `BeginOperation`'ın EŞLEŞTİĞİ, işlemin
+    /// EN DIŞ `finally` bloğunda çağrılır (mevcut `SetBusy(false)` ile aynı yerde,
+    /// başarı/hata/erken-return HER yolda). Zamanlayıcıyı durdurur (henüz 250ms
+    /// dolmadıysa panel hiç görünmeden iptal edilmiş olur), paneli kapatır VE
+    /// tüm metin/ilerleme alanlarını boşaltır - bir sonraki işlemde veya "Yeni
+    /// Arama" sonrasında önceki aşamaya ait metin asla sızmaz.
+    /// </summary>
+    private void EndOperation()
+    {
+        _operationShowTimer.Stop();
+        OperationOverlay.Visibility = Visibility.Collapsed;
+        OperationTitleText.Text = string.Empty;
+        OperationDescriptionText.Text = string.Empty;
+        OperationDescriptionText.Visibility = Visibility.Collapsed;
+        OperationProgressBar.IsIndeterminate = true;
+        OperationProgressBar.Value = 0;
+        OperationProgressText.Text = string.Empty;
+        OperationProgressText.Visibility = Visibility.Collapsed;
     }
 
     private static string? ResolveModelPath()
