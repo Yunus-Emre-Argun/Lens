@@ -8,6 +8,42 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Araştırma — Geniş Veri Model Benchmarkı] — 2026-09-09
+
+> **Durum: yalnızca araştırma ve dokümantasyon.** Production kaynak kodu,
+> model dosyası, index ve ClickOnce paketi bu commit'te **değiştirilmemiştir**.
+> Uygulamada hâlen CLIP ViT-B/16 kullanılmaktadır. Detay/gerekçe:
+> `docs/DECISIONS.md` #93, #94, #95.
+
+### Eklendi
+- `docs/MODEL_BENCHMARK.md`: 2.007 görsellik yerel benchmark veri kümesinde,
+  40 kaynak görselden üretilen 720 dönüşüm sorgusuyla (dönüş, eğiklik, kısmi
+  crop, ölçek, parlaklık, kontrast, hue, tam gri, perspektif) yapılan model
+  karşılaştırmasının tam kaydı.
+- Karşılaştırılan modeller: **CLIP ViT-B/16** (mevcut), **DINOv2 ViT-S/14**,
+  **DINOv2 ViT-B/14** — her biri kendi resmî ön işlemesiyle, model
+  kimliği/revision/SHA-256 kayıtlı.
+
+### Temel sonuç
+- Tam veride R@20 / R@100 / MRR / p95 sıra: CLIP %93,5 / %96,3 / 0,849 / 40 —
+  DINOv2-S %97,8 / %98,8 / 0,916 / 4 — DINOv2-B %98,8 / %99,3 / 0,927 / 4.
+- Dönüş (90°/180°/270°) ve renk testlerinde DINOv2 belirgin üstün: DINOv2-S
+  dönüşlerde R@1 %100, tam gri sorguda %98; CLIP sırasıyla %88–95 ve %72.
+- **Pilot adayı: DINOv2 ViT-S/14** — Base'e göre R@20'de 1,0 puan geride ama
+  1,9× hızlı, 3,9× küçük ve dönüş dayanıklılığında üstün. Bu bir **pilot
+  adayıdır, production kararı değildir.**
+- Çoklu crop/tile, renk nötrleştirme ve sorgu-zamanı dönüş (TTA) **gerekmedi**;
+  tek global embedding kabul hedeflerini karşıladı.
+- PyTorch → ONNX dönüşümü 720 sorgunun hiçbirinde sıralamayı değiştirmedi.
+
+### Notlar
+- Mevcut **%80 eşiği yeni modele taşınamaz**: DINOv2-S'te doğru eşleşmelerin
+  yalnızca %68,2'sini listede bırakıyor. Önerilen başlangıç aralığı %55–60.
+- Model değişimi **tam yeniden indeksleme** gerektirir; index'e model kimliği/
+  hash/ön işleme sürümü alanları eklenmeden geçiş yapılmamalıdır.
+- Ölçümler üretim benzeri ama **gerçek üretim kataloğu olmayan** bir veri
+  kümesinde yapılmıştır; gerçek katalogda doğrulama açık maddedir.
+
 ## [Deney — Sonuç Sınırı 999] — 2026-09-09
 
 > **Durum: `feature/operation-progress-ui` deney branch'inde eklenmiştir;

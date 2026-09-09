@@ -83,6 +83,11 @@ Kaynak: `docs/DECISIONS.md` "Not Yet Decided".
 
 - [ ] Production için final model seçimi: CLIP mi, SigLIP mi, başka bir model
   mi? (MVP'de CLIP provisional — `docs/DECISIONS.md` #20)
+  **[2026-09-09 güncelleme]** Geniş veri benchmarkı tamamlandı ve
+  **DINOv2 ViT-S/14 pilot adayı** olarak belirlendi (`docs/DECISIONS.md` #94,
+  `docs/MODEL_BENCHMARK.md`). Madde **açık kalmaya devam ediyor**: yönetici
+  onayı alınmadı, model entegre edilmedi, gerçek üretim kataloğunda
+  doğrulanmadı.
 - [ ] Dış AI servislerine (cloud API) izin verilip verilmeyeceği.
 - [ ] Çoklu kullanıcı / eşzamanlılık gereksinimleri netleşmedi.
 - [ ] Test/benchmark metodolojisinin (sentetik varyasyonlar) gerçek saha
@@ -166,9 +171,38 @@ Kaynak: `docs/ROADMAP.md` FAZ 4E "bilerek ertelenenler".
 ## Ölçek Doğrulaması (FAZ 4F, henüz yapılmadı)
 
 - [ ] Gerçek ~5000 görsellik veri setiyle ilk indeksleme süresi/bellek ölçümü.
+  **[2026-09-09 kısmi]** 2.007 görsellik benchmark veri kümesinde ölçüldü
+  (CLIP 130 sn, DINOv2-S 81 sn, DINOv2-B 221 sn; bkz. `docs/MODEL_BENCHMARK.md`
+  §8). **Gerçek ~5000'lik üretim kataloğunda ölçülmedi** — 5.000 için verilen
+  süreler türetilmiş tahmindir. Bellek yalnızca çok modelli benchmark prosesi
+  için ölçüldü, production için ölçülmedi.
 - [ ] ~5000 aday havuzunda query süresi (5 saniye hedefiyle karşılaştırma).
+  **[2026-09-09 kısmi]** 2.007 aday havuzunda ölçüldü: DINOv2-S ONNX embedding
+  p95 74 ms + brute-force benzerlik (ihmal edilebilir). ~5000'de ölçülmedi.
 - [ ] Brute-force cosine similarity'nin bu ölçekte yeterliliğinin somut
   sayılarla doğrulanması.
+
+## Model Değişimi Ön Koşulları (2026-09-09, benchmark sonrası — hiçbiri yapılmadı)
+
+Kaynak: `docs/DECISIONS.md` #94, #95 ve `docs/MODEL_BENCHMARK.md` §13.
+
+- [ ] Production model onayı (yönetici) — pilot adayı ≠ production kararı.
+- [ ] DINOv2 ağırlık lisansının (Apache-2.0) şirket/hukuk tarafından onayı.
+- [ ] Index şema sürümlemesi: model kimliği, model dosyası SHA-256, ön işleme
+  sürümü, embedding boyutu, özellik türü (`CLS`), crop/tile stratejisi, şema
+  sürümü alanlarının eklenmesi ve uyuşmazlıkta otomatik tam yeniden indeksleme.
+- [ ] Model başına ön işleme profili (DINOv2: kısa kenar 256 → 224 crop,
+  ImageNet mean/std) — `ImagePreprocessor` şu an CLIP değerlerine sabit.
+- [ ] Yeni eşik kalibrasyonunun uygulamaya alınması ve kayıtlı kullanıcı eşik
+  tercihinin sıfırlanması/dönüştürülmesi (mevcut %80, DINOv2-S'te doğru
+  eşleşmelerin yalnızca %68,2'sini bırakıyor).
+- [ ] Tam index göçü (paylaşılan index, tüm kullanıcıları etkiler).
+- [ ] ONNX model dosyasının ClickOnce paketine eklenmesi ve SHA-256 kaydı.
+- [ ] Gerçek üretim kataloğunda 50-100 doğrulanmış çiftle kabul testi.
+- [ ] Gerçek kullanıcı kabul testi.
+- [ ] Rotation/crop bulgularının production kodunda karşılığının uygulanması
+  (ölçüme göre ek TTA/crop **gerekmedi**; yine de gerçek katalogda
+  doğrulanmalı).
 
 ## Rollout (FAZ 4G, henüz yapılmadı)
 

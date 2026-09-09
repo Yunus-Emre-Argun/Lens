@@ -8,6 +8,42 @@ Notasyon: **Confirmed** = kullanıcı tarafından açıkça belirtildi.
 **Open Question** = henüz netleşmedi, karar bekliyor.
 **Later Phase** = ilk PoC/MVP kapsamı dışında, ileride değerlendirilecek.
 
+## Son Durum — 2026-09-09 (Geniş Veri Model Benchmarkı — yalnızca dokümantasyon)
+
+**Benchmark tamamlandı mı?** Evet. 2.007 görsellik yerel benchmark veri
+kümesinde (üretim benzeri, gerçek üretim kataloğu değil), 40 kaynak görselden
+üretilen **720 dönüşüm sorgusu** ile CLIP ViT-B/16, DINOv2 ViT-S/14 ve
+DINOv2 ViT-B/14 karşılaştırıldı. Ayrıntı: `docs/MODEL_BENCHMARK.md`.
+
+**Kazanan pilot aday:** **DINOv2 ViT-S/14** (`facebook/dinov2-small`,
+Apache-2.0, 88 MB, 384 boyut, CLS token). Tam veride R@20 %97,8 / R@100 %98,8 /
+MRR 0,916 / p95 sıra 4 (CLIP: %93,5 / %96,3 / 0,849 / 40). Dönüşlerde
+(90°/180°/270°) R@1 %100, tam gri sorguda %98 — CLIP aynı testlerde %88-95 ve
+%72. ONNX'e dönüştürüldüğünde 720 sorgunun **hiçbirinde sıralama değişmedi**.
+
+**Tamamlanan doğrulamalar:** veri envanteri (0 bozuk dosya, 22 birebir kopya
+grubu, alt klasör yok); bilinen desen çiftinin tam veri sırası (üç modelde de
+her iki yönde 1.); dönüş/eğiklik/kısmi crop/ölçek/parlaklık/kontrast/hue/gri/
+perspektif dayanıklılığı; PyTorch↔ONNX sayısal ve sıralama eşitliği; CPU hız
+ölçümleri (DINOv2-S ONNX p95 74 ms); eşik taraması.
+
+**Henüz UYGULANMAYAN teknik işler:** model entegrasyonu (uygulamada hâlen CLIP
+var); index şema sürümlemesi (model kimliği/hash/ön işleme sürümü alanları);
+model başına ön işleme profili; eşik kalibrasyonu ve kayıtlı kullanıcı
+tercihinin göçü; tam yeniden indeksleme; ONNX model dosyasının ClickOnce
+paketine eklenmesi; alt klasör taraması (`EnumerateFiles` hâlâ yalnızca üst
+dizini tarıyor, `RelativePath` gerçek göreli yol değil).
+
+**Production model kararı verildi mi?** **Hayır.** DINOv2-S yalnızca **pilot
+adayıdır**; yönetici onayı, hukuk lisans onayı ve gerçek üretim kataloğunda
+doğrulama beklemektedir (`docs/DECISIONS.md` #94 ve Not Yet Decided #12-#16).
+Bu turda **hiçbir production kaynak kodu, model dosyası, index veya ClickOnce
+paketi değiştirilmemiştir** — yalnızca dokümantasyon eklenmiştir.
+
+**Sonraki somut adım:** Gerçek üretim kataloğundan 50-100 doğrulanmış
+sorgu-eşleşme çifti toplanıp DINOv2-S'in bu veri üzerinde ölçülmesi; paralelde
+index şema sürümlemesinin (karar #95) uygulanması.
+
 ## Son Durum — 2026-09-08 (DENEY BRANCH'İ — Arama Paneli Görsel Polish)
 
 > **Bu kayıt `main` için değil, `codex/query-settings-layout-polish`

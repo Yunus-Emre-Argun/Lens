@@ -143,8 +143,81 @@ release hazırlanırken tamamlanmalıdır.
 
 CLIP, MVP için **provisional/reversible** olarak seçilmiştir (Tech Lead/CTO
 onayı, `docs/DECISIONS.md` #20). Production için final model kararı **hâlâ
-açıktır** (`docs/DECISIONS.md` "Not Yet Decided" #1) — SigLIP veya başka bir
-model, yeni ölçüm sonuçlarına göre yeniden değerlendirilebilir.
+açıktır** (`docs/DECISIONS.md` "Not Yet Decided" #1).
+
+**Yukarıda tanımlanan CLIP modeli, uygulamada şu anda GERÇEKTEN kullanılan
+production modelidir.** Aşağıdaki pilot adayı henüz uygulamaya entegre
+edilmemiştir.
+
+---
+
+## Pilot Adayı (henüz entegre EDİLMEDİ) — DINOv2 ViT-S/14
+
+2026-09-09 tarihli geniş veri benchmarkı (2.007 görsel, 720 dönüşüm sorgusu;
+bkz. `docs/MODEL_BENCHMARK.md`) sonucunda **pilot adayı** olarak seçilmiştir.
+Bu bir **production kararı değildir**; yönetici onayı ve entegrasyon işleri
+beklemektedir (`docs/DECISIONS.md` #93).
+
+| | Değer |
+|---|---|
+| Resmî kaynak | [`facebook/dinov2-small`](https://huggingface.co/facebook/dinov2-small) (Hugging Face, Meta AI) |
+| Revision | `ed25f3a31f01632728cabb09d1542f84ab7b0056` |
+| Ağırlık SHA-256 | `ae1e99fcefd534ed978cdeb8326f08030c96e28b7a81ffcbc98a857c84d14be1` |
+| Ağırlık boyutu | 88,2 MB (`model.safetensors`) |
+| Kod lisansı | Apache-2.0 |
+| Ağırlık lisansı | Apache-2.0 (model kartı meta verisinden okundu; **şirket/hukuk onayı ayrı bir adımdır**) |
+| Giriş | 224 × 224 (kısa kenar **256** → 224 center crop) |
+| Normalizasyon | ImageNet mean `[0.485, 0.456, 0.406]`, std `[0.229, 0.224, 0.225]` |
+| Embedding türü | **CLS token**, L2-normalize |
+| Embedding boyutu | **384** |
+| ONNX (benchmark için üretildi, repoda yok) | 88,4 MB, SHA-256 `fac422cc5359e13740a393d2ba8a7f52…` |
+
+**Ön işleme uyarısı:** DINOv2'nin normalizasyon sabitleri ve resize adımı
+CLIP'inkinden **farklıdır**; CLIP değerleri bu modele taşınamaz.
+`ImagePreprocessor` şu an CLIP değerlerine sabittir.
+
+### Bilinen sınırlamalar (ölçülmüş)
+
+- **Kısmi crop ve güçlü ölçek değişiminde zayıf:** `crop_right` R@1 %65
+  (p95 sıra 140), `scale2x` R@1 %57 (p95 sıra 173). DINOv2 ViT-B/14 bu iki
+  senaryoda belirgin daha iyidir (p95 24–38) ve gerçek kullanımda sorgular
+  ağırlıkla desenin küçük bir parçasıysa yeniden değerlendirilmelidir.
+- **Hafif eğiklik (±15°)** R@1 %88–90 — ±30°'de %82.
+- **Ayna (mirror) görüntüyü %100 aynı desen sayar.** Bunun istenen davranış
+  olup olmadığı iş kuralı olarak **kararlaştırılmamıştır**.
+- Ölçümler sentetik dönüşümlerle yapılmıştır; gerçek ikinci fotoğraf verisi
+  (kırışık kumaş, karma ışık, perspektif) test edilmemiştir.
+
+### Bu modele geçiş TAM YENİDEN İNDEKSLEME gerektirir
+
+Embedding boyutu (512 → 384), ön işleme ve özellik türü değiştiği için mevcut
+CLIP index'i **geçersizdir**. CLIP ve DINOv2 embedding'leri aynı index
+dosyasında **karışmamalıdır**. Index'e model kimliği, model SHA-256, ön işleme
+sürümü, embedding boyutu, özellik türü ve şema sürümü alanları eklenmeden
+geçiş yapılmamalıdır (bkz. `docs/DECISIONS.md` #94).
+
+### Eşik uyarısı
+
+Mevcut varsayılan **%80** eşiği bu modele **taşınamaz**: tam veri ölçümünde
+%80 eşiği DINOv2-S'te doğru eşleşmelerin yalnızca **%68,2'sini** listede
+bırakır (CLIP'te %92,9). Önerilen başlangıç aralığı **%55–60**; kesin değer
+gerçek katalogda kalibre edilmelidir.
+
+## Benzerlik Skorunun Anlamı
+
+Kullanıcıya gösterilen "Benzerlik: %XX" değeri **bir olasılık değildir**.
+L2-normalize edilmiş iki embedding'in nokta çarpımının (kosinüs benzerliği)
+yüzdeye çevrilmiş halidir; "bu görsellerin aynı ürün olma ihtimali %XX"
+anlamına **gelmez**. Ayrıca bu değerin ölçeği **modele bağlıdır** — model
+değişirse aynı yüzde farklı bir yakınlığı ifade eder.
+
+## İş Kuralı: Desen Kimliği Renkten Önceliklidir
+
+Lens'in hedefi, sorgulanan desen/motifin ürün görselinin herhangi bir
+konumunda uygulanıp uygulanmadığını bulmaktır. Renk, sıralamayı belirleyen
+ölçüt **değildir**: aynı desen farklı renkte veya farklı yönde (90°/180°/270°)
+bulunduğunda eşleşme sayılmalı; aynı renkte fakat farklı motif taşıyan ürünler
+üst sıralara çıkmamalıdır (bkz. `docs/DECISIONS.md` #93).
 
 ## Model/Preprocessing Değiştiğinde Cache
 
