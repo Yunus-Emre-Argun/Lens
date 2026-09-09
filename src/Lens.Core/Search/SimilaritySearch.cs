@@ -11,8 +11,8 @@ public sealed record SearchResult(string RelativePath, float Score);
 /// </summary>
 public static class SimilaritySearch
 {
-    /// <summary>"Maksimum 300 sonuç" sözleşmesi (Top-10 → 15 → 200 → 300, bkz. docs/DECISIONS.md).</summary>
-    public const int MaxResults = 300;
+    /// <summary>"Maksimum 999 sonuç" sözleşmesi (Top-10 → 15 → 200 → 300 → 999, bkz. docs/DECISIONS.md).</summary>
+    public const int MaxResults = 999;
 
     /// <summary>
     /// Float32 dot-product birikimi (512 terim) kaynakli kucuk hassasiyet
@@ -37,11 +37,11 @@ public static class SimilaritySearch
     /// <summary>
     /// Cekirdek arama sozlesmesi: 1) tum skorlari hesapla, 2) score &gt;=
     /// threshold filtresini (inclusive) uygula, 3) azalan siraya koy, 4) en
-    /// fazla <paramref name="maxResults"/> (varsayilan 300) sonuc al.
+    /// fazla <paramref name="maxResults"/> (varsayilan 999) sonuc al.
     /// </summary>
     /// <param name="minSimilarityPercent">0-100 araliginda, kullaniciya gosterilen "Minimum benzerlik (%)" degeri.</param>
     /// <param name="maxResults">
-    /// [Kullanici tercihi - "En fazla sonuç"] 1-<see cref="MaxResults"/> (300)
+    /// [Kullanici tercihi - "En fazla sonuç"] 1-<see cref="MaxResults"/> (999)
     /// araliginda olmalidir. UI (bkz. Lens.Desktop MainWindow) bu degeri
     /// aramaya BASLAMADAN once zaten dogrulamis olmalidir - burasi ikinci
     /// (cekirdek katman) dogrulamadir, GECERSIZ bir deger SESSIZCE baska bir

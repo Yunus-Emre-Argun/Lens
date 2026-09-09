@@ -48,7 +48,7 @@ public sealed class UserSettings
     /// hali (bkz. MaxResultsPreference, MainWindow.MaxResultsTextBox).
     /// Varsayılan 15; eski (bu alanı içermeyen) bir dosya yüklendiğinde
     /// AutoIndexBeforeSearch/Theme ile aynı geriye-uyumlu mantıkla 15 kabul
-    /// edilir. Yalnızca GEÇERLİ (1-300) bir değer arama başlatılırken
+    /// edilir. Yalnızca GEÇERLİ (1-999) bir değer arama başlatılırken
     /// kaydedilir (bkz. MainWindow.SearchButton_Click) - bu alanın kendisi
     /// hiçbir doğrulama yapmaz (dümdüz int); bozuk/aralık dışı bir kayıtlı
     /// değer MainWindow tarafında MaxResultsPreference.ValidateOrDefault ile

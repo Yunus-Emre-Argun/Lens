@@ -2018,11 +2018,11 @@ public partial class MainWindow : Window
                 return SimilaritySearch.SearchWithThreshold(emb, entries, thresholdPercent, maxResultsForSearch);
             });
 
-            // [300-limit perf] Thumbnail decode'u (TryLoadPreview) bu arka plan
+            // [999-limit perf] Thumbnail decode'u (TryLoadPreview) bu arka plan
             // gorevinde kalir - eskiden UI thread'de, arama sonucu donduk-ten SONRA,
             // sirayla calisiyordu. Az sonucta gozle gorulur bir donma yaratmiyordu, ama
-            // en fazla 300 sonuçta (bkz. SimilaritySearch.MaxResults) UI thread'de art
-            // arda 300 JPEG decode'u fark edilir bir kilitlenmeye yol acabilirdi.
+            // en fazla 999 sonuçta (bkz. SimilaritySearch.MaxResults) UI thread'de art
+            // arda 999 JPEG decode'u fark edilir bir kilitlenmeye yol acabilirdi.
             // BitmapImage.Freeze() (bkz. LoadPreview) sayesinde arka planda olusturulan
             // gorsel donduruldukten sonra thread-safe sekilde UI'ya tasinabiliyor.
             // BILEREK sirali (paralel degil) birakildi - sabit bir donma riskini ortadan
@@ -2032,7 +2032,7 @@ public partial class MainWindow : Window
                 progressText: matches.Count > 0 ? $"0 / {matches.Count}" : null);
 
             // Thumbnail ilerlemesi de indeksleme ile AYNI throttle kalıbını
-            // kullanır (yüzde değişti VEYA ~100ms geçti VEYA son değer) - 300
+            // kullanır (yüzde değişti VEYA ~100ms geçti VEYA son değer) - 999
             // öğede UI mesaj kuyruğu gereksiz doldurulmaz, son değer asla atlanmaz.
             var lastReportedPercent = -1;
             var lastReportTimeUtc = DateTime.MinValue;
@@ -2295,7 +2295,7 @@ public partial class MainWindow : Window
         ThresholdValidationText.Visibility = Visibility.Collapsed;
     }
 
-    /// <summary>[Sonuç sınırı] Gecersiz "en fazla sonuç": odak hatali alana doner, sade (modal olmayan) bir mesaj gosterilir - ThresholdValidationText ile AYNI desen. Mesaj cagiran tarafindan secilir (bkz. SearchButton_Click - "200'u asan" ile "diger gecersiz" durumlar AYRI metinler kullanir).</summary>
+    /// <summary>[Sonuç sınırı] Gecersiz "en fazla sonuç": odak hatali alana doner, sade (modal olmayan) bir mesaj gosterilir - ThresholdValidationText ile AYNI desen. Mesaj cagiran tarafindan secilir (bkz. SearchButton_Click - "ust siniri asan" ile "diger gecersiz" durumlar AYRI metinler kullanir).</summary>
     private void ShowMaxResultsValidationError(string message)
     {
         MaxResultsValidationText.Text = message;

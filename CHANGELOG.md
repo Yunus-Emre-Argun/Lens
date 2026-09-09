@@ -8,6 +8,35 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Deney — Sonuç Sınırı 999] — 2026-09-09
+
+> **Durum: `feature/operation-progress-ui` deney branch'inde eklenmiştir;
+> `main`'e merge/push YAPILMADI, publish/ClickOnce paketleri
+> güncellenmedi.** Detay/gerekçe: `docs/DECISIONS.md` karar #92 (SUPERSEDES #91).
+
+### Değişti
+- Maksimum sonuç sınırı 300'den **999'a** çıkarıldı (varsayılan sonuç sayısı
+  **20 olarak değişmedi**). Kullanıcının girebileceği aralık artık 1-999;
+  uyarı metinleri ve sayı kutusu artırma/azaltma okları buna göre çalışır.
+  Önceden kaydedilmiş 200/300 gibi tercihler aynen geçerli kalmaya devam
+  ediyor.
+
+### Notlar
+- `NumericInputFilter`in 3 haneli giriş sınırı artık `SimilaritySearch.
+  MaxResults` (999) ile tam hizalı — "en fazla sonuç" alanında 3 haneli
+  (veya daha az) her pozitif tam sayı zaten aralık içinde, yalnızca 0 ve
+  4+ haneli girdiler (karakter seviyesinde zaten engellenir) aralık dışı
+  kalıyor. Test yazımı sırasında bir eski test verisinin (`ValidateOrDefault
+  (500)`, "aralık dışı" örneği) 999-limit ile artık aralık İÇİNDE kaldığı
+  fark edildi ve düzeltildi.
+- 999 kartlık sonuç listesinin bellek/kaydırma maliyeti 300'e göre ~3 kat
+  artar — mevcut sıralı arka plan thumbnail decode UI thread'i bloklamıyor
+  (bir önceki turdaki işlem ilerleme paneli bu senaryoda daha faydalı hale
+  geliyor), ama büyük bir virtualization yeniden tasarımı bu görevde
+  YAPILMADI, gerçek ekranda ölçülmedi.
+- `dotnet build` Debug/Release 0 warning/0 error; `Lens.AiProof
+  hardeningtest` 221/221 PASS.
+
 ## [Deney — İşlem İlerleme Paneli ve Sonuç Sınırı 300] — 2026-09-09
 
 > **Durum: `feature/operation-progress-ui` deney branch'inde eklenmiştir;
