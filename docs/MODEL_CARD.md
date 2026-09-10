@@ -1,4 +1,8 @@
-# Model Card — Lens CLIP Vision Encoder
+# Model Card — Lens Görsel Encoder
+
+> `main` dalının production modeli **CLIP ViT-B/16**'dır (aşağıdaki ilk bölümler).
+> `feature/dinov2-base-pilot` dalında ayrıca **DINOv2 ViT-B/14** pilotu entegre
+> edilmiştir — bkz. "PİLOT ENTEGRASYON" bölümü.
 
 Bu doküman, Lens'in görsel embedding üretimi için kullandığı ONNX modelini
 tanımlar. Bu, modelin kendisiyle ilgili bir "karar dokümanı" değildir — karar
@@ -148,6 +152,172 @@ açıktır** (`docs/DECISIONS.md` "Not Yet Decided" #1).
 **Yukarıda tanımlanan CLIP modeli, uygulamada şu anda GERÇEKTEN kullanılan
 production modelidir.** Aşağıdaki pilot adayı henüz uygulamaya entegre
 edilmemiştir.
+
+---
+
+## PİLOT ENTEGRASYON — DINOv2 ViT-B/14 (`feature/dinov2-base-pilot`)
+
+> **Bu bölüm `main` dalını ANLATMAZ.** `main`'deki uygulama hâlâ CLIP
+> kullanmaktadır. Aşağıdaki model, `feature/dinov2-base-pilot` dalında
+> çalıştırılabilir bir **pilot** olarak entegre edilmiştir; **production
+> model kararı alınmamıştır** (bkz. `docs/DECISIONS.md` #96 ve Not Yet
+> Decided #12, #13, #15).
+
+| | Değer |
+|---|---|
+| Resmî kaynak | [`facebook/dinov2-base`](https://huggingface.co/facebook/dinov2-base) (Hugging Face, Meta AI) |
+| Revision (pinlenmiş) | `f9e44c814b77203eaa57a6bdbbd535f21ede1415` |
+| Kod lisansı | Apache-2.0 |
+| Ağırlık lisansı | Apache-2.0 (modelin kendi kartı meta verisinden okundu; **şirket/hukuk onayı ayrı bir adımdır** — Not Yet Decided #13) |
+| Ağırlık dosyası | `model.safetensors`, 330,3 MB (yerel HF önbelleği) |
+| **ONNX dosyası** | `models/dinov2-base.onnx` |
+| **ONNX boyutu** | **330,5 MB** (346.532.005 bayt) |
+| **ONNX SHA-256** | `51014b029a9feaec58825836b0fa42b3b4aa86ae92dd35dd4db5d928dbff263d` |
+| Giriş | `pixel_values`, float32 `[batch, 3, 224, 224]` |
+| Çıkış | `image_embeds`, float32 `[batch, 768]` |
+| ONNX opset | 17, dinamik batch |
+| Özellik türü | **CLS token** (`last_hidden_state[:, 0]`) — DINOv2'de projection head YOKTUR |
+| Embedding boyutu | **768** |
+| Normalizasyon | L2 — **grafiğe dahil değildir**, çalışma zamanında .NET tarafında yapılır |
+
+### Ön işleme sözleşmesi (CLIP'ten FARKLI)
+
+Değerler modelin kendi `preprocessor_config.json` dosyasındandır; CLIP'in
+sabitleri buraya **taşınmamıştır**.
+
+| Adım | Değer |
+|---|---|
+| Renk | RGB'ye dönüştür |
+| Resize | bicubic, **kısa kenar 256** (CLIP'te 224) |
+| Crop | merkezden 224 × 224 |
+| Rescale | 1/255 |
+| mean | `[0.485, 0.456, 0.406]` (ImageNet) |
+| std | `[0.229, 0.224, 0.225]` (ImageNet) |
+| Ön işleme sürümü | `dinov2-shortest256-crop224-imagenet-v1` |
+| Crop stratejisi | `SingleCenterCrop224` — tek global embedding, çoklu crop/tile YOK |
+
+Kaynak: `Lens.Core.Ai.ImagePreprocessingProfile.DinoV2`. CLIP ve DINOv2
+sabitleri artık aynı statik sınıfta karışık **durmaz**.
+
+### Nasıl yeniden üretilir
+
+```
+python benchmark/export_dinov2_onnx.py
+```
+
+Betik resmî ağırlıkları **pinlenmiş revision** ile yerel Hugging Face
+önbelleğinden yükler, CLS token döndüren minimal bir sarmalayıcıyı ONNX'e
+aktarır, dosyanın SHA-256'sını hesaplar ve PyTorch ile ONNX çıktısını gerçek
+görseller üzerinde karşılaştırır. Bu **yalnızca bir geliştirme aracıdır** —
+son kullanıcı makinesinde Python gerekmez, uygulama çalışma zamanında
+internetten model indirmez.
+
+**Doğrulama sonucu (8 gerçek görsel):** en kötü cosine **0,99999994**, en
+büyük mutlak fark **2,3e-05** → PyTorch ve ONNX sayısal olarak eşdeğerdir.
+Betik bu eşiklerin dışında bir sonuçta hata verir ve modeli onaylamaz.
+
+### Model dosyasının konumu ve doğrulanması
+
+Uygulama modeli `AppContext.BaseDirectory\models\dinov2-base.onnx`
+altında arar; bulunamazsa geliştirme ortamı için repo kökündeki `models/`
+klasörüne bakar. Dosya **git'e commit edilmez** (bkz. `docs/DECISIONS.md`
+#28).
+
+Model dosyasının **tam SHA-256'sı her oturumda bir kez hesaplanır** ve
+embedding profilinin parçası olarak index'e yazılır. Böylece dosya adı ve
+boyutu aynı kalsa bile içerik değişmişse index otomatik olarak geçersiz
+sayılır — bu, `docs/MODEL_CARD.md`'de daha önce açık bırakılan "SHA-256
+doğrulama yaklaşımı" maddesinin bu dal için **kapatılmış** halidir.
+
+### Index profili (bu modele geçiş TAM YENİDEN İNDEKSLEME gerektirir)
+
+Bu modelin index'i **ayrı bir dosyadadır**:
+
+```
+<ProductDirectory>\.lens\indexes\dinov2-base-v1\index.json   (kilit: index.lock, aynı klasörde)
+```
+
+Eski CLIP index'i (`<ProductDirectory>\.lens\index.json`) **okunmaz,
+yazılmaz, silinmez** — CLIP sürümüne dönülürse yeniden indeksleme gerekmez.
+
+Belge düz bir kayıt listesi değildir; `SchemaVersion` + `EmbeddingProfile` +
+`Entries` zarfına sahiptir. Yüklemede kayıtlı profil ile çalışan profil tam
+karşılaştırılır. Şu alanlardan **herhangi biri** farklıysa embedding'ler
+kullanılmaz ve index **tamamen** yeniden oluşturulur (kısmi/karışık index
+kabul edilmez):
+
+model kimliği · model revision · **model dosyası SHA-256** · ön işleme sürümü ·
+embedding boyutu · özellik türü · crop stratejisi · normalizasyon ·
+index şema sürümü
+
+Nedeni kullanıcıya durum satırında ve log dosyasında (`IndexProfileReset`)
+gösterilir — sessiz bir tam yeniden tarama yapılmaz.
+
+### Eşik (GEÇİCİ pilot değeri: %55)
+
+CLIP dönemi varsayılanı **%80 bu modele taşınamaz**. Bu dalda başlangıç
+değeri **%55**'tir (`Lens.Core.Ai.DinoV2BaseProfile.DefaultThresholdPercent`).
+
+Küçük ölçekli smoke ölçümünde (193 görsellik havuz, 75 dönüşüm sorgusu) doğru
+kaynakların listede kalma oranı:
+
+| Eşik | %40 | %50 | **%55** | %60 | %70 | %80 |
+|---|---|---|---|---|---|---|
+| Kalan | %100 | %100 | **%100** | %98,7 | %89,3 | %74,7 |
+
+Bu bir **kalibrasyon değildir** — kabul edilebilir yanlış pozitif oranı
+gerçek katalogda ölçülmeden kesin değer belirlenemez (Not Yet Decided #16).
+
+**Not:** Bu eşik kullanıcı ayarlarında (`UserSettings`) **kalıcı olarak
+saklanmaz**; dolayısıyla model değişiminde taşınacak/göç ettirilecek kayıtlı
+bir kullanıcı değeri yoktur. Kullanıcının o oturumda elle girdiği geçerli
+değere dokunulmaz.
+
+### Ölçülen davranış (smoke testi — büyük benchmarkın YERİNE GEÇMEZ)
+
+`Lens.AiProof dinosmoke` ile, gerçek üretim yolunda (.NET + ONNX +
+profil-ayrımlı index + `SimilaritySearch`), 193 görsellik bir havuzda,
+5 kaynak görselden üretilen 15 dönüşümle:
+
+- **15 dönüşümün tamamında R@1 %100** — 90°/180°/270° dönüş, renk tonu (hue),
+  tam gri, doygunluk azaltma, parlaklık, kontrast, sol/sağ/merkez kısmi crop,
+  2× yakınlaştırma, küçültme ve köşeye kaydırma (konum değişikliği).
+- Medyan skorlar: dönüşlerde %70–91, kısmi crop'ta %76–83, hue'da %96,5,
+  gri'de %94,9.
+- **İş kuralı** (`docs/DECISIONS.md` #93): renk tonu değiştirilmiş sorguda
+  doğru kaynak 5/5 durumda, renk olarak en yakın diğer katalog görsellerinin
+  **üstünde** sıralandı (rakip sıraları 3–27).
+
+**Sınırlama:** bu 193 görsellik bir havuzdur ve `docs/MODEL_BENCHMARK.md`'deki
+2.007 görsellik / 720 sorguluk ölçümün yerine **geçmez**. DINOv2-S ile
+DINOv2-B'yi aynı koşulda karşılaştırmaz.
+
+### Hız (bu geliştirme makinesi, CPU, 20 çekirdek)
+
+| | Değer |
+|---|---|
+| Model dosyası SHA-256 hesabı | 219 ms (oturum başına bir kez) |
+| ONNX oturumu oluşturma | 464 ms |
+| Ön işleme (ImageSharp) | 15 ms/görsel |
+| Görsel başına toplam (indeksleme) | **427 ms** |
+| 193 görsel indeksleme | 82,4 sn |
+| 5.000 görsel tahmini | **~36 dakika** (doğrusal ölçekleme varsayımı) |
+| Arama (193 kayıt, brute-force) | 0,7 ms |
+
+**Ölçülmüş performans ayarı:** ONNX Runtime'ın varsayılan *spinning* thread
+politikası, Lens'in sıralı "decode → çıkarım" indeksleme döngüsünde ImageSharp
+ile birbirini aç bırakıyordu (görsel başına 1155 ms). `DinoV2Embedder` artık
+`session.intra_op.allow_spinning=0` ile oturum açar → 439 ms. Bu ayar yalnızca
+thread bekleme politikasıdır ve **sayısal çıktıyı değiştirmez** (smoke testi
+skorları birebir aynı kaldı). `IntraOpNumThreads` bilerek ayarlanmamıştır:
+sabit bir değer bu makinede ek kazanç sağlamadı ve çekirdek sayısı bilinmeyen
+ofis bilgisayarında kötü bir tahmin olma riski taşır.
+
+**Açık sınırlama:** saf çıkarım (aynı tensör, ImageSharp araya girmeden)
+~115 ms iken indeksleme döngüsünde ~422 ms ölçülmektedir; fark tamamen
+giderilememiştir. Ayrıca tüm bu ölçümler **bu geliştirme makinesine** aittir —
+hedef ofis bilgisayarında yeniden ölçülmelidir (`Lens.AiProof ortbench`
+tanılama modu bunun için vardır).
 
 ---
 

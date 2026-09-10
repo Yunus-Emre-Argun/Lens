@@ -157,3 +157,73 @@ elle silmeniz gerekir (uygulama/`Lens.AiProof` bunu otomatik temizlemez).
 Eski `%LocalAppData%\Lens\cache\<hash>\index.json` dosyaları (varsa,
 önceki bir Lens sürümünden kalma) artık okunmuyor/yazılmıyor — temiz bir
 test ortamı için elle silebilirsiniz, uygulama bunlara dokunmaz.
+
+---
+
+## [PİLOT dalı] DINOv2-Base modelini hazırlama
+
+> Yalnızca `feature/dinov2-base-pilot` dalı için gereklidir. `main` dalı CLIP
+> modelini kullanır ve bu adıma ihtiyaç duymaz.
+
+Model dosyası (`models/dinov2-base.onnx`, ~330 MB) **git'e commit edilmez**
+(bkz. `docs/DECISIONS.md` #28). Yeni bir geliştirme makinesinde şu adımlarla
+yeniden üretilir:
+
+1. Python sanal ortamı ve benchmark bağımlılıkları kurulu olmalı
+   (`requirements-benchmark.txt` — `torch`, `transformers`, `onnx`,
+   `onnxruntime`, `pillow`, `numpy`).
+
+2. Dışa aktarma betiğini çalıştırın:
+
+   ```
+   python benchmark/export_dinov2_onnx.py
+   ```
+
+   Betik `facebook/dinov2-base` ağırlıklarını **pinlenmiş revision** ile
+   (`f9e44c814b77203eaa57a6bdbbd535f21ede1415`) yükler — Hugging Face
+   önbelleğinde yoksa bir kez indirir. CLS token döndüren minimal bir
+   sarmalayıcıyı ONNX'e aktarır (opset 17, dinamik batch,
+   `pixel_values` → `image_embeds`).
+
+3. Betik bittiğinde şunları doğrulayın:
+   - Dosya boyutu **330,5 MB**
+   - SHA-256 **`51014b029a9feaec58825836b0fa42b3b4aa86ae92dd35dd4db5d928dbff263d`**
+   - "PyTorch ve ONNX ciktilari sayisal olarak esdeger" satırı görünmeli.
+
+   Betik uyuşmazlık bulursa hata verir ve model **kullanılmamalıdır**.
+
+4. Mevcut bir dosyayı yeniden üretmeden doğrulamak için:
+
+   ```
+   python benchmark/export_dinov2_onnx.py --verify-only
+   ```
+
+**Not:** Bu betik yalnızca bir geliştirme aracıdır. Son kullanıcı makinesinde
+Python **gerekmez**; uygulama modeli ONNX Runtime ile doğrudan yükler ve
+çalışma zamanında internetten hiçbir şey indirmez.
+
+### Pilot doğrulama ve tanılama modları
+
+```
+Lens.AiProof hardeningtest              # 301 kontrol (Grup N: DINOv2 profil/index/embedding)
+Lens.AiProof dinosmoke [<dogrulama-cifti-klasoru>]
+Lens.AiProof ortbench <yapilandirma>    # ONNX Runtime CPU thread tanilama
+```
+
+`dinosmoke`, dönüş/renk/gri/parlaklık/kısmi crop/ölçek/konum dayanıklılığını,
+iş kuralı sıralamasını, eşik etkisini ve hızı gerçek üretim yolunda ölçer;
+tüm ara dosyaları geçici klasörde üretir ve siler, gerçek klasörleri
+kirletmez. İsteğe bağlı ikinci argüman bir doğrulama çiftinin bulunduğu
+klasördür (dosyalar kopyalanmaz, raporda dosya adı geçmez).
+
+`ortbench` her yapılandırmayı **ayrı bir süreçte** çalıştırmayı gerektirir
+(aynı süreçte birden fazla ONNX oturumu ölçümü kirletir):
+
+```
+Lens.AiProof ortbench default
+Lens.AiProof ortbench spin0
+Lens.AiProof ortbench intra4
+```
+
+Hedef ofis bilgisayarında 5.000 görsellik indeksleme süresini tahmin etmek
+için bu modu orada da çalıştırın (bkz. `docs/MODEL_CARD.md` hız bölümü).

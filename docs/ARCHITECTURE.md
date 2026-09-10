@@ -132,6 +132,48 @@ gereksinim ayrımı için `docs/PROJECT_CONTEXT.md` ve `docs/PRODUCTION_REQUIREM
 - Cache, model/preprocessing sürümünü etiketlemez (bkz. `docs/MODEL_CARD.md`
   "Model/Preprocessing Değiştiğinde Cache").
 
+### [PİLOT dalı] Profil doğrulamalı, modele özel index
+
+> Bu alt bölüm `feature/dinov2-base-pilot` dalını anlatır. `main`'de yalnızca
+> yukarıdaki profilsiz `.lens/index.json` vardır ve o dosya pilot dalda da
+> **hiç değiştirilmez**.
+
+Pilot dalda index'in nerede/hangi biçimde saklandığını `IIndexStore`
+belirler; `ImageIndex` bunu artık kendisi bilmez. İki uygulama vardır:
+
+| Store | Yol | Biçim | Boyut |
+|---|---|---|---|
+| `LegacyClipIndexStore` | `<ÜrünDizini>/.lens/index.json` | düz `ImageIndexEntry` dizisi (şema 1) | 512 |
+| `ProfiledIndexStore` | `<ÜrünDizini>/.lens/indexes/<profil>/index.json` | `SchemaVersion` + `EmbeddingProfile` + `Entries` (şema 2) | profilden |
+
+Kilit dosyası (`index.lock`) da store'un **kendi klasöründedir** — iki farklı
+modelin yazıcıları birbirini bloklamaz ve birbirinin dosyasına dokunmaz.
+Yeni yol `.lens` klasörünün **altında** olduğu için mevcut klasör taraması
+(`Directory.EnumerateFiles`, yalnızca üst dizin) ürün görseli/sorunlu dosya
+sayaçlarına karışmaz.
+
+Yüklemede kayıtlı profil ile çalışan profil tam karşılaştırılır; herhangi bir
+alan farklıysa (model kimliği/revision/**model dosyası SHA-256**/ön işleme
+sürümü/embedding boyutu/özellik türü/crop stratejisi/normalizasyon/şema
+sürümü) embedding'ler kullanılmaz, index tamamen yeniden oluşturulur ve
+nedeni kullanıcıya + log'a yazılır. Bu, `docs/DECISIONS.md` #95'in
+uygulanmış halidir.
+
+Tarama, geçici hata toleransı (#55), "hepsi ya da hiçbiri" bozuk cache
+politikası (#56), atomik yazma (#40, #63) ve tek-yazarlı kilit (#62) mantığı
+**tek kopya** olarak `ImageIndex`/`IndexLock` içinde kalır — her model için
+yeniden yazılmaz.
+
+### [PİLOT dalı] Model soyutlaması
+
+`IImageEmbedder` (profil + `Embed`) arayüzünü `ClipEmbedder` ve
+`DinoV2Embedder` uygular. Ön işleme sabitleri modele ait
+`ImagePreprocessingProfile` içindedir — CLIP ve DINOv2 değerleri aynı statik
+sınıfta karışık durmaz. Embedding doğrulaması (yanlış boyut, NaN/Infinity,
+sıfır norm) ve karşılaştırılabilirlik kontrolü `EmbeddingVector` içinde tek
+yerdedir; `SimilaritySearch` farklı boyutlu vektörler için sessiz skor yerine
+açık hata üretir.
+
 ## Bilinçli Olarak Basit Tutulan Noktalar
 
 Bunlar eksiklik değil, ölçeğe uygun bilinçli tercihlerdir — büyürse yeniden

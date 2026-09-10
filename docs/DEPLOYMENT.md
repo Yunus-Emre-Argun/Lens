@@ -11,6 +11,21 @@ bakın — iki doküman birbirini tamamlar, bu doküman onu geçersiz kılmaz.
 dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 --self-contained true -o publish/<hedef-klasör>
 ```
 
+> **[PİLOT dalı — `feature/dinov2-base-pilot`]** Bu dalda paketlenen model
+> CLIP değil **DINOv2-Base**'dir (`models/dinov2-base.onnx`, ~330 MB); CLIP
+> modeli pakete **dahil edilmez**. Kullanıcının görsel kabul testi için
+> üretilen paket:
+>
+> ```
+> dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 \
+>   --self-contained true -p:DebugType=none -p:DebugSymbols=false \
+>   -o publish/Lens.Desktop-win-x64-dinov2-base
+> ```
+>
+> Paket ~506 MB'dır. **ClickOnce dalı ve mevcut ClickOnce paketi bu turda
+> güncellenmemiştir** — DINOv2 sürümü kullanıcı tarafından kabul edilmeden
+> dağıtım sistemine taşınmamalıdır.
+
 - **Hedef mimari: x64.** `win-x86`/`win-arm64` için ayrıca test edilmemiştir.
 - Self-contained olduğu için hedef makinede .NET runtime kurulu olması
   gerekmez; WPF runtime ve ONNX Runtime native binary'leri publish çıktısına

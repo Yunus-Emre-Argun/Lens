@@ -8,6 +8,99 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [PİLOT — DINOv2 ViT-B/14 Entegrasyonu] — 2026-09-10
+
+> **Durum: deney dalı (`feature/dinov2-base-pilot`), çalıştırılabilir pilot.**
+> `main` dalı DEĞİŞTİRİLMEMİŞTİR ve production model kararı ALINMAMIŞTIR.
+> ClickOnce dalı/paketi bu turda güncellenmemiştir. Kullanıcının görsel
+> kabul testi HENÜZ YAPILMAMIŞTIR. Detay: `docs/DECISIONS.md` #96.
+
+### Eklendi
+- **DINOv2 ViT-B/14 embedder** (`Lens.Core.Ai.DinoV2Embedder`): resmî
+  `facebook/dinov2-base` ağırlıklarından üretilen ONNX modelini CPU'da
+  çalıştırır; çıktı son katmanın **CLS token**'ı, 768 boyut, L2-normalize.
+- **Model/embedding profili** (`Lens.Core.Ai.EmbeddingProfile`): model
+  kimliği, revision, model dosyası SHA-256, ön işleme sürümü, embedding
+  boyutu, özellik türü, crop stratejisi, normalizasyon ve index şema sürümü.
+- **Model-bağımsız soyutlama** (`Lens.Core.Ai.IImageEmbedder`): indeksleme ve
+  arama katmanı artık somut bir model tipine bağlı değil.
+- **Ön işleme profilleri** (`Lens.Core.Ai.ImagePreprocessingProfile`): CLIP ve
+  DINOv2 sabitleri artık aynı sınıfta karışık durmaz; her model kendi resmî
+  değerlerini (DINOv2: kısa kenar 256 → 224 center crop, ImageNet mean/std)
+  taşır.
+- **Profil doğrulamalı, modele özel index** (`ProfiledIndexStore`):
+  `<ÜrünDizini>/.lens/indexes/dinov2-base-v1/index.json` (kilit dosyası da
+  aynı klasörde). Belge artık düz kayıt listesi değil; `SchemaVersion` +
+  `EmbeddingProfile` + `Entries` zarfına sahip.
+- **Embedding doğrulaması** (`Lens.Core.Ai.EmbeddingVector`): yanlış boyut,
+  NaN/Infinity ve sıfır norm artık sessizce geçmez, açık hata üretir.
+- `benchmark/export_dinov2_onnx.py`: ONNX dışa aktarma + PyTorch↔ONNX sayısal
+  doğrulama betiği (yalnızca geliştirme aracı; son kullanıcıda Python
+  gerekmez).
+- `Lens.AiProof dinosmoke`: dönüş/renk/gri/parlaklık/kısmi crop/ölçek/konum
+  dayanıklılığı, iş kuralı sıralaması, eşik etkisi ve hız ölçümlerini gerçek
+  üretim yolunda çalıştıran smoke testi.
+- `Lens.AiProof ortbench`: ONNX Runtime CPU thread davranışını ölçen tanılama
+  modu (aşağıdaki hız bulgusunu kanıta bağlar).
+- `Lens.AiProof hardeningtest` Grup N: 80 yeni kontrol (profil karşılaştırması,
+  index yolu ayrımı, şema/bozulma reddi, boyut güvenliği, kilit ayrımı,
+  atomik kayıt, gerçek model ile embedding sözleşmesi).
+
+### Değiştirildi
+- Uygulamanın aktif modeli bu dalda **DINOv2-Base**; `models/dinov2-base.onnx`
+  publish çıktısına kopyalanır. **CLIP modeli pakete dahil edilmez** (dosya
+  repoda durmaya devam eder, geri dönüş tek satırlık bir csproj değişikliğidir).
+- Başlangıç "Minimum benzerlik (%)" değeri bu dalda **%55** (CLIP dönemi
+  değeri %80'di) — geçici pilot eşiğidir. Bu eşik kullanıcı ayarlarında
+  **kalıcı saklanmadığı** için (kod incelemesiyle doğrulandı) bir ayar göçü
+  yazılmasına gerek olmamıştır; kullanıcının elle girdiği geçerli değere
+  dokunulmaz.
+- `SimilaritySearch` artık sorgu ile kayıt embedding boyutlarının eşitliğini
+  doğrular: 768 boyutlu sorgu ile 512 boyutlu eski kayıt karşılaştırılmaya
+  çalışılırsa sessiz/yanlış skor yerine açıklayıcı hata üretilir.
+- `ImageIndex` artık depolamayı `IIndexStore` üzerinden yapar; tarama, geçici
+  hata toleransı, atomik yazma ve kilit mantığı **tek kopya** olarak kalır.
+  Store verilmeyen eski çağrılar eski CLIP dosyasını kullanmaya devam eder.
+
+### Korunanlar
+- **Eski CLIP index'i (`.lens/index.json`) okunmaz, yazılmaz, silinmez** —
+  bayt bayt değişmediği testle doğrulanmıştır (Grup N: N37, N69). CLIP
+  sürümüne dönülürse yeniden indeksleme gerekmez.
+- İşlem/bekleme paneli, busy/kilit korumaları, otomatik indeks kontrolü,
+  "Yeni Arama" temizleme, sürükle-bırak, çift tık büyütme, tema sistemi,
+  yerleşim, sonuç listesi/kaydırma, varsayılan 20 / azami 999 sonuç ve
+  sayısal giriş doğrulamaları DEĞİŞMEDİ. Arayüz tasarımına dokunulmadı.
+
+### Ölçümler (bu makine, CPU, 20 çekirdek)
+- PyTorch ↔ ONNX: 8 gerçek görselde en kötü cosine **0,99999994**, en büyük
+  mutlak fark **2,3e-05** → sayısal olarak eşdeğer.
+- Dönüşüm dayanıklılığı (5 kaynak × 15 dönüşüm, 193 görsellik katalog):
+  **15 dönüşümün tamamında R@1 %100** (dönüş, hue, gri, parlaklık, kontrast,
+  sol/sağ/merkez crop, 2× yakınlaştırma, küçültme, köşeye kaydırma dahil).
+- İş kuralı: 5/5 kaynakta "aynı motif–farklı renk", "aynı renk–farklı motif"
+  rakiplerinin üstünde sıralandı.
+- Eşik: %55'te doğru kaynakların %100'ü listede kalıyor; %80'de %74,7'si.
+- Hız: model yükleme 464 ms + SHA-256 219 ms; görsel başına 427 ms
+  (ön işleme 15 ms + çıkarım); arama 193 kayıtta 0,7 ms.
+
+### Düzeltildi (ölçülmüş performans bulgusu)
+- ONNX Runtime'ın varsayılan **spinning** thread politikası, Lens'in
+  "decode → çıkarım" sıralı indeksleme döngüsünde ImageSharp ile birbirini aç
+  bırakıyordu: görsel başına **1155 ms**. `session.intra_op.allow_spinning=0`
+  ile **439 ms** — 5.000 görselde ~96 dakika yerine ~37 dakika. Ayar yalnızca
+  thread bekleme politikasıdır, **sayısal çıktıyı değiştirmez** (smoke testi
+  skorları birebir aynı kaldı).
+
+### Bilinen sınırlamalar
+- Saf çıkarım (aynı tensor, ImageSharp araya girmeden) ~115 ms iken indeksleme
+  döngüsünde ~422 ms ölçülmektedir; fark tamamen giderilememiştir.
+- Hız ölçümleri **bu geliştirme makinesine** aittir. Hedef ofis bilgisayarının
+  çekirdek sayısı farklıdır; 5.000 görsel tahmini orada doğrulanmalıdır.
+- Dönüşüm testi 193 görsellik bir havuzda ve 5 kaynak görselle yapılmıştır —
+  `docs/MODEL_BENCHMARK.md`'deki 2.007 görsellik ölçümün yerine geçmez.
+- Gerçek üretim kataloğunda doğrulama YAPILMAMIŞTIR.
+- Canlı arayüz açılmamıştır; görsel kabul kullanıcıyı beklemektedir.
+
 ## [Araştırma — Geniş Veri Model Benchmarkı] — 2026-09-09
 
 > **Durum: yalnızca araştırma ve dokümantasyon.** Production kaynak kodu,
