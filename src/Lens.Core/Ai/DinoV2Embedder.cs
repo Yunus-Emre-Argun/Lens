@@ -23,6 +23,7 @@ public sealed class DinoV2Embedder : IImageEmbedder
     private readonly InferenceSession _session;
     private readonly ImagePreprocessingProfile _preprocessing = ImagePreprocessingProfile.DinoV2;
 
+    /// <inheritdoc />
     public EmbeddingProfile Profile { get; }
 
     /// <summary>
@@ -97,6 +98,7 @@ public sealed class DinoV2Embedder : IImageEmbedder
         return onnxModelPath;
     }
 
+    /// <inheritdoc />
     public float[] Embed(string imagePath)
     {
         var chw = ImagePreprocessor.PreprocessToChwTensor(imagePath, _preprocessing);
@@ -120,5 +122,6 @@ public sealed class DinoV2Embedder : IImageEmbedder
             output.AsEnumerable<float>().ToArray(), DinoV2BaseProfile.EmbeddingDimension);
     }
 
+    /// <inheritdoc />
     public void Dispose() => _session.Dispose();
 }

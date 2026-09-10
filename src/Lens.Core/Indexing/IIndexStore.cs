@@ -42,11 +42,18 @@ public interface IIndexStore
     /// <summary>Index dosyasinin bulundugu klasor. Side-effect-free: OGRENMEK klasoru OLUSTURMAZ.</summary>
     string IndexDirectory(string productDirectory);
 
+    /// <summary>Index dosyasinin tam yolu. Side-effect-free: bu yolu OGRENMEK dosyayi/klasoru OLUSTURMAZ.</summary>
     string IndexFilePath(string productDirectory);
 
     /// <summary>Tek-yazarli exclusive kilit dosyasi. Her store KENDI klasorunde kilitlenir - iki farkli model birbirinin indekslemesini bloklamaz.</summary>
     string LockFilePath(string productDirectory);
 
+    /// <summary>
+    /// Index'i diskten okur. UYGULAMA COKMEZ: bozuk/yarim/uyumsuz dosya
+    /// exception yerine ilgili <see cref="IndexLoadOutcome"/> ile bildirilir
+    /// ve <see cref="IndexLoadResult.Entries"/> BOS doner - dogrulanmamis
+    /// embedding'ler hicbir kosulda aramaya verilmez.
+    /// </summary>
     IndexLoadResult Load(string productDirectory, ILensLogger? logger = null);
 
     /// <summary>Atomic yazar (temp + replace, bkz. <see cref="Lens.Core.IO.AtomicFileWriter"/>); hedef klasor gerekiyorsa BURADA olusturulur.</summary>

@@ -26,6 +26,14 @@ public static class ImagePreprocessor
     public static float[] PreprocessToChwTensor(string imagePath) =>
         PreprocessToChwTensor(imagePath, ImagePreprocessingProfile.Clip);
 
+    /// <summary>
+    /// Verilen modelin on isleme profiline gore CHW duzeninde, float32 bir
+    /// girdi tensoru uretir (uzunluk: 3 * CropSize * CropSize). Bu, asil
+    /// (profil-farkindali) uygulamadir - profilsiz asiri yukleme buraya CLIP
+    /// profiliyle delege eder.
+    /// </summary>
+    /// <param name="imagePath">Okunacak gorselin tam yolu.</param>
+    /// <param name="profile">Kullanilacak modelin resmi on isleme sozlesmesi (bkz. <see cref="ImagePreprocessingProfile"/>).</param>
     public static float[] PreprocessToChwTensor(string imagePath, ImagePreprocessingProfile profile)
     {
         using var image = LoadForPreprocessing(imagePath, profile);

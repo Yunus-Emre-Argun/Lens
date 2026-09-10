@@ -27,6 +27,8 @@ public sealed class ProfiledIndexStore : IIndexStore
     private readonly EmbeddingProfile _profile;
     private readonly string _indexFolderName;
 
+    /// <param name="profile">Bu store'un yazdigi/dogruladigi embedding profili.</param>
+    /// <param name="indexFolderName">`.lens/indexes/` altindaki profil klasoru adi (orn. "dinov2-base-v1").</param>
     public ProfiledIndexStore(EmbeddingProfile profile, string indexFolderName)
     {
         if (string.IsNullOrWhiteSpace(indexFolderName))
@@ -42,21 +44,28 @@ public sealed class ProfiledIndexStore : IIndexStore
     public static ProfiledIndexStore ForDinoV2Base(EmbeddingProfile profile) =>
         new(profile, DinoV2BaseProfile.IndexFolderName);
 
+    /// <summary>Bu store'un beklediği profil - yuklemede dosyadaki profil bununla karsilastirilir.</summary>
     public EmbeddingProfile Profile => _profile;
 
+    /// <inheritdoc />
     public string Description => $"{_profile.ModelId} ({_indexFolderName})";
 
+    /// <inheritdoc />
     public int ExpectedEmbeddingDimension => _profile.EmbeddingDimension;
 
+    /// <inheritdoc />
     public string IndexDirectory(string productDirectory) =>
         AppPaths.ProfiledIndexDirectory(productDirectory, _indexFolderName);
 
+    /// <inheritdoc />
     public string IndexFilePath(string productDirectory) =>
         AppPaths.ProfiledIndexFilePath(productDirectory, _indexFolderName);
 
+    /// <inheritdoc />
     public string LockFilePath(string productDirectory) =>
         AppPaths.ProfiledIndexLockFilePath(productDirectory, _indexFolderName);
 
+    /// <inheritdoc />
     public IndexLoadResult Load(string productDirectory, ILensLogger? logger = null)
     {
         var path = IndexFilePath(productDirectory);
@@ -111,6 +120,7 @@ public sealed class ProfiledIndexStore : IIndexStore
         return new IndexLoadResult(IndexLoadOutcome.Loaded, document.Entries, null);
     }
 
+    /// <inheritdoc />
     public void Save(string productDirectory, List<ImageIndexEntry> entries)
     {
         Directory.CreateDirectory(IndexDirectory(productDirectory));

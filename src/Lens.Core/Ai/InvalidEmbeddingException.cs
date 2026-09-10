@@ -8,6 +8,7 @@ namespace Lens.Core.Ai;
 /// </summary>
 public sealed class InvalidEmbeddingException : Exception
 {
+    /// <summary>Kullaniciya/log'a gosterilecek, nedeni ACIKCA anlatan mesajla olusturur.</summary>
     public InvalidEmbeddingException(string message) : base(message)
     {
     }

@@ -21,18 +21,25 @@ namespace Lens.Core.Indexing;
 /// </summary>
 public sealed class LegacyClipIndexStore : IIndexStore
 {
+    /// <summary>Durumsuz oldugu icin tek ortak ornek - her cagrida yeni nesne olusturmaya gerek yok.</summary>
     public static readonly LegacyClipIndexStore Instance = new();
 
+    /// <inheritdoc />
     public string Description => "CLIP (eski profilsiz index)";
 
+    /// <inheritdoc />
     public int ExpectedEmbeddingDimension => ClipEmbedder.EmbeddingDimension;
 
+    /// <inheritdoc />
     public string IndexDirectory(string productDirectory) => AppPaths.SharedIndexDirectory(productDirectory);
 
+    /// <inheritdoc />
     public string IndexFilePath(string productDirectory) => AppPaths.SharedIndexFilePath(productDirectory);
 
+    /// <inheritdoc />
     public string LockFilePath(string productDirectory) => AppPaths.SharedIndexLockFilePath(productDirectory);
 
+    /// <inheritdoc />
     public IndexLoadResult Load(string productDirectory, ILensLogger? logger = null)
     {
         var path = IndexFilePath(productDirectory);
@@ -65,6 +72,7 @@ public sealed class LegacyClipIndexStore : IIndexStore
         }
     }
 
+    /// <inheritdoc />
     public void Save(string productDirectory, List<ImageIndexEntry> entries)
     {
         Directory.CreateDirectory(IndexDirectory(productDirectory));

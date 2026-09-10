@@ -25,5 +25,6 @@ public sealed class IndexDocument
     /// <summary>Bu dosyadaki embedding'leri ureten profil. null/eksik ise dosya uyumsuz sayilir - "profil yok" bir hata durumudur, varsayilan kabul edilemez.</summary>
     public EmbeddingProfile? EmbeddingProfile { get; set; }
 
+    /// <summary>Dosyadaki embedding kayitlari. Profil dogrulamasi GECMEDEN bu liste kullanilmaz (bkz. <see cref="ProfiledIndexStore.Load"/>).</summary>
     public List<ImageIndexEntry> Entries { get; set; } = new();
 }

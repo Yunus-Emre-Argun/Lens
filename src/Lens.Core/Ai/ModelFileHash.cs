@@ -13,6 +13,7 @@ namespace Lens.Core.Ai;
 /// </summary>
 public static class ModelFileHash
 {
+    /// <summary>Dosyanin SHA-256'sini kucuk harfli hex metin olarak dondurur. Dosya akis halinde okunur - tamami bellege ALINMAZ.</summary>
     public static string ComputeSha256(string filePath)
     {
         // Buyuk dosya: tamami bellege alinmaz, akis halinde hash'lenir.

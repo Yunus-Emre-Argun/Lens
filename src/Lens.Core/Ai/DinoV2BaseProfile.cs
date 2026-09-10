@@ -13,6 +13,7 @@ namespace Lens.Core.Ai;
 /// </summary>
 public static class DinoV2BaseProfile
 {
+    /// <summary>Resmi Hugging Face model kimligi.</summary>
     public const string ModelId = "facebook/dinov2-base";
 
     /// <summary>Resmi Hugging Face deposundaki kesin revision (commit) - agirliklarin bu surumunden export edildi.</summary>
@@ -21,7 +22,10 @@ public static class DinoV2BaseProfile
     /// <summary>DINOv2 ViT-B/14 gizli boyutu = CLS token uzunlugu.</summary>
     public const int EmbeddingDimension = 768;
 
+    /// <summary>Modelden alinan ozellik: son katmanin CLS token'i (DINOv2'de projection head YOKTUR).</summary>
     public const string FeatureType = "CLS";
+
+    /// <summary>Vektor normalizasyonu - grafige DAHIL DEGILDIR, calisma zamaninda uygulanir (bkz. <see cref="DinoV2Embedder"/>).</summary>
     public const string Normalization = "L2";
 
     /// <summary>
@@ -41,7 +45,10 @@ public static class DinoV2BaseProfile
     /// <summary>Uygulama klasorundeki `models\` altinda beklenen ONNX dosya adi.</summary>
     public const string ModelFileName = "dinov2-base.onnx";
 
+    /// <summary>ONNX girdi tensorunun adi - export betigi (benchmark/export_dinov2_onnx.py) ile BIREBIR ayni olmalidir.</summary>
     public const string OnnxInputName = "pixel_values";
+
+    /// <summary>ONNX cikti tensorunun adi - export betigi ile BIREBIR ayni olmalidir.</summary>
     public const string OnnxOutputName = "image_embeds";
 
     /// <summary>

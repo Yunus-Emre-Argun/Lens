@@ -7,6 +7,11 @@ namespace Lens.Core.Indexing;
 /// </summary>
 public static class IndexEntryValidation
 {
+    /// <summary>
+    /// Kaydin gecerli olup olmadigi: null degil, dosya yolu dolu, embedding
+    /// null degil, uzunlugu <paramref name="expectedDimension"/> ve icinde
+    /// NaN/Infinity yok.
+    /// </summary>
     public static bool IsValid(ImageIndexEntry? entry, int expectedDimension)
     {
         if (entry is null || string.IsNullOrWhiteSpace(entry.RelativePath) || entry.Embedding is null)
