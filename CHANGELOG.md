@@ -8,6 +8,64 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Çok Modelli ve Renkli/Gri Arama Pilotu] — 2026-09-10
+
+> **Durum: deney dalı (`feature/multi-model-search`), ayrı worktree.**
+> `main` ve diğer pilot dalları değiştirilmemiştir. Kullanıcının görsel kabul
+> testi yapılmamıştır. Detay: `docs/MULTI_MODEL_SEARCH.md`.
+
+### Kanıtlanmış DINO renkli davranışı KORUNDU
+- Ön işleme tensörü, embedding ve aynı index üzerindeki sıralama/skorlar
+  önceki pilotla **bit düzeyinde aynı** (otomatik test Q40–Q42).
+- `EmbeddingProfile`, index klasörü (`dinov2-base-v1`), model/revision,
+  768 boyut, CLS token, L2, şema sürümü ve %55 eşiği **değişmedi** (Q1–Q7).
+- Kullanıcının mevcut ~5.000 görsellik DINO indeksi **geçerli kalır**.
+
+### Eklendi
+- Arama Ayarları paneline **Model** (DINOv2 Base / CLIP Standart),
+  **Görüntü değerlendirme** (Renkli / Gri tonlamalı) ve **Desen odaklı
+  karşılaştırma** kontrolleri. Mevcut satırların `Grid.Row` değerleri ve
+  sayısal kutuların 76 DIP ölçüsü değişmedi.
+- `SearchModelCatalog` + `ProfiledImageEmbedder`: 4 kombinasyon tek kod
+  yolundan; model değişiminde önceki ONNX oturumu kapatılır (iki büyük model
+  aynı anda bellekte tutulmaz), yenisi arka planda yüklenir.
+- `GrayscalePreprocessor`: gri dönüşüm ölçekleme öncesi, tek kanal üç kanala
+  eşit kopyalanır, modelin kendi normalizasyonu uygulanır. Gri profil
+  renkliden **farklı ön işleme kimliği** taşır.
+- Dört ayrı indeks: `dinov2-base-v1` (değişmedi), `dinov2-base-gray-v1`,
+  `clip-standard-rgb-v1`, `clip-standard-gray-v1`. Kilitler kendi
+  klasörlerinde. Yalnızca seçilen profil indekslenir.
+- `CenteredSimilaritySearch` + `EmbeddingMeanCache`: **embedding merkezleme ve
+  yeniden normalleştirme** (tam whitening DEĞİL). Arama zamanı dönüşümü —
+  açıp kapatmak **yeniden indeksleme gerektirmez**.
+- **Alt klasör taraması** (`CatalogScanner`): göreli yol anahtarı, `.lens`
+  atlanır, junction/symlink takip edilmez, derinlik sınırı 16.
+- Kombinasyon başına eşik saklama (`UserSettings.ThresholdByProfile`).
+- `ClickOnceMultiModel.pubxml` ve `docs/MULTI_MODEL_SEARCH.md`.
+- `hardeningtest` Grup Q: 49 yeni kontrol.
+
+### Ölçüm
+- İndeksleme (24 gerçek görsel): ONNX varsayılanı 1136 ms/görsel →
+  `allow_spinning=0` ile **447 ms** (~95 dk → ~37 dk / 5.000 görsel).
+- **Ön işleme toplam sürenin yalnızca %3,8'i** (17/447 ms) olduğu için ön
+  işleme tarafında spekülatif optimizasyon YAPILMADI; kanıtlanmış DINO yolunu
+  ölçülmemiş bir kazanç için değiştirmek doğru olmazdı.
+
+### Düzeltildi
+- Alt klasör taraması eklenirken ortaya çıkan **veri kaybı riski**: kök
+  klasöre erişilemediğinde tarayıcı sessizce "boş katalog" dönüyordu, bu da
+  tüm kayıtların silinmiş sayılmasına yol açardı. Kök hatası artık yukarı
+  taşınır → `ScanError` → mevcut indeks korunur (test N62/Q39).
+
+### Bilinen sınırlamalar
+- Gri ve merkezlenmiş profillerin eşikleri geçici; kalibre edilmedi.
+- Gri modun daha iyi olduğu ölçülmedi (önceki CLIP deneyinde düşürmüştü).
+- Döngüdeki 118 → 430 ms çıkarım farkı açıklanamadı.
+- CLIP tarafında eski `ClipEmbedder` ile tek ULP (~6e-08) fark ölçüldü —
+  farklı ONNX oturum ayarlarından; DINO renkli tarafı etkilenmez.
+- Alt klasör desteği gerçek çok klasörlü katalogda denenmedi.
+- Canlı arayüz açılmadı.
+
 ## [PİLOT — DINOv2 ViT-B/14 Entegrasyonu] — 2026-09-10
 
 > **Durum: deney dalı (`feature/dinov2-base-pilot`), çalıştırılabilir pilot.**

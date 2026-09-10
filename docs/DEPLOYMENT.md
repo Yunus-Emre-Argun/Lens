@@ -34,6 +34,22 @@ dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 --self
 > DINOv2 sürümü kullanıcı tarafından kabul edilmeden gerçek dağıtım
 > adresine/sistemine taşınmamalıdır.
 
+> **[Çok modelli pilot — `feature/multi-model-search`]** Bu dal HER İKİ modeli
+> de paketler (kullanıcı arayüzden seçtiği için):
+>
+> ```
+> dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 \
+>   --self-contained true -p:DebugType=none -p:DebugSymbols=false \
+>   -o publish/Lens.Desktop-win-x64-multi-model
+> ```
+>
+> ClickOnce için `ClickOnceMultiModel.pubxml` → `publish/ClickOnce-multi-model/`;
+> `AssemblyName` = `Lens.Desktop.MultiModel` ile **bağımsız kurulum kimliği**
+> üretir, mevcut pilotların üzerine kurulmaz. Veri klasörü
+> `%LocalAppData%\Lens.MultiModel\`. Mevcut ClickOnce paketleri
+> DEĞİŞTİRİLMEMİŞTİR (478'er dosya bayt bayt aynı). Ayrıntı:
+> `docs/MULTI_MODEL_SEARCH.md`.
+
 - **Hedef mimari: x64.** `win-x86`/`win-arm64` için ayrıca test edilmemiştir.
 - Self-contained olduğu için hedef makinede .NET runtime kurulu olması
   gerekmez; WPF runtime ve ONNX Runtime native binary'leri publish çıktısına
