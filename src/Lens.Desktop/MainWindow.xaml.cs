@@ -308,7 +308,21 @@ public partial class MainWindow : Window
         // tahmin - canli DPI olcumu DEGIL (bkz. son rapor).
         const double queryChromeHeight = 66; // gorsel basligi + dosya-adi + kalici ipucu satiri
         const double resultsHeaderHeight = 26; // "EN BENZER SONUÇLAR (N)" basligi
-        const double minResultsReserve = 120; // sonuc alani icin asgari rezerv
+        // [Cok modelli arama - guncellenmis gercek] Bu rezerv YALNIZCA gorsel
+        // yuksekligini sinirlar. Arama Ayarlari paneline model/goruntu/desen
+        // odakli kontrolleri eklendikten sonra ORTA SUTUN (panel), gorsel
+        // sutunundan DAHA UZUN olabilmektedir - XAML olculerinden hesap:
+        // panel 336 DIP, orta sutun ~417 DIP; gorsel sutunu en fazla 306 DIP.
+        // Orta satirin yuksekligi bu durumda PANEL tarafindan belirlenir ve
+        // gorseli kucultmek sonuc alanina yer KAZANDIRMAZ.
+        //
+        // Sonuc: 860x680 minimum pencerede sonuc alanina kalan yer ~184 DIP'ten
+        // ~28 DIP'e duser (varsayilan 1060x840 penceresinde ~188 DIP ile
+        // sorunsuz kalir). Bu bir tasma/cakisma DEGILDIR - sonuc listesi
+        // kaydirilabilir kalir - ama minimum pencerede dar gorunur.
+        // Cozum (panelin kaydirilmasi, MinHeight artirimi vb.) bir TASARIM
+        // karari oldugu icin bu yerlesim duzeltmesinin kapsamina alinmadi.
+        const double minResultsReserve = 120; // sonuc alani icin asgari rezerv (yalnizca gorsel yuksekligini sinirlar)
         const double comparisonRowVerticalMargin = 32; // ComparisonRowGrid Margin (0,20,0,12)
         const double rootMargins = 24; // RootGrid Margin=12 (ust+alt)
 

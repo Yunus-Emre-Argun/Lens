@@ -8,6 +8,35 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Düzeltme — Arama Ayarları paneli yerleşim çakışması] — 2026-09-10
+
+### Düzeltildi
+- Arama Ayarları panelinde yeni eklenen kontroller birbirinin üzerine
+  biniyordu. **Kök neden:** Grid'de yalnızca 0–14 satırı tanımlıyken
+  kontroller 10/11/13/14/**16** satırlarına atanmıştı. Tanımlı yapıda 11. ve
+  13. satırlar 10 DIP'lik **boşluk** satırlarıydı; Model listesi bir boşluk
+  satırına taşıyordu ve tanımsız 16. satıra atanan "Desen odaklı
+  karşılaştırma" onay kutusu son geçerli satıra sıkışarak Görüntü
+  değerlendirme listesiyle **çakışıyordu**.
+- Satır tanımları, `Grid.Row` atamalarıyla birebir eşleşecek şekilde
+  yeniden düzenlendi (artık 0–16, 17 satır): 9 bölüm boşluğu · 10 Model
+  etiketi · 11 Model listesi · 12 boşluk · 13 Görüntü etiketi ·
+  14 Görüntü listesi · 15 boşluk · 16 onay kutusu. Mevcut 0–8 satırları ve
+  onların `Grid.Row` değerleri **değişmedi**.
+
+### Bilinen sınırlama (yeni kontrollerin doğal sonucu)
+- Panel yüksekliği 180 → 336 DIP'e çıktı; orta sütun (~417 DIP) artık görsel
+  sütunundan (en fazla 306 DIP) uzun. Varsayılan 1060×840 penceresinde sonuç
+  alanına ~188 DIP kalıyor (sorunsuz), ancak **860×680 minimum pencerede
+  ~184 → ~28 DIP**'e düşüyor. Taşma/çakışma değildir, liste kaydırılabilir
+  kalır. `UpdateResponsiveLayout` içindeki 120 DIP rezerv yalnızca görsel
+  yüksekliğini sınırladığı için bu durumda garanti vermez — yorum gerçeğe
+  uygun hale getirildi. Kalıcı çözüm (panelin kaydırılması veya
+  `MinHeight` artırımı) bir tasarım kararıdır ve bu düzeltmenin kapsamına
+  alınmadı.
+
+- Model, indeks ve arama algoritmasına **dokunulmadı**.
+
 ## [Çok Modelli ve Renkli/Gri Arama Pilotu] — 2026-09-10
 
 > **Durum: deney dalı (`feature/multi-model-search`), ayrı worktree.**

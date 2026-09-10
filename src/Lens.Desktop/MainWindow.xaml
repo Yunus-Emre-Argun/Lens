@@ -421,12 +421,30 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="14" />
+                            <!-- 8: Otomatik indeksleme CheckBox -->
                             <RowDefinition Height="Auto" />
-                            <!-- [Cok modelli arama] Model / goruntu / desen odakli karsilastirma.
-                                 Mevcut satirlar (0-8) ve onlarin Grid.Row degerleri DEGISTIRILMEDI. -->
+
+                            <!-- [Cok modelli arama] Satir tanimlari, asagidaki Grid.Row
+                                 atamalariyla BIREBIR eslesir. Onceki surumde etiket/liste
+                                 ciftleri sabit 10 DIP'lik BOSLUK satirlarina denk geliyordu ve
+                                 son CheckBox (Grid.Row=16) hic tanimlanmamis bir satira atanip
+                                 son gecerli satira sikisarak listeyle CAKISIYORDU. Satir
+                                 sayisi/sirasi bu yuzden duzeltildi; mevcut 0-8 satirlari ve
+                                 onlarin Grid.Row degerleri DEGISMEDI.
+
+                                  9 : bolum boslugu
+                                 10 : Model etiketi
+                                 11 : Model ComboBox        (Auto - sabit bosluk DEGIL)
+                                 12 : bosluk
+                                 13 : Goruntu degerlendirme etiketi
+                                 14 : Goruntu degerlendirme ComboBox
+                                 15 : bosluk
+                                 16 : Desen odakli karsilastirma CheckBox -->
                             <RowDefinition Height="14" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="10" />
                             <RowDefinition Height="Auto" />
