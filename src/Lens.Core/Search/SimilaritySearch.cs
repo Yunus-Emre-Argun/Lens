@@ -1,3 +1,4 @@
+using Lens.Core.Ai;
 using Lens.Core.Indexing;
 
 namespace Lens.Core.Search;
@@ -15,7 +16,7 @@ public static class SimilaritySearch
     public const int MaxResults = 999;
 
     /// <summary>
-    /// Float32 dot-product birikimi (512 terim) kaynakli kucuk hassasiyet
+    /// Float32 dot-product birikimi (modele gore 512/768 terim) kaynakli kucuk hassasiyet
     /// farklari icin tolerans - orn. bir gorsel kendisiyle karsilastirildiginda
     /// matematiksel olarak 1.0 (%100) olmasi gerekirken 0.999999x
     /// hesaplanabilir. Threshold karsilastirmasi bu epsilon kadar esnek
@@ -28,7 +29,7 @@ public static class SimilaritySearch
     public static List<SearchResult> TopK(float[] query, IReadOnlyList<ImageIndexEntry> entries, int k)
     {
         return entries
-            .Select(e => new SearchResult(e.RelativePath, ClampScore(Dot(query, e.Embedding))))
+            .Select(e => new SearchResult(e.RelativePath, ScoreOf(query, e)))
             .OrderByDescending(r => r.Score)
             .Take(k)
             .ToList();
@@ -61,7 +62,7 @@ public static class SimilaritySearch
 
         foreach (var entry in entries)
         {
-            var score = ClampScore(Dot(query, entry.Embedding));
+            var score = ScoreOf(query, entry);
             if (score >= thresholdFraction - ScoreEpsilon)
             {
                 qualifying.Add(new SearchResult(entry.RelativePath, score));
@@ -76,6 +77,26 @@ public static class SimilaritySearch
         }
 
         return qualifying;
+    }
+
+    /// <summary>
+    /// [Boyut guvenligi] Bir kaydin skorunu, boyut esitligini ONCE dogrulayarak
+    /// hesaplar. Onceden <see cref="Dot"/> sorgunun uzunlugu boyunca donuyordu:
+    /// kayit KISA ise IndexOutOfRange, UZUN ise fazla terimler sessizce yok
+    /// sayilarak YANLIS ama makul gorunen bir skor uretiliyordu. Farkli
+    /// modellerin vektorleri (orn. 768 boyutlu DINOv2 sorgusu ile 512 boyutlu
+    /// eski CLIP kaydi) karsilastirilamaz - bu bir veri butunlugu hatasidir ve
+    /// aciklayici bir <see cref="InvalidEmbeddingException"/> ile bildirilir
+    /// (bkz. EmbeddingVector.EnsureComparable, docs/DECISIONS.md #95).
+    ///
+    /// Normal islemde index profil dogrulamasindan gectigi icin bu kontrol asla
+    /// tetiklenmemelidir; ikinci bir savunma katmanidir. Maliyeti, 768 terimli
+    /// dot product yaninda ihmal edilebilir bir uzunluk karsilastirmasidir.
+    /// </summary>
+    private static float ScoreOf(float[] query, ImageIndexEntry entry)
+    {
+        EmbeddingVector.EnsureComparable(query, entry.Embedding, entry.RelativePath);
+        return ClampScore(Dot(query, entry.Embedding));
     }
 
     /// <summary>Cosine skorunu guvenli bicimde [-1,1] araligina sikistirir (float32 birikim hatasi araligin disina cikarabilir).</summary>

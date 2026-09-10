@@ -25,6 +25,16 @@ public sealed class IndexUpdateStats
     /// </summary>
     public string? ScanError { get; set; }
 
+    /// <summary>
+    /// [Profil-dogrulamali index] Mevcut index dosyasi bu turda BASTAN
+    /// olusturulmak zorunda kaldiysa nedeni (orn. "model dosyası SHA-256",
+    /// "ön işleme sürümü (... → ...)", "Kayıt içeriği geçersiz"); aksi halde
+    /// null. Kullaniciya "neden her sey yeniden indeksleniyor?" sorusunun
+    /// yanitini gostermek icin vardir - sessiz bir tam yeniden tarama
+    /// aciklanamaz gorunur (bkz. docs/DECISIONS.md #95).
+    /// </summary>
+    public string? IndexResetReason { get; set; }
+
     public int FailedCount => Issues.Count(i => i.Kind == FileIssueKind.SupportedImageButFailed);
 
     public int Total => Added + Updated + Unchanged;

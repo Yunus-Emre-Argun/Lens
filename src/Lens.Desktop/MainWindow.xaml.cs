@@ -37,7 +37,28 @@ public partial class MainWindow : Window
 
     private string? _productFolder;
     private string? _queryImagePath;
-    private ClipEmbedder? _embedder;
+    /// <summary>
+    /// [PILOT - DINOv2-Base] Aktif embedder. Tip artik somut bir model degil
+    /// <see cref="IImageEmbedder"/> - bu dalda ornek olarak
+    /// <see cref="DinoV2Embedder"/> olusturulur. Kullaniciya model secme
+    /// menusu BILEREK eklenmedi (bkz. gorev kapsami) - tek aktif model vardir.
+    /// </summary>
+    private IImageEmbedder? _embedder;
+
+    /// <summary>
+    /// [Profil ayrimi] Aktif modelin profili (model kimligi/revision/SHA-256/
+    /// on isleme surumu/boyut/...). Model OTURUMUNDAN AYRI ve ONDAN ONCE
+    /// cozulur: klasor secimi/durum gosterimi, model ONNX oturumu hic
+    /// yuklenmeden once index'in HANGI klasorde oldugunu ve profilinin uyumlu
+    /// olup olmadigini bilmek zorundadir (bkz. TryEnsureProfileAsync).
+    /// </summary>
+    private EmbeddingProfile? _activeProfile;
+
+    /// <summary>[Profil ayrimi] Aktif profile ait index deposu - eski CLIP dosyasina (.lens/index.json) HICBIR kosulda dokunmaz.</summary>
+    private IIndexStore? _indexStore;
+
+    /// <summary>[Profil ayrimi] Ayni anda iki kez model dosyasi hash'i hesaplanmasini engeller (bkz. TryEnsureProfileAsync).</summary>
+    private readonly SemaphoreSlim _profileInitLock = new(1, 1);
     private List<ImageIndexEntry> _indexEntries = new();
     private readonly ObservableCollection<SearchResultViewModel> _results = new();
     private DirectoryOrigin _directoryOrigin = DirectoryOrigin.None;
@@ -60,7 +81,7 @@ public partial class MainWindow : Window
     /// </summary>
     private readonly DispatcherTimer _operationShowTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
 
-    /// <summary>[Model yükleme - arka plana taşıma] Aynı anda iki ClipEmbedder oluşturulmasını engeller (bkz. TryEnsureEmbedderAsync).</summary>
+    /// <summary>[Model yükleme - arka plana taşıma] Aynı anda iki embedder oluşturulmasını engeller (bkz. TryEnsureEmbedderAsync).</summary>
     private readonly SemaphoreSlim _embedderInitLock = new(1, 1);
 
     private static readonly CultureInfo TurkishNumberCulture = CultureInfo.GetCultureInfo("tr-TR");
@@ -134,11 +155,18 @@ public partial class MainWindow : Window
         // JSON'da 0 veya 500) guvenle varsayilana (20) donulur - bu alanin kendisi
         // hicbir dogrulama yapmadigi icin kontrol burada yapiliyor (bkz. UserSettings.PreferredMaxResults).
         MaxResultsTextBox.Text = MaxResultsPreference.ValidateOrDefault(userSettings.PreferredMaxResults).ToString();
-        // [Arama varsayilanlari] Acilista kutu SimilarityThreshold.DefaultPercent (80)
-        // ile dolu gelir - bu deger icin kalici bir UserSettings alani YOK (bilerek,
-        // bkz. talimat); "Ara" sirasinda kutu bos/yalnizca-bosluklu birakilirsa AYNI
-        // sabit tekrar kullanilir (bkz. SearchButton_Click -> SimilarityThreshold.ResolveOrDefault).
-        ThresholdTextBox.Text = SimilarityThreshold.DefaultPercent.ToString(CultureInfo.InvariantCulture);
+        // [PILOT esigi] Acilista kutu AKTIF MODELIN varsayilaniyla dolu gelir -
+        // DINOv2-Base icin %55 (bkz. DinoV2BaseProfile.DefaultThresholdPercent).
+        // CLIP'in %80'i bu modelde DOGRU DEGIL: tam veri olcumunde %80, DINOv2'de
+        // dogru eslesmelerin yalnizca ~%68'ini listede birakiyordu.
+        //
+        // Bu deger icin kalici bir UserSettings alani YOKTUR (bilerek - kod
+        // incelemesiyle dogrulandi: UserSettings yalnizca klasor override'i,
+        // AutoIndexBeforeSearch, Theme ve PreferredMaxResults tutar). Dolayisiyla
+        // model degisiminde tasinacak/goc ettirilecek KAYITLI BIR KULLANICI ESIGI
+        // DE YOKTUR - gereksiz bir ayar gocu YAZILMADI. Kullanicinin bu oturumda
+        // elle girdigi gecerli deger ise HIC degistirilmez.
+        ThresholdTextBox.Text = ActiveDefaultThresholdPercent.ToString(CultureInfo.InvariantCulture);
         // [Yerlesim - deney] Baslangic durumu XAML varsayilanlariyla ZATEN tutarli (ikisi de
         // Visible) - burada acikca cagirmak, kodun state'e nasil baglandigini XAML'e GUVENMEDEN
         // gostermek icin savunmaci bir adim, davranis DEGISTIRMEZ.
@@ -596,8 +624,34 @@ public partial class MainWindow : Window
         // [Faz 1 - shared index network safety] Shared index artik urun
         // klasorunun kendi icinde (UNC olabilir) - File.Exists/Load burada da
         // arka planda calistirilmali (bkz. proje talimati madde 7).
-        var (hadCacheFile, loadedEntries) = await Task.Run(() =>
-            (File.Exists(ImageIndex.IndexPath(folder)), ImageIndex.Load(folder, _logger)));
+        var (profileForLoad, profileLoadError) = await TryEnsureProfileAsync();
+        if (profileForLoad is null)
+        {
+            // [Profil ayrimi] Model dosyasi cozulemedigi icin kayitli index'in
+            // profili DOGRULANAMAZ. Dogrulanmamis embedding'leri yuklemek yasak
+            // (bkz. docs/DECISIONS.md #95) - bos index ile devam edilir ve
+            // kullaniciya GERCEK neden gosterilir. Klasor secimi/adres alani
+            // (yukarida zaten yazildi) korunur, yalnizca index yuklenmez.
+            if (ShouldSkipStartupDefaultLoad())
+            {
+                return;
+            }
+
+            _indexEntries = new List<ImageIndexEntry>();
+            _lastFreshnessCheckUtc = null;
+            ProductCountText.Text = "0 ürün";
+            SetIndexStatus(profileLoadError, success: false);
+            _directoryOrigin = resolution.Source == ProductDirectorySource.UserOverride
+                ? DirectoryOrigin.UserOverride
+                : DirectoryOrigin.AdminDefault;
+            UpdateDirectoryOriginUi();
+            return;
+        }
+
+        var storeForLoad = _indexStore!;
+        var loadResult = await Task.Run(() => storeForLoad.Load(folder, _logger));
+        var hadCacheFile = loadResult.Outcome != IndexLoadOutcome.Missing;
+        var loadedEntries = loadResult.Entries;
 
         // [Yarış durumu önlemi] İkinci await ("index yükleme") sürerken de
         // kullanıcı araya girmiş olabilir - _productFolder/FolderPathTextBox
@@ -614,14 +668,19 @@ public partial class MainWindow : Window
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
         SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
-            : hadCacheFile
-                // [Reliability] Cache dosyasi vardi ama Load onu gecersiz
-                // bulup reddetti (bozuk/uyumsuz) - kullanicinin "ilk kullanim"
-                // ile "bozuk cache" durumlarini ayirt edebilmesi icin farkli
-                // bir mesaj gosterilir. Guvenli cozum: "Indeksi Guncelle" ile
-                // normal rebuild.
-                ? "Kayıtlı index okunamadı (bozuk veya uyumsuz). 'İndeksi Güncelle' ile yeniden oluşturabilirsiniz."
-                : "Varsayılan klasör yüklendi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
+            : loadResult.Outcome == IndexLoadOutcome.ProfileMismatch
+                // [Profil ayrimi] Dosya okunabilir ama BASKA bir model/on isleme
+                // profiliyle uretilmis - "bozuk" demek yaniltici olurdu.
+                ? $"Kayıtlı index farklı bir model profiliyle oluşturulmuş ({loadResult.Reason}). "
+                    + "Kullanılamaz - 'İndeksi Güncelle' ile tamamen yeniden oluşturulması gerekiyor."
+                : hadCacheFile
+                    // [Reliability] Cache dosyasi vardi ama Load onu gecersiz
+                    // bulup reddetti (bozuk/uyumsuz) - kullanicinin "ilk kullanim"
+                    // ile "bozuk cache" durumlarini ayirt edebilmesi icin farkli
+                    // bir mesaj gosterilir. Guvenli cozum: "Indeksi Guncelle" ile
+                    // normal rebuild.
+                    ? "Kayıtlı index okunamadı (bozuk veya uyumsuz). 'İndeksi Güncelle' ile yeniden oluşturabilirsiniz."
+                    : "Varsayılan klasör yüklendi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
 
         _directoryOrigin = resolution.Source == ProductDirectorySource.UserOverride
             ? DirectoryOrigin.UserOverride
@@ -705,16 +764,42 @@ public partial class MainWindow : Window
         SetIndexStatus("Paylaşılan index yükleniyor...");
         var folder = normalizedCandidate;
         // [Faz 1 - shared index network safety] bkz. LoadDefaultProductDirectoryAsync.
-        var (hadCacheFile, loadedEntries) = await Task.Run(() =>
-            (File.Exists(ImageIndex.IndexPath(folder)), ImageIndex.Load(folder, _logger)));
+        var (profileForLoad, profileLoadError) = await TryEnsureProfileAsync();
+        if (profileForLoad is null)
+        {
+            // [Profil ayrimi] Model dosyasi cozulemedigi icin index'in profili
+            // DOGRULANAMAZ. Dogrulanmamis embedding'leri yuklemek yasak (bkz.
+            // docs/DECISIONS.md #95) - bos bir index ile devam edilir ve
+            // kullaniciya gercek neden gosterilir.
+            _indexEntries = new List<ImageIndexEntry>();
+            ProductCountText.Text = "0 ürün";
+            SetIndexStatus(profileLoadError, success: false);
+            _lastFreshnessCheckUtc = null;
+            // [Faz 4A] Manuel secim/adres varsayilan olarak GECICIDIR - burada
+            // da hicbir ayar dosyasina yazilmaz, davranis DEGISMEDI.
+            _directoryOrigin = origin;
+            UpdateDirectoryOriginUi();
+            _logger.Info("ProductDirectory", file: normalizedCandidate, reason: origin.ToString());
+            return;
+        }
+
+        var storeForLoad = _indexStore!;
+        var loadResult = await Task.Run(() => storeForLoad.Load(folder, _logger));
+        var hadCacheFile = loadResult.Outcome != IndexLoadOutcome.Missing;
+        var loadedEntries = loadResult.Entries;
 
         _indexEntries = loadedEntries;
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
         SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
-            : hadCacheFile
-                ? "Kayıtlı index okunamadı (bozuk veya uyumsuz). 'İndeksi Güncelle' ile yeniden oluşturabilirsiniz."
-                : "Klasör seçildi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
+            : loadResult.Outcome == IndexLoadOutcome.ProfileMismatch
+                // [Profil ayrimi] Dosya okunabilir ama BASKA bir model/on isleme
+                // profiliyle uretilmis - "bozuk" demek yaniltici olurdu.
+                ? $"Kayıtlı index farklı bir model profiliyle oluşturulmuş ({loadResult.Reason}). "
+                    + "Kullanılamaz - 'İndeksi Güncelle' ile tamamen yeniden oluşturulması gerekiyor."
+                : hadCacheFile
+                    ? "Kayıtlı index okunamadı (bozuk veya uyumsuz). 'İndeksi Güncelle' ile yeniden oluşturabilirsiniz."
+                    : "Klasör seçildi. İndekslemek için 'İndeksi Güncelle / Klasörü Tara' butonuna basın.");
 
         // [Faz 4A] Manuel secim/adres varsayilan olarak GECICIDIR (session-only) -
         // burada hicbir ayar dosyasina yazilmaz. Kalici hale getirmek icin
@@ -1005,6 +1090,22 @@ public partial class MainWindow : Window
             var embedder = _embedder!;
             var wasFirstCreation = _indexEntries.Count == 0;
 
+            // [Profil ayrimi] Bu metoda yalnizca TryEnsureEmbedderAsync basarili
+            // olduktan sonra girilir; o cagri profili de kurdugu icin _indexStore
+            // burada dolu olmalidir. Yine de savunmaci bir kontrol: store olmadan
+            // hangi dosyaya yazilacagi belirsizdir, sessizce eski CLIP dosyasina
+            // DUSULMEMELIDIR.
+            if (_indexStore is null)
+            {
+                SetIndexStatus("Model profili çözülemediği için indeksleme yapılamadı.", success: false);
+                _logger.Error("IndexScan", reason: $"trigger={trigger}: index store yok (profil çözülemedi)");
+                return false;
+            }
+
+            // Kontrolun hemen ardindan yerel degiskene alinir - asagidaki
+            // Task.Run lambda'si alani degil bu (kesin non-null) degeri yakalar.
+            var store = _indexStore;
+
             // [İşlem ilerleme paneli - deney] Hem manuel "İndeksi Güncelle" hem
             // arama öncesi otomatik indeksleme AYNI bu metodu çağırır - aşama
             // metni tek noktadan yazılır, iki tetikleyici için ayrı kod YOK.
@@ -1040,7 +1141,7 @@ public partial class MainWindow : Window
 
             _logger.Info("IndexScan", reason: $"trigger={trigger} başladı");
             var result = await Task.Run(
-                () => ImageIndex.BuildOrUpdateWithLock(folder, embedder, progress, _logger));
+                () => ImageIndex.BuildOrUpdateWithLock(folder, embedder, store, progress, _logger));
 
             switch (result.Outcome)
             {
@@ -1124,6 +1225,15 @@ public partial class MainWindow : Window
                     var hasProblems = stats.FailedCount + stats.UnsupportedFormatCount + stats.SkippedNonImageCount > 0;
                     SetIndexStatus(summaryText, success: !hasProblems);
 
+                    if (stats.IndexResetReason is not null)
+                    {
+                        // [Profil ayrimi] Tam yeniden olusturmanin nedeni log'da
+                        // kalici olarak kayitli olmali - sonradan "neden 5000
+                        // gorsel yeniden indekslendi?" sorusu cevaplanabilsin.
+                        _logger.Warning("IndexProfileReset", file: folder,
+                            reason: $"trigger={trigger}: {stats.IndexResetReason} - index tamamen yeniden oluşturuldu");
+                    }
+
                     _logger.Info("IndexScan",
                         reason: $"trigger={trigger} total={stats.TotalFilesScanned} supported={stats.SupportedImagesSeen} "
                             + $"added={stats.Added} updated={stats.Updated} unchanged={stats.Unchanged} removed={stats.Removed} "
@@ -1205,7 +1315,8 @@ public partial class MainWindow : Window
         {
             SetIndexStatus("Klasör güncelliği kontrol ediliyor...");
             SetOperationStage("İndeks güncelliği kontrol ediliyor…");
-            var changes = await Task.Run(() => ImageIndex.DetectChanges(folder, _logger));
+            var storeForFreshness = _indexStore!;
+            var changes = await Task.Run(() => ImageIndex.DetectChanges(folder, storeForFreshness, _logger));
 
             if (changes.ScanError is not null)
             {
@@ -1219,9 +1330,12 @@ public partial class MainWindow : Window
             }
             else if (changes.HasChanges)
             {
-                SetIndexStatus(
-                    $"Değişiklik bulundu (yeni={changes.NewCount}, değişen={changes.ChangedCount}, "
-                    + $"silinen={changes.RemovedCount}). İndeksleniyor...");
+                SetIndexStatus(changes.IndexResetReason is not null
+                    // [Profil ayrimi] Tam yeniden olusturma SESSIZ olmamali -
+                    // kullanici neden her seyin yeniden tarandigini gormeli.
+                    ? $"Index profili değişti ({changes.IndexResetReason}). Tüm desenler yeniden indeksleniyor..."
+                    : $"Değişiklik bulundu (yeni={changes.NewCount}, değişen={changes.ChangedCount}, "
+                        + $"silinen={changes.RemovedCount}). İndeksleniyor...");
                 _logger.Info("FreshnessCheck",
                     reason: $"new={changes.NewCount} changed={changes.ChangedCount} removed={changes.RemovedCount}");
                 await RunIndexUpdateAsync(trigger: "AutoFreshness");
@@ -1414,7 +1528,7 @@ public partial class MainWindow : Window
             // [Hard limit kaldirildi] Buyuk/asiri yuksek cozunurluklu gorseller
             // artik REDDEDILMIYOR - LoadPreview zaten DecodePixelWidth=300 ile
             // ekonomik (kucuk) bir onizleme decode eder, boyuttan bagimsiz
-            // ucuzdur. Asil embed (CLIP) asamasindaki ekonomik decode icin
+            // ucuzdur. Asil embed asamasindaki ekonomik decode icin
             // bkz. ImagePreprocessor.LoadForPreprocessing.
             QueryPreviewImage.Source = LoadPreview(path);
             _queryImagePath = path;
@@ -1888,7 +2002,7 @@ public partial class MainWindow : Window
     /// validasyonu (pahali islemlerden ONCE), 4) model hazirligi, 5) auto-index
     /// tercihine gore index hazirlama/kontrol, 6) kullanilabilir index
     /// kontrolu, 7) threshold filtreli en fazla <see cref="SimilaritySearch.MaxResults"/>
-    /// (200) sonuclu arama.
+    /// (999) sonuclu arama.
     /// </summary>
     private async void SearchButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1909,11 +2023,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        // [Arama varsayilanlari] Bos/yalnizca-bosluklu girdi SimilarityThreshold.
-        // DefaultPercent'e (80) cozulur; TryParse'in KATI sozlesmesi (metin/negatif/
+        // [PILOT esigi] Bos/yalnizca-bosluklu girdi AKTIF MODELIN varsayilanina
+        // (DINOv2-Base: %55) cozulur; TryParse'in KATI sozlesmesi (metin/negatif/
         // 100-ustu/NaN/Infinity reddi) DEGISMEDEN korunur (bkz. ResolveOrDefault).
         var thresholdInputWasEmpty = string.IsNullOrWhiteSpace(ThresholdTextBox.Text);
-        if (!SimilarityThreshold.ResolveOrDefault(ThresholdTextBox.Text, out var thresholdPercent))
+        if (!SimilarityThreshold.ResolveOrDefault(
+                ThresholdTextBox.Text, ActiveDefaultThresholdPercent, out var thresholdPercent))
         {
             ShowThresholdValidationError();
             return;
@@ -2102,7 +2217,7 @@ public partial class MainWindow : Window
                 // isterse listeden baskasina gecer.
                 SelectResult(_results[0]);
                 // [200-limit] Metin BILEREK "gosteriliyor" diyor, "bulundu" degil - eşiği
-                // karşılayan toplam eşleşme SimilaritySearch.MaxResults'ı (200) aşarsa bu
+                // karşılayan toplam eşleşme SimilaritySearch.MaxResults'ı (999) aşarsa bu
                 // sayı yalnızca EKRANDA GORUNEN (kesilmis) listeyi yansıtır, toplam
                 // eşleşme sayısını değil (toplam sayı ayrıca izlenmiyor/gösterilmiyor).
                 SetSearchStatus($"{_results.Count} sonuç gösteriliyor.", success: true);
@@ -2223,13 +2338,13 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// [NumberBox - Polish] ThresholdTextBox'ı ±1 adımlar. Mevcut metin <see cref="SimilarityThreshold"/>
-    /// sözleşmesiyle geçersizse (boş → 80 varsayılan, aralık-dışı ör. "999" → güvenli sınıra
+    /// sözleşmesiyle geçersizse (boş → aktif modelin varsayılanı, aralık-dışı ör. "999" → güvenli sınıra
     /// çekilir) önce güvenli bir başlangıç değerine oturtulur, sonra adım uygulanır - hiçbir
     /// zaman exception/taşma olmaz. Ondalık ayırıcı (varsa) ve basamak sayısı KORUNUR (80,5 → 81,5).
     /// </summary>
     private void StepThreshold(int direction)
     {
-        var current = ResolveSteppableValue(ThresholdTextBox.Text, SimilarityThreshold.MinPercent, SimilarityThreshold.MaxPercent, SimilarityThreshold.DefaultPercent);
+        var current = ResolveSteppableValue(ThresholdTextBox.Text, SimilarityThreshold.MinPercent, SimilarityThreshold.MaxPercent, ActiveDefaultThresholdPercent);
         var next = Math.Clamp(current + direction, SimilarityThreshold.MinPercent, SimilarityThreshold.MaxPercent);
         ThresholdTextBox.Text = FormatSteppedNumber(next, ThresholdTextBox.Text);
         ThresholdTextBox.CaretIndex = ThresholdTextBox.Text.Length;
@@ -2328,6 +2443,14 @@ public partial class MainWindow : Window
             return (true, string.Empty);
         }
 
+        // [Profil ayrimi] Model OTURUMUNDAN once profil (yol + dosya hash'i)
+        // cozulur - ayni hash iki kez HESAPLANMAZ, embedder'a devredilir.
+        var (profile, profileError) = await TryEnsureProfileAsync();
+        if (profile is null)
+        {
+            return (false, profileError);
+        }
+
         await _embedderInitLock.WaitAsync();
         try
         {
@@ -2337,17 +2460,12 @@ public partial class MainWindow : Window
                 return (true, string.Empty);
             }
 
-            var modelPath = ResolveModelPath();
-            if (modelPath is null)
-            {
-                return (false,
-                    "CLIP ONNX model dosyası bulunamadı (models\\clip-vision-b16-openai.onnx). "
-                    + "Model dosyasının uygulama klasöründeki 'models' alt klasöründe olduğundan emin olun.");
-            }
+            var modelPath = _resolvedModelPath!;
 
             try
             {
-                _embedder = await Task.Run(() => new ClipEmbedder(modelPath));
+                _embedder = await Task.Run<IImageEmbedder>(
+                    () => new DinoV2Embedder(modelPath, profile.ModelSha256));
                 return (true, string.Empty);
             }
             catch (Exception ex)
@@ -2358,6 +2476,70 @@ public partial class MainWindow : Window
         finally
         {
             _embedderInitLock.Release();
+        }
+    }
+
+    /// <summary>[PILOT esigi] Aktif modelin baslangic "Minimum benzerlik (%)" degeri - tek okuma kaynagi model profilidir, XAML/C# icinde ayrica yazilmaz.</summary>
+    private static double ActiveDefaultThresholdPercent => DinoV2BaseProfile.DefaultThresholdPercent;
+
+    /// <summary>[Profil ayrimi] Cozulmus model dosyasi yolu - profil ile AYNI anda, bir kez belirlenir.</summary>
+    private string? _resolvedModelPath;
+
+    /// <summary>
+    /// [Profil ayrimi] Aktif model profilini (ve ondan turetilen index
+    /// deposunu) bir kez cozer ve onbellege alir. Model ONNX oturumunu
+    /// YUKLEMEZ - yalnizca dosya yolunu bulur ve dosyanin SHA-256'sini
+    /// hesaplar.
+    ///
+    /// Neden oturumdan ayri? Klasor secimi/acilis durum gosterimi, model henuz
+    /// yuklenmeden once kayitli index'in profilini DOGRULAMAK zorundadir;
+    /// dogrulanamayan embedding'ler yuklenmemelidir (bkz.
+    /// docs/DECISIONS.md #95). Hash hesabi diskten tek gecistir ve
+    /// <c>Task.Run</c> ile arka planda yapilir - UI thread'i BLOKLAMAZ.
+    /// </summary>
+    private async Task<(EmbeddingProfile? Profile, string Error)> TryEnsureProfileAsync()
+    {
+        if (_activeProfile is not null)
+        {
+            return (_activeProfile, string.Empty);
+        }
+
+        await _profileInitLock.WaitAsync();
+        try
+        {
+            if (_activeProfile is not null)
+            {
+                return (_activeProfile, string.Empty);
+            }
+
+            var modelPath = ResolveModelPath();
+            if (modelPath is null)
+            {
+                return (null,
+                    $"DINOv2 ONNX model dosyası bulunamadı (models\\{DinoV2BaseProfile.ModelFileName}). "
+                    + "Model dosyasının uygulama klasöründeki 'models' alt klasöründe olduğundan emin olun.");
+            }
+
+            try
+            {
+                var sha = await Task.Run(() => ModelFileHash.ComputeSha256(modelPath));
+                var profile = DinoV2BaseProfile.CreateProfile(sha);
+                _resolvedModelPath = modelPath;
+                _activeProfile = profile;
+                _indexStore = ProfiledIndexStore.ForDinoV2Base(profile);
+                _logger.Info("ModelProfile", file: modelPath,
+                    reason: $"{profile.ModelId} rev={profile.ModelRevision} sha256={sha} dim={profile.EmbeddingDimension}");
+                return (profile, string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("ModelProfile", file: modelPath, reason: ex.Message);
+                return (null, $"Model dosyası okunamadı:\n{ex.Message}");
+            }
+        }
+        finally
+        {
+            _profileInitLock.Release();
         }
     }
 
@@ -2429,9 +2611,10 @@ public partial class MainWindow : Window
         OperationProgressText.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>[PILOT] Aktif model dosyasini arar. Dosya adinin TEK kaynagi <see cref="DinoV2BaseProfile.ModelFileName"/>'dir - yol iki farkli yerde yazilmaz.</summary>
     private static string? ResolveModelPath()
     {
-        var nextToExe = Path.Combine(AppContext.BaseDirectory, "models", "clip-vision-b16-openai.onnx");
+        var nextToExe = Path.Combine(AppContext.BaseDirectory, "models", DinoV2BaseProfile.ModelFileName);
         if (File.Exists(nextToExe))
         {
             return nextToExe;
@@ -2450,7 +2633,7 @@ public partial class MainWindow : Window
             return null;
         }
 
-        var repoCandidate = Path.Combine(dir.FullName, "models", "clip-vision-b16-openai.onnx");
+        var repoCandidate = Path.Combine(dir.FullName, "models", DinoV2BaseProfile.ModelFileName);
         return File.Exists(repoCandidate) ? repoCandidate : null;
     }
 
@@ -2520,6 +2703,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _embedder?.Dispose();
+        _profileInitLock.Dispose();
         base.OnClosed(e);
     }
 }

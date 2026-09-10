@@ -5,24 +5,36 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- CLIP ONNX model: repo kokunde models/ altinda tutuluyor (buyuk binary,
-         git'e commit edilmiyor - bkz. docs/DECISIONS.md #28). Build/publish
-         ciktisinda "models\" alt klasorune kopyalanir, MainWindow.ResolveModelPath
-         bunu AppContext.BaseDirectory altinda arar. [ClickOnce - 2026-09-08]
-         item tipi bilerek "None" DEGIL "Content": Visual Studio'nun klasik
-         ClickOnce manifest hedefleri (Microsoft.Common.CurrentVersion.targets,
-         "_ClickOnceContentItems") yalnizca Content ogelerini application
-         manifestine KOSULSUZ dahil eder - None ogeleri (uzantisi .exe/.dll
-         olmayan) yalnizca ozel bir "PublishFile" eslesmesi varsa dahil olur.
-         Normal SDK "dotnet publish"/CopyToOutputDirectory davranisi None ile
-         Content arasinda farksizdir - bu degisiklik taşınabilir publish
-         akisini (docs/DEPLOYMENT.md §1) ETKILEMEZ. Bilerek "IsDataFile"
-         metadata'si YOK - model kullanici verisi degil, normal uygulama
-         dosyasi olarak paketlenir (bkz. docs/CLICKONCE.md). -->
-    <Content Include="..\..\models\clip-vision-b16-openai.onnx"
-             Link="models\clip-vision-b16-openai.onnx"
+    <!-- [PILOT - DINOv2-Base] Aktif ONNX model: repo kokunde models/ altinda
+         tutuluyor (buyuk binary, git'e commit edilmiyor - bkz.
+         docs/DECISIONS.md #28). Build/publish ciktisinda "models\" alt
+         klasorune kopyalanir, MainWindow.ResolveModelPath bunu
+         AppContext.BaseDirectory altinda arar; dosya adinin tek kaynagi
+         Lens.Core.Ai.DinoV2BaseProfile.ModelFileName'dir.
+
+         CLIP modeli (clip-vision-b16-openai.onnx) bu dalda BILEREK
+         PAKETLENMEZ: uygulama artik onu yuklemiyor ve iki buyuk modeli ayni
+         pakete koymak gereksiz ~345 MB demektir. Dosyanin KENDISI repo'da
+         (models/ altinda, gitignore'lu) DURUYOR - CLIP surumune donmek
+         yalnizca bu satiri geri almayi gerektirir; eski CLIP index'i de
+         (.lens/index.json) hic degistirilmedigi icin yeniden indeksleme
+         gerekmez (bkz. docs/DECISIONS.md, LegacyClipIndexStore).
+
+         [ClickOnce - 2026-09-08] item tipi bilerek "None" DEGIL "Content":
+         Visual Studio'nun klasik ClickOnce manifest hedefleri
+         (Microsoft.Common.CurrentVersion.targets, "_ClickOnceContentItems")
+         yalnizca Content ogelerini application manifestine KOSULSUZ dahil
+         eder - None ogeleri (uzantisi .exe/.dll olmayan) yalnizca ozel bir
+         "PublishFile" eslesmesi varsa dahil olur. Normal SDK "dotnet publish"/
+         CopyToOutputDirectory davranisi None ile Content arasinda farksizdir -
+         bu degisiklik taşınabilir publish akisini (docs/DEPLOYMENT.md §1)
+         ETKILEMEZ. Bilerek "IsDataFile" metadata'si YOK - model kullanici
+         verisi degil, normal uygulama dosyasi olarak paketlenir (bkz.
+         docs/CLICKONCE.md). -->
+    <Content Include="..\..\models\dinov2-base.onnx"
+             Link="models\dinov2-base.onnx"
              CopyToOutputDirectory="PreserveNewest"
-             Condition="Exists('..\..\models\clip-vision-b16-openai.onnx')" />
+             Condition="Exists('..\..\models\dinov2-base.onnx')" />
 
     <!-- [Faz 4A] Admin default config sablonu: repo'daki hali BOS gelir
          (gercek UNC path hardcode edilmez). IT, publish ciktisindaki

@@ -8,12 +8,29 @@ namespace Lens.Core.Ai;
 /// Runtime uzerinden CPU'da calistirir. Cikti, Faz 2 Python benchmarkindaki
 /// CLIPModel.get_image_features() ile ayni projected image embedding'dir
 /// (dogrulandi: benchmark/export_onnx.py + manuel cross-check, cos sim = 1.0).
+///
+/// [Profil mimarisi] Artik <see cref="IImageEmbedder"/> uygular. Embed()
+/// davranisi (lenient L2 normalize dahil) BILEREK DEGISTIRILMEDI - mevcut
+/// CLIP index'i ve AiProof Grup A-E testleri bu davranisa dayanir. Yeni,
+/// KATI dogrulama (bkz. EmbeddingVector.L2NormalizeChecked) pilot DINOv2
+/// yolunda kullanilir.
+///
+/// <see cref="Profile"/> alanindaki ModelSha256, dosya hash'i pahali oldugu
+/// ve bu tip normal operasyonda profil-dogrulamali index'e YAZMADIGI icin
+/// bilerek hesaplanmaz - <see cref="UnknownSha"/> degeriyle isaretlenir.
+/// CLIP'in eski index'i profilsizdir (sema surumu 1) ve profil
+/// karsilastirmasina hic girmez.
 /// </summary>
-public sealed class ClipEmbedder : IDisposable
+public sealed class ClipEmbedder : IImageEmbedder
 {
     public const int EmbeddingDimension = 512;
 
+    /// <summary>CLIP profilinde model hash'i bilerek hesaplanmaz (bkz. sinif aciklamasi) - bu isaretleyici deger kullanilir.</summary>
+    public const string UnknownSha = "(hesaplanmadi)";
+
     private readonly InferenceSession _session;
+
+    public EmbeddingProfile Profile { get; }
 
     public ClipEmbedder(string onnxModelPath)
     {
@@ -21,6 +38,17 @@ public sealed class ClipEmbedder : IDisposable
         {
             throw new FileNotFoundException($"ONNX model dosyasi bulunamadi: {onnxModelPath}");
         }
+
+        Profile = new EmbeddingProfile(
+            ModelId: "openai/clip-vit-base-patch16",
+            ModelRevision: "(kayitli degil)",
+            ModelSha256: UnknownSha,
+            PreprocessingVersion: ImagePreprocessingProfile.Clip.Version,
+            EmbeddingDimension: EmbeddingDimension,
+            FeatureType: "ProjectedImageEmbeds",
+            CropStrategy: ImagePreprocessingProfile.Clip.CropStrategy,
+            Normalization: "L2",
+            IndexSchemaVersion: 1);
 
         _session = new InferenceSession(onnxModelPath);
     }

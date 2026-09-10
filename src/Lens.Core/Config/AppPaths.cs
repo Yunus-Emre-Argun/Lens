@@ -79,6 +79,34 @@ public static class AppPaths
     public static string SharedIndexLockFilePath(string productDirectory) =>
         Path.Combine(SharedIndexDirectory(productDirectory), SharedLockFileName);
 
+    private const string SharedIndexesFolderName = "indexes";
+
+    /// <summary>
+    /// [Profil-dogrulamali index] Bir model profiline OZEL index klasoru:
+    /// &lt;ProductDirectory&gt;/.lens/indexes/&lt;profil-klasoru&gt;/.
+    /// Eski, profilsiz CLIP dosyasi (&lt;ProductDirectory&gt;/.lens/index.json)
+    /// bu klasorun DISINDA kalir ve etkilenmez - iki bicim ayni dosyayi hicbir
+    /// kosulda paylasmaz (bkz. docs/DECISIONS.md #95).
+    ///
+    /// SharedIndexDirectory ile ayni sekilde side-effect-free: bu yolu
+    /// OGRENMEK klasoru OLUSTURMAZ; olusturma yalnizca yazan/kilitleyen
+    /// tarafta yapilir (bkz. ProfiledIndexStore.Save, IndexLock.TryAcquire).
+    ///
+    /// ".lens" ana klasorunun ALTINDA olmasi bilinclidir: mevcut klasor
+    /// taramasi (ImageIndex.ClassifyDirectory -> Directory.EnumerateFiles)
+    /// yalnizca ust dizini tarar, dolayisiyla yeni ic ice yol da urun
+    /// gorseli/sorunlu dosya sayaclarina KARISMAZ.
+    /// </summary>
+    public static string ProfiledIndexDirectory(string productDirectory, string profileFolderName) =>
+        Path.Combine(SharedIndexDirectory(productDirectory), SharedIndexesFolderName, profileFolderName);
+
+    public static string ProfiledIndexFilePath(string productDirectory, string profileFolderName) =>
+        Path.Combine(ProfiledIndexDirectory(productDirectory, profileFolderName), SharedIndexFileName);
+
+    /// <summary>Profile ozel kilit dosyasi - ayni klasorde tutulur, boylece farkli modellerin yazicilari birbirini BLOKLAMAZ.</summary>
+    public static string ProfiledIndexLockFilePath(string productDirectory, string profileFolderName) =>
+        Path.Combine(ProfiledIndexDirectory(productDirectory, profileFolderName), SharedLockFileName);
+
     private static string HashProductDirectory(string productDirectory)
     {
         var normalized = NormalizeForHashing(productDirectory);

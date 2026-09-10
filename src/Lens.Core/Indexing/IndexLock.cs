@@ -1,5 +1,3 @@
-using Lens.Core.Config;
-
 namespace Lens.Core.Indexing;
 
 /// <summary>
@@ -28,15 +26,26 @@ public sealed class IndexLock : IDisposable
     ///   erisimde farkli bir sorun var (izin, ag erisilemezligi vb.) - cagiran
     ///   taraf bunu ayri, daha spesifik bir hata olarak ele alabilir.
     /// </summary>
-    public static IndexLock? TryAcquire(string productDirectory, out Exception? failure)
+    public static IndexLock? TryAcquire(string productDirectory, out Exception? failure) =>
+        TryAcquire(productDirectory, LegacyClipIndexStore.Instance, out failure);
+
+    /// <summary>
+    /// [Profil ayrimi] Kilidi, verilen store'un KENDI klasorunde alir - eski
+    /// CLIP kilidi (`.lens/index.lock`) ile profil-ozel kilit
+    /// (`.lens/indexes/&lt;profil&gt;/index.lock`) AYRI dosyalardir, dolayisiyla
+    /// farkli modellerin yazicilari birbirini BLOKLAMAZ ve birbirinin
+    /// dosyasina dokunmaz. Sozlesme (FileShare.None, handle = aktif kilit,
+    /// failure semantigi) DEGISMEDI.
+    /// </summary>
+    public static IndexLock? TryAcquire(string productDirectory, IIndexStore store, out Exception? failure)
     {
         failure = null;
         string lockPath;
         try
         {
-            var dir = AppPaths.SharedIndexDirectory(productDirectory);
+            var dir = store.IndexDirectory(productDirectory);
             Directory.CreateDirectory(dir);
-            lockPath = AppPaths.SharedIndexLockFilePath(productDirectory);
+            lockPath = store.LockFilePath(productDirectory);
         }
         catch (Exception ex)
         {

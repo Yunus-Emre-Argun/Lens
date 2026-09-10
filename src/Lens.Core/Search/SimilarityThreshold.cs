@@ -22,7 +22,24 @@ public static class SimilarityThreshold
     public const double MinPercent = 0;
     public const double MaxPercent = 100;
 
-    /// <summary>[Arama varsayilanlari] Acilista kutuya yazilan VE arama sirasinda bos/yalnizca-bosluklu girdi icin kullanilan tek ortak varsayilan.</summary>
+    /// <summary>
+    /// [Arama varsayilanlari - CLIP donemi] CLIP dagilimina gore belirlenmis
+    /// varsayilan. Bu deger MODELE BAGLIDIR ve modeller arasi TASINAMAZ:
+    /// tam veri olcumunde %80, DINOv2'de dogru eslesmelerin yalnizca ~%68'ini
+    /// listede birakiyordu (CLIP'te ~%93) - bkz. docs/DECISIONS.md #95.
+    ///
+    /// Bu yuzden aktif model kendi baslangic esigini tasir (bkz.
+    /// <see cref="Lens.Core.Ai.DinoV2BaseProfile.DefaultThresholdPercent"/>) ve
+    /// UI o degeri <see cref="ResolveOrDefault(string?, double, out double)"/>
+    /// asiri yuklemesine gecirir. Buradaki sabit, CLIP'e ait tarihsel deger
+    /// olarak ve profilsiz eski cagrilarin (AiProof Grup G/K) sozlesmesini
+    /// KORUMAK icin degistirilmeden birakildi.
+    ///
+    /// ONEMLI: bu esik kullanici ayarlarinda KALICI OLARAK SAKLANMAZ
+    /// (UserSettings icinde boyle bir alan bilerek YOKTUR) - dolayisiyla model
+    /// degisiminde tasinacak/goc ettirilecek kayitli bir kullanici degeri de
+    /// yoktur; her acilista aktif modelin varsayilani yazilir.
+    /// </summary>
     public const double DefaultPercent = 80;
 
     public static bool TryParse(string? input, out double percent)
@@ -66,11 +83,21 @@ public static class SimilarityThreshold
     /// gecersiz kalir). "0" GECERLIDIR (varsayilana cevrilmez) - yalnizca
     /// gercekten BOS girdi varsayilan alir.
     /// </summary>
-    public static bool ResolveOrDefault(string? input, out double percent)
+    public static bool ResolveOrDefault(string? input, out double percent) =>
+        ResolveOrDefault(input, DefaultPercent, out percent);
+
+    /// <summary>
+    /// [Model-spesifik varsayilan] Yukaridakinin, bos girdide kullanilacak
+    /// varsayilani CAGIRANIN belirlediği hali - aktif modelin profilinden gelen
+    /// deger gecirilir. Dogrulama sozlesmesi (0-100 arasi, metin/negatif/
+    /// NaN/Infinity reddi, "0" gecerli) HIC DEGISMEZ; yalnizca BOS girdinin
+    /// hangi sayiya cozuldugu degisir.
+    /// </summary>
+    public static bool ResolveOrDefault(string? input, double defaultPercent, out double percent)
     {
         if (string.IsNullOrWhiteSpace(input))
         {
-            percent = DefaultPercent;
+            percent = defaultPercent;
             return true;
         }
 

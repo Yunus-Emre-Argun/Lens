@@ -1,7 +1,4 @@
-using System.Text.Json;
 using Lens.Core.Ai;
-using Lens.Core.Config;
-using Lens.Core.IO;
 using Lens.Core.Logging;
 
 namespace Lens.Core.Indexing;
@@ -47,10 +44,20 @@ public sealed record IndexWriteResult(
 public static class ImageIndex
 {
     /// <summary>Canonical shared index dosyasi: &lt;ProductDirectory&gt;/.lens/index.json. Side-effect-free (bkz. AppPaths.SharedIndexFilePath).</summary>
-    public static string IndexPath(string folderPath) => AppPaths.SharedIndexFilePath(folderPath);
+    public static string IndexPath(string folderPath) => LegacyClipIndexStore.Instance.IndexFilePath(folderPath);
 
-    /// <summary>CLIP ViT-B/16 embedding boyutu (bkz. docs/DECISIONS.md #20) - gecerli bir cache kaydinin embedding'i bu uzunlukta olmali.</summary>
-    private const int ExpectedEmbeddingDimension = 512;
+    /// <summary>
+    /// [Profil ayrimi] Bu sinif artik index'in NEREDE/HANGI bicimde
+    /// saklandigini kendisi bilmez - bunu <see cref="IIndexStore"/> belirler.
+    /// Store parametresi VERILMEYEN eski asiri yuklemeler, davranisi
+    /// DEGISTIRMEMEK icin eski profilsiz CLIP dosyasini
+    /// (<see cref="LegacyClipIndexStore"/>) kullanmaya devam eder.
+    ///
+    /// Boylece tarama/gecici-hata/atomic-yazma/kilit guvenilirlik mantigi
+    /// (bkz. docs/DECISIONS.md #40, #55, #56, #62, #63) her model icin YENIDEN
+    /// YAZILMAZ - tek kopya kalir.
+    /// </summary>
+    private static IIndexStore DefaultStore => LegacyClipIndexStore.Instance;
 
     /// <summary>
     /// [Reliability] Cache dosyasi bozuk/yarim JSON, deserialize edilemeyen
@@ -63,72 +70,17 @@ public static class ImageIndex
     /// durumu gibi ele alir - kaynak klasor erisilebiliyorsa guvenli rebuild
     /// zaten dogal olarak gerceklesir.
     /// </summary>
-    public static List<ImageIndexEntry> Load(string folderPath, ILensLogger? logger = null)
-    {
-        var path = IndexPath(folderPath);
-        if (!File.Exists(path))
-        {
-            return new List<ImageIndexEntry>();
-        }
-
-        try
-        {
-            var json = File.ReadAllText(path);
-            var entries = JsonSerializer.Deserialize<List<ImageIndexEntry>>(json);
-            if (entries is null || entries.Any(e => !IsValidEntry(e)))
-            {
-                logger?.Warning("IndexCacheLoad", file: path,
-                    reason: "Cache içeriği geçersiz veya uyumsuz - yok sayıldı, yeniden oluşturulacak");
-                return new List<ImageIndexEntry>();
-            }
-
-            return entries;
-        }
-        catch (Exception ex)
-        {
-            // Bozuk/yarim JSON (orn. yazim sirasinda kesinti) - dosyaya
-            // dokunulmaz (bir sonraki basarili Save zaten atomic overwrite
-            // yapar), sadece bu yuklemede yok sayilir.
-            logger?.Error("IndexCacheLoad", file: path, reason: ex.Message);
-            return new List<ImageIndexEntry>();
-        }
-    }
-
-    private static bool IsValidEntry(ImageIndexEntry? entry)
-    {
-        if (entry is null || string.IsNullOrWhiteSpace(entry.RelativePath) || entry.Embedding is null)
-        {
-            return false;
-        }
-
-        if (entry.Embedding.Length != ExpectedEmbeddingDimension)
-        {
-            return false;
-        }
-
-        foreach (var value in entry.Embedding)
-        {
-            if (float.IsNaN(value) || float.IsInfinity(value))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    public static List<ImageIndexEntry> Load(string folderPath, ILensLogger? logger = null) =>
+        DefaultStore.Load(folderPath, logger).Entries;
 
     /// <summary>
-    /// [Shared index] ".lens" klasoru burada (yazma aninda) olusturulur - Load
+    /// [Shared index] Hedef klasor burada (yazma aninda) olusturulur - Load
     /// ve IndexPath side-effect-free kalir. Cagiran taraf normalde bunu
     /// dogrudan degil, BuildOrUpdateWithLock uzerinden (exclusive lock
     /// tutulurken) cagirmalidir.
     /// </summary>
-    public static void Save(string folderPath, List<ImageIndexEntry> entries)
-    {
-        Directory.CreateDirectory(AppPaths.SharedIndexDirectory(folderPath));
-        var json = JsonSerializer.Serialize(entries);
-        AtomicFileWriter.WriteAllText(IndexPath(folderPath), json);
-    }
+    public static void Save(string folderPath, List<ImageIndexEntry> entries) =>
+        DefaultStore.Save(folderPath, entries);
 
     /// <summary>
     /// Single-writer exclusive lock altinda calisan tam yazici orkestrasyonu:
@@ -140,18 +92,29 @@ public static class ImageIndex
     /// auto-index acikken freshness sonrasi refresh) bunu cagirir.
     /// </summary>
     public static IndexWriteResult BuildOrUpdateWithLock(
-        string folderPath, ClipEmbedder embedder, IProgress<(int Done, int Total)>? progress = null, ILensLogger? logger = null)
+        string folderPath, IImageEmbedder embedder, IProgress<(int Done, int Total)>? progress = null, ILensLogger? logger = null) =>
+        BuildOrUpdateWithLock(folderPath, embedder, DefaultStore, progress, logger);
+
+    /// <summary>[Profil ayrimi] Kilit ve kayit, verilen store'un KENDI klasorunde yapilir - baska bir modelin index'ine/kilidine DOKUNULMAZ.</summary>
+    public static IndexWriteResult BuildOrUpdateWithLock(
+        string folderPath, IImageEmbedder embedder, IIndexStore store,
+        IProgress<(int Done, int Total)>? progress = null, ILensLogger? logger = null)
     {
-        using var handle = IndexLock.TryAcquire(folderPath, out var lockFailure);
+        using var handle = IndexLock.TryAcquire(folderPath, store, out var lockFailure);
         if (handle is null)
         {
             // Kilit alinamadi: hicbir scan/save baslamadi. Cagiran taraf,
             // bellekte zaten yuklu bir stable index varsa onunla aramaya
             // devam edebilir (bu metod o karari vermez, sadece bildirir).
-            return new IndexWriteResult(IndexWriteOutcome.LockUnavailable, Load(folderPath, logger), null, lockFailure);
+            //
+            // [Profil ayrimi] Burada donen liste de store uzerinden okunur -
+            // profil uyumsuzsa BOS doner, yani uyumsuz embedding'ler kilit
+            // alinamadigi durumda bile aramaya SIZMAZ.
+            return new IndexWriteResult(
+                IndexWriteOutcome.LockUnavailable, store.Load(folderPath, logger).Entries, null, lockFailure);
         }
 
-        var (entries, stats) = BuildOrUpdate(folderPath, embedder, progress, logger);
+        var (entries, stats) = BuildOrUpdate(folderPath, embedder, store, progress, logger);
         if (stats.ScanError is not null)
         {
             return new IndexWriteResult(IndexWriteOutcome.ScanFailed, entries, stats, null);
@@ -159,7 +122,7 @@ public static class ImageIndex
 
         try
         {
-            Save(folderPath, entries);
+            store.Save(folderPath, entries);
         }
         catch (Exception ex)
         {
@@ -191,10 +154,28 @@ public static class ImageIndex
     /// gorunmeyen dosyalar (gercekten silinmis) removed sayilir.
     /// </summary>
     public static (List<ImageIndexEntry> Entries, IndexUpdateStats Stats) BuildOrUpdate(
-        string folderPath, ClipEmbedder embedder, IProgress<(int Done, int Total)>? progress = null, ILensLogger? logger = null)
+        string folderPath, IImageEmbedder embedder, IProgress<(int Done, int Total)>? progress = null, ILensLogger? logger = null) =>
+        BuildOrUpdate(folderPath, embedder, DefaultStore, progress, logger);
+
+    /// <summary>
+    /// [Profil ayrimi] Mevcut kayitlar verilen store'dan okunur. Store,
+    /// dosyayi profil uyumsuz (baska model/on isleme) veya bozuk bulursa BOS
+    /// liste doner - o zaman hicbir dosya "unchanged" sayilamaz ve TUM klasor
+    /// yeniden embed edilir (kismi/karisik index YOK, bkz.
+    /// docs/DECISIONS.md #95). Nedeni <see cref="IndexUpdateStats.IndexResetReason"/>
+    /// alaninda kullaniciya gosterilmek uzere tasinir.
+    /// </summary>
+    public static (List<ImageIndexEntry> Entries, IndexUpdateStats Stats) BuildOrUpdate(
+        string folderPath, IImageEmbedder embedder, IIndexStore store,
+        IProgress<(int Done, int Total)>? progress = null, ILensLogger? logger = null)
     {
         var stats = new IndexUpdateStats();
-        var existingEntries = Load(folderPath, logger);
+        var load = store.Load(folderPath, logger);
+        var existingEntries = load.Entries;
+        if (load.Outcome is IndexLoadOutcome.ProfileMismatch or IndexLoadOutcome.Corrupt)
+        {
+            stats.IndexResetReason = load.Reason;
+        }
 
         List<string> supportedFiles;
         try
@@ -294,7 +275,18 @@ public static class ImageIndex
     /// boyut/LastWriteTimeUtc mevcut index ile karsilastirilir. UNC uzerinde
     /// bile hizlidir (agir olan CLIP inference'i, network I/O degil).
     /// </summary>
-    public static ChangeSummary DetectChanges(string folderPath, ILensLogger? logger = null)
+    public static ChangeSummary DetectChanges(string folderPath, ILensLogger? logger = null) =>
+        DetectChanges(folderPath, DefaultStore, logger);
+
+    /// <summary>
+    /// [Profil ayrimi] Store profil uyumsuzlugu/bozulma bildirirse kayitli
+    /// hicbir dosya "unchanged" sayilamaz: mevcut butun dosyalar "new" olarak
+    /// raporlanir (dolayisiyla <see cref="ChangeSummary.HasChanges"/> true
+    /// olur ve arama oncesi otomatik indeksleme tam yeniden olusturmayi
+    /// tetikler), neden ise <see cref="ChangeSummary.IndexResetReason"/>
+    /// alaninda tasinir.
+    /// </summary>
+    public static ChangeSummary DetectChanges(string folderPath, IIndexStore store, ILensLogger? logger = null)
     {
         List<string> supportedFiles;
         try
@@ -306,7 +298,15 @@ public static class ImageIndex
             return new ChangeSummary(0, 0, 0, 0, ex.Message);
         }
 
-        var existingByPath = Load(folderPath, logger).ToDictionary(e => e.RelativePath, e => e);
+        var load = store.Load(folderPath, logger);
+        if (load.Outcome is IndexLoadOutcome.ProfileMismatch or IndexLoadOutcome.Corrupt)
+        {
+            return new ChangeSummary(
+                NewCount: supportedFiles.Count, ChangedCount: 0, RemovedCount: 0, UnchangedCount: 0,
+                ScanError: null, IndexResetReason: load.Reason);
+        }
+
+        var existingByPath = load.Entries.ToDictionary(e => e.RelativePath, e => e);
         int newCount = 0;
         int changedCount = 0;
         int unchangedCount = 0;

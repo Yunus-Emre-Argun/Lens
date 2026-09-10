@@ -27,6 +27,22 @@ if (args.Length > 0 && args[0] == "hardeningtest")
     return;
 }
 
+// [PILOT] DINOv2-Base entegrasyon smoke testi (bkz. Lens.AiProof.DinoSmokeTest).
+// Ikinci argument (opsiyonel), kullanicinin bildirdigi dogrulama ciftinin
+// bulundugu klasordur - verilmezse o adim ATLANIR. O klasordeki hicbir dosya
+// kopyalanmaz/repoya alinmaz, raporda gercek dosya adi GECMEZ.
+if (args.Length > 0 && args[0] == "ortbench")
+{
+    Lens.AiProof.OrtThreadProbe.Run(FindRepoRoot(), args.Length > 1 ? args[1] : "default");
+    return;
+}
+
+if (args.Length > 0 && args[0] == "dinosmoke")
+{
+    Lens.AiProof.DinoSmokeTest.Run(FindRepoRoot(), args.Length > 1 ? args[1] : null);
+    return;
+}
+
 if (args.Length > 1 && args[0] == "detectchanges")
 {
     var sw = Stopwatch.StartNew();
@@ -1054,12 +1070,393 @@ static void RunHardeningTest()
         Check("M46 MaxDigitCount sabiti 3", NumericInputFilter.MaxDigitCount == 3);
     }
 
+    // ---- Grup N: [PILOT] DINOv2-Base profili + index ayrimi + embedding sozlesmesi ----
+    // Bu grubun BUYUK kismi MODEL GEREKTIRMEZ: profil karsilastirmasi, index
+    // yolu ayrimi, sema/bozulma reddi ve boyut guvenligi, gercek ONNX oturumu
+    // olmadan sahte bir IImageEmbedder ile test edilir. Yalnizca N30+ (gercek
+    // on isleme/embedding) model dosyasi varsa calisir.
+    Console.WriteLine("\n[Grup N] DINOv2-Base pilot: profil, index ayrimi, embedding sozlesmesi");
+    {
+        // -- N1-N8: profil karsilastirmasi (tek tek her alan) --
+        var baseProfile = DinoV2BaseProfile.CreateProfile("aa" + new string('0', 62));
+        Check("N1 ayni profil index'i yeniden kullanabilir",
+            baseProfile.MatchesForIndexReuse(baseProfile with { }));
+        Check("N2 SHA-256 buyuk/kucuk harf farki UYUMSUZLUK SAYILMAZ",
+            baseProfile.MatchesForIndexReuse(baseProfile with { ModelSha256 = baseProfile.ModelSha256.ToUpperInvariant() }));
+        Check("N3 kayitli profil YOK -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(null) && baseProfile.DescribeMismatch(null) == "kayıtlı profil yok");
+        Check("N4 model kimligi degisti -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { ModelId = "facebook/dinov2-small" }));
+        Check("N5 model revision degisti -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { ModelRevision = "deadbeef" }));
+        Check("N6 model SHA-256 degisti (BOYUT AYNI olsa bile) -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { ModelSha256 = "bb" + new string('0', 62) })
+            && baseProfile.DescribeMismatch(baseProfile with { ModelSha256 = "bb" + new string('0', 62) }) == "model dosyası SHA-256");
+        Check("N7 on isleme surumu degisti -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { PreprocessingVersion = "clip-shortest224-crop224-openai-v1" }));
+        Check("N8 embedding boyutu degisti -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { EmbeddingDimension = 384 }));
+        Check("N9 ozellik turu degisti -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { FeatureType = "MeanPooled" }));
+        Check("N10 crop stratejisi degisti -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { CropStrategy = "ThreeByThreeTiles" }));
+        Check("N11 normalizasyon degisti -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { Normalization = "None" }));
+        Check("N12 index sema surumu degisti -> uyumsuz",
+            !baseProfile.MatchesForIndexReuse(baseProfile with { IndexSchemaVersion = 1 }));
+        Check("N13 DINOv2-Base profil sabitleri: 768 / CLS / L2 / sema 2 / on isleme dinov2",
+            baseProfile.EmbeddingDimension == 768 && baseProfile.FeatureType == "CLS"
+            && baseProfile.Normalization == "L2" && baseProfile.IndexSchemaVersion == 2
+            && baseProfile.PreprocessingVersion == ImagePreprocessingProfile.DinoV2.Version);
+        Check("N14 pilot esigi %55 (CLIP'in %80'i DEGIL)",
+            DinoV2BaseProfile.DefaultThresholdPercent == 55 && SimilarityThreshold.DefaultPercent == 80);
+        Check("N15 esik cozumleme: bos girdi AKTIF MODELIN varsayilanina coozulur, profilsiz cagri hala 80",
+            SimilarityThreshold.ResolveOrDefault("", 55, out var dinoDefault) && dinoDefault == 55
+            && SimilarityThreshold.ResolveOrDefault("", out var clipDefault) && clipDefault == 80);
+        Check("N16 esik cozumleme: kullanicinin ELLE girdigi gecerli deger varsayilana DOKUNULMADAN korunur",
+            SimilarityThreshold.ResolveOrDefault("65", 55, out var manual) && manual == 65);
+        Check("N17 esik cozumleme: 0-100 dogrulamasi model-spesifik asiri yuklemede de AYNEN gecerli",
+            !SimilarityThreshold.ResolveOrDefault("101", 55, out _)
+            && !SimilarityThreshold.ResolveOrDefault("abc", 55, out _)
+            && !SimilarityThreshold.ResolveOrDefault("-1", 55, out _)
+            && SimilarityThreshold.ResolveOrDefault("0", 55, out var zero) && zero == 0);
+
+        // -- N18-N22: on isleme profili sabitleri (CLIP degerleri TASINMADI) --
+        var dinoPre = ImagePreprocessingProfile.DinoV2;
+        var clipPre = ImagePreprocessingProfile.Clip;
+        Check("N18 DINOv2 on isleme: kisa kenar 256, crop 224",
+            dinoPre.ResizeShortestEdge == 256 && dinoPre.CropSize == 224);
+        Check("N19 DINOv2 on isleme: ImageNet mean/std (CLIP degerleri DEGIL)",
+            Math.Abs(dinoPre.Mean[0] - 0.485f) < 1e-6 && Math.Abs(dinoPre.Mean[1] - 0.456f) < 1e-6
+            && Math.Abs(dinoPre.Mean[2] - 0.406f) < 1e-6
+            && Math.Abs(dinoPre.Std[0] - 0.229f) < 1e-6 && Math.Abs(dinoPre.Std[1] - 0.224f) < 1e-6
+            && Math.Abs(dinoPre.Std[2] - 0.225f) < 1e-6);
+        Check("N20 CLIP on isleme profili DEGISMEDI (kisa kenar 224 + OpenAI mean/std)",
+            clipPre.ResizeShortestEdge == 224 && clipPre.CropSize == 224
+            && Math.Abs(clipPre.Mean[0] - 0.48145466f) < 1e-7 && Math.Abs(clipPre.Std[0] - 0.26862954f) < 1e-7);
+        Check("N21 iki profilin on isleme surumu FARKLI (yanlislikla ayni index'i paylasamazlar)",
+            dinoPre.Version != clipPre.Version);
+
+        // -- N22-N29: embedding dogrulama (EmbeddingVector) --
+        var goodRaw = new float[768];
+        goodRaw[0] = 3f;
+        goodRaw[1] = 4f;
+        var normalized = EmbeddingVector.L2NormalizeChecked(goodRaw, 768);
+        var norm = Math.Sqrt(normalized.Sum(v => (double)v * v));
+        Check("N22 L2 normalize: donen vektorun normu 1", Math.Abs(norm - 1.0) < 1e-6);
+        Check("N23 L2 normalize: 768 boyut korunur ve deger dogru (3,4 -> 0,6/0,8)",
+            normalized.Length == 768 && Math.Abs(normalized[0] - 0.6f) < 1e-6 && Math.Abs(normalized[1] - 0.8f) < 1e-6);
+        Check("N24 yanlis boyut (767) REDDEDILIR",
+            Throws<InvalidEmbeddingException>(() => EmbeddingVector.L2NormalizeChecked(new float[767], 768)));
+        Check("N25 NaN iceren embedding REDDEDILIR",
+            Throws<InvalidEmbeddingException>(() =>
+            {
+                var v = new float[768];
+                v[5] = float.NaN;
+                EmbeddingVector.L2NormalizeChecked(v, 768);
+            }));
+        Check("N26 Infinity iceren embedding REDDEDILIR",
+            Throws<InvalidEmbeddingException>(() =>
+            {
+                var v = new float[768];
+                v[7] = float.PositiveInfinity;
+                EmbeddingVector.L2NormalizeChecked(v, 768);
+            }));
+        Check("N27 sifir normlu embedding REDDEDILIR (sessizce NaN/Infinity URETMEZ)",
+            Throws<InvalidEmbeddingException>(() => EmbeddingVector.L2NormalizeChecked(new float[768], 768)));
+        Check("N28 null embedding REDDEDILIR",
+            Throws<InvalidEmbeddingException>(() => EmbeddingVector.L2NormalizeChecked(null, 768)));
+        Check("N29 farkli boyutlar KARSILASTIRILAMAZ (768 sorgu vs 512 kayit) - acik hata",
+            Throws<InvalidEmbeddingException>(() => EmbeddingVector.EnsureComparable(new float[768], new float[512], "a.jpg")));
+        Check("N30 ayni boyutlar karsilastirilabilir (yanlis pozitif yok)",
+            !Throws<InvalidEmbeddingException>(() => EmbeddingVector.EnsureComparable(new float[768], new float[768], "a.jpg")));
+
+        // -- N31: arama katmani da farkli boyutu SESSIZCE gecmez --
+        Check("N31 SimilaritySearch: 768 sorgu + 512 kayit -> sessiz sonuc DEGIL, acik hata",
+            Throws<InvalidEmbeddingException>(() => SimilaritySearch.SearchWithThreshold(
+                UnitVector(768),
+                new List<ImageIndexEntry> { new() { RelativePath = "eski-clip.jpg", Embedding = UnitVector(512) } },
+                minSimilarityPercent: 0)));
+
+        // -- N32+: index ayrimi ve profil dogrulamali yukleme (model GEREKMEZ) --
+        string dinoDir = Path.Combine(Path.GetTempPath(), "lens_dino_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dinoDir);
+        try
+        {
+            var store = ProfiledIndexStore.ForDinoV2Base(baseProfile);
+            var legacyStore = LegacyClipIndexStore.Instance;
+
+            var expectedDinoPath = Path.Combine(dinoDir, ".lens", "indexes", "dinov2-base-v1", "index.json");
+            Check("N32 DINO index yolu: .lens/indexes/dinov2-base-v1/index.json",
+                store.IndexFilePath(dinoDir) == expectedDinoPath, store.IndexFilePath(dinoDir));
+            Check("N33 DINO index yolu, eski CLIP yolundan (.lens/index.json) FARKLI",
+                store.IndexFilePath(dinoDir) != legacyStore.IndexFilePath(dinoDir));
+            Check("N34 DINO kilidi de kendi klasorunde - eski CLIP kilidinden FARKLI",
+                store.LockFilePath(dinoDir) == Path.Combine(dinoDir, ".lens", "indexes", "dinov2-base-v1", "index.lock")
+                && store.LockFilePath(dinoDir) != legacyStore.LockFilePath(dinoDir));
+            Check("N35 yolu OGRENMEK klasor OLUSTURMAZ (side-effect-free)",
+                !Directory.Exists(Path.Combine(dinoDir, ".lens")));
+            Check("N36 index yokken Load -> Missing + bos liste",
+                store.Load(dinoDir).Outcome == IndexLoadOutcome.Missing && store.Load(dinoDir).Entries.Count == 0);
+
+            // Eski CLIP index'ini yaz - DINO islemleri buna DOKUNMAMALI.
+            var clipEntries = new List<ImageIndexEntry>
+            {
+                new() { RelativePath = "urun.jpg", FileSizeBytes = 10, LastWriteTimeUtcTicks = 20, Embedding = UnitVector(512) },
+            };
+            legacyStore.Save(dinoDir, clipEntries);
+            var clipPath = legacyStore.IndexFilePath(dinoDir);
+            var clipBytesBefore = File.ReadAllBytes(clipPath);
+
+            // DINO index'ini yaz.
+            var dinoEntries = new List<ImageIndexEntry>
+            {
+                new() { RelativePath = "urun.jpg", FileSizeBytes = 10, LastWriteTimeUtcTicks = 20, Embedding = UnitVector(768) },
+            };
+            store.Save(dinoDir, dinoEntries);
+
+            Check("N37 DINO kaydi sonrasi eski CLIP index.json BAYT BAYT DEGISMEDI",
+                File.ReadAllBytes(clipPath).SequenceEqual(clipBytesBefore));
+            Check("N38 eski CLIP index'i hala kendi store'uyla GECERLI okunuyor (geri donuste yeniden indeksleme gerekmez)",
+                legacyStore.Load(dinoDir).Outcome == IndexLoadOutcome.Loaded
+                && legacyStore.Load(dinoDir).Entries.Count == 1);
+            Check("N39 DINO store, eski CLIP dosyasini OKUMAYA CALISMAZ (kendi dosyasindan 768 boyutlu kaydi okur)",
+                store.Load(dinoDir).Outcome == IndexLoadOutcome.Loaded
+                && store.Load(dinoDir).Entries[0].Embedding.Length == 768);
+
+            // Yazilan belgenin sema/profil zarfi gercekten var mi?
+            var rawJson = File.ReadAllText(expectedDinoPath);
+            Check("N40 index belgesi duz dizi DEGIL, SchemaVersion+EmbeddingProfile+Entries zarfi",
+                rawJson.Contains("\"SchemaVersion\"") && rawJson.Contains("\"EmbeddingProfile\"")
+                && rawJson.Contains("\"Entries\"") && rawJson.Contains("\"ModelSha256\""));
+
+            // -- Profil uyumsuzlugu: her alan icin tam yeniden indeksleme --
+            IndexLoadResult LoadWith(EmbeddingProfile p) =>
+                ProfiledIndexStore.ForDinoV2Base(p).Load(dinoDir);
+
+            Check("N41 ayni profille tekrar yuklenebilir (gereksiz yeniden indeksleme YOK)",
+                LoadWith(baseProfile).Outcome == IndexLoadOutcome.Loaded);
+            Check("N42 model kimligi degisti -> ProfileMismatch + BOS liste",
+                LoadWith(baseProfile with { ModelId = "facebook/dinov2-small" }) is { Outcome: IndexLoadOutcome.ProfileMismatch, Entries.Count: 0 });
+            Check("N43 model SHA degisti (boyut AYNI) -> ProfileMismatch",
+                LoadWith(baseProfile with { ModelSha256 = "cc" + new string('0', 62) }).Outcome == IndexLoadOutcome.ProfileMismatch);
+            Check("N44 on isleme surumu degisti -> ProfileMismatch",
+                LoadWith(baseProfile with { PreprocessingVersion = "baska-v9" }).Outcome == IndexLoadOutcome.ProfileMismatch);
+            Check("N45 embedding boyutu degisti -> ProfileMismatch",
+                LoadWith(baseProfile with { EmbeddingDimension = 384 }).Outcome == IndexLoadOutcome.ProfileMismatch);
+            Check("N46 normalizasyon degisti -> ProfileMismatch",
+                LoadWith(baseProfile with { Normalization = "None" }).Outcome == IndexLoadOutcome.ProfileMismatch);
+            Check("N47 crop stratejisi degisti -> ProfileMismatch",
+                LoadWith(baseProfile with { CropStrategy = "ThreeByThreeTiles" }).Outcome == IndexLoadOutcome.ProfileMismatch);
+            Check("N48 ozellik turu degisti -> ProfileMismatch",
+                LoadWith(baseProfile with { FeatureType = "MeanPooled" }).Outcome == IndexLoadOutcome.ProfileMismatch);
+            Check("N49 sema surumu degisti -> ProfileMismatch",
+                LoadWith(baseProfile with { IndexSchemaVersion = 3 }).Outcome == IndexLoadOutcome.ProfileMismatch);
+            Check("N50 uyumsuzluk nedeni INSAN OKUNABILIR olarak raporlanir",
+                LoadWith(baseProfile with { ModelSha256 = "dd" + new string('0', 62) }).Reason == "model dosyası SHA-256");
+
+            // -- Bozuk / bilinmeyen sema --
+            File.WriteAllText(expectedDinoPath, "{ bu gecerli json degil");
+            Check("N51 bozuk JSON -> Corrupt + bos liste, exception YOK",
+                store.Load(dinoDir) is { Outcome: IndexLoadOutcome.Corrupt, Entries.Count: 0 });
+
+            File.WriteAllText(expectedDinoPath, "[ { \"RelativePath\": \"a.jpg\", \"Embedding\": [1.0] } ]");
+            Check("N52 eski (duz dizi) sema DINO store tarafindan KULLANILMAZ",
+                store.Load(dinoDir).Entries.Count == 0);
+
+            File.WriteAllText(expectedDinoPath, "{ \"SchemaVersion\": 2, \"Entries\": [] }");
+            Check("N53 profil alani EKSIK belge -> ProfileMismatch (varsayilan kabul EDILMEZ)",
+                store.Load(dinoDir).Outcome == IndexLoadOutcome.ProfileMismatch);
+
+            // Gecerli profil ama BOZUK kayit (NaN / yanlis boyut)
+            store.Save(dinoDir, new List<ImageIndexEntry>
+            {
+                new() { RelativePath = "a.jpg", Embedding = UnitVector(768) },
+                new() { RelativePath = "b.jpg", Embedding = new float[512] },
+            });
+            Check("N54 profil UYUMLU ama bir kayit yanlis boyutta -> Corrupt + bos liste ('hepsi ya da hicbiri')",
+                store.Load(dinoDir) is { Outcome: IndexLoadOutcome.Corrupt, Entries.Count: 0 });
+
+            // NaN/Infinity, System.Text.Json ile YAZILAMAZ (Grup A5/A6 ile ayni
+            // kisit) - elle duzenlenmis/bozulmus bir dosyayi simule etmek icin
+            // ham JSON metni olusturuluyor. Profil zarfi GECERLI, yalnizca
+            // kayit bozuk: yani reddin nedeni profil degil, icerik dogrulamasi.
+            var profileJson = JsonSerializer.Serialize(baseProfile);
+            var nanValues = string.Join(",", Enumerable.Repeat("0.0", 767).Prepend("NaN"));
+            File.WriteAllText(expectedDinoPath,
+                $"{{\"SchemaVersion\":2,\"EmbeddingProfile\":{profileJson},"
+                + $"\"Entries\":[{{\"RelativePath\":\"a.jpg\",\"FileSizeBytes\":100,"
+                + $"\"LastWriteTimeUtcTicks\":0,\"Embedding\":[{nanValues}]}}]}}");
+            Check("N55 profil GECERLI ama kayit NaN iceriyor -> Corrupt + bos liste",
+                store.Load(dinoDir) is { Outcome: IndexLoadOutcome.Corrupt, Entries.Count: 0 });
+
+            var infValues = string.Join(",", Enumerable.Repeat("0.0", 767).Prepend("Infinity"));
+            File.WriteAllText(expectedDinoPath,
+                $"{{\"SchemaVersion\":2,\"EmbeddingProfile\":{profileJson},"
+                + $"\"Entries\":[{{\"RelativePath\":\"a.jpg\",\"FileSizeBytes\":100,"
+                + $"\"LastWriteTimeUtcTicks\":0,\"Embedding\":[{infValues}]}}]}}");
+            Check("N55b profil GECERLI ama kayit Infinity iceriyor -> Corrupt + bos liste",
+                store.Load(dinoDir) is { Outcome: IndexLoadOutcome.Corrupt, Entries.Count: 0 });
+
+            // -- Atomik yazim: gecici dosya birakmaz --
+            store.Save(dinoDir, dinoEntries);
+            var indexFolder = store.IndexDirectory(dinoDir);
+            Check("N56 atomik kayit sonrasi klasorde yalnizca index.json (+kilit) kalir, gecici dosya YOK",
+                Directory.EnumerateFiles(indexFolder).All(f =>
+                    Path.GetFileName(f) is "index.json" or "index.lock"),
+                string.Join(", ", Directory.EnumerateFiles(indexFolder).Select(Path.GetFileName)));
+
+            // -- Kilit ayrimi: DINO kilidi CLIP kilidini bloklamaz --
+            using (var dinoLock = IndexLock.TryAcquire(dinoDir, store, out var dinoLockFailure))
+            {
+                Check("N57 DINO kilidi alinabildi", dinoLock is not null && dinoLockFailure is null);
+                using var clipLock = IndexLock.TryAcquire(dinoDir, legacyStore, out var clipLockFailure);
+                Check("N58 DINO kilidi tutulurken CLIP kilidi de ALINABILIR (ayri dosyalar, birbirini bloklamaz)",
+                    clipLock is not null && clipLockFailure is null);
+                using var dinoLock2 = IndexLock.TryAcquire(dinoDir, store, out _);
+                Check("N59 ayni DINO kilidi ikinci kez ALINAMAZ (tek-yazarli sozlesme korunuyor)", dinoLock2 is null);
+            }
+
+            // -- Uyumsuz index, kilit alinamadiginda da aramaya SIZMAZ --
+            store.Save(dinoDir, dinoEntries);
+            var mismatchedStore = ProfiledIndexStore.ForDinoV2Base(baseProfile with { ModelSha256 = "ee" + new string('0', 62) });
+            using (var blocker = IndexLock.TryAcquire(dinoDir, mismatchedStore, out _))
+            {
+                var blocked = ImageIndex.BuildOrUpdateWithLock(dinoDir, new FakeEmbedder(768, baseProfile), mismatchedStore);
+                Check("N60 kilit BASKASINDA iken LockUnavailable doner", blocked.Outcome == IndexWriteOutcome.LockUnavailable);
+                Check("N61 kilit alinamadiginda UYUMSUZ index eski sonuc olarak DONMEZ (bos liste)",
+                    blocked.Entries.Count == 0);
+            }
+
+            // -- Tarama hatasi (klasor yok) uyumsuz index'i geri getirmez --
+            var missingDir = Path.Combine(dinoDir, "olmayan-klasor");
+            var scanFail = ImageIndex.BuildOrUpdate(missingDir, new FakeEmbedder(768, baseProfile), mismatchedStore);
+            Check("N62 tarama hatasinda ScanError doldurulur ve uyumsuz kayit DONMEZ",
+                scanFail.Stats.ScanError is not null && scanFail.Entries.Count == 0);
+
+            // -- DetectChanges: profil uyumsuzsa TUM dosyalar yeniden indekslenmeli --
+            File.WriteAllBytes(Path.Combine(dinoDir, "p1.jpg"), new byte[] { 1, 2, 3 });
+            File.WriteAllBytes(Path.Combine(dinoDir, "p2.jpg"), new byte[] { 4, 5, 6 });
+            var changesMismatch = ImageIndex.DetectChanges(dinoDir, mismatchedStore);
+            Check("N63 profil uyumsuzken DetectChanges: hicbir dosya 'unchanged' sayilmaz, TAMAMI yeni",
+                changesMismatch.HasChanges && changesMismatch.UnchangedCount == 0 && changesMismatch.NewCount == 2);
+            Check("N64 DetectChanges uyumsuzluk NEDENINI tasir (sessiz tam tarama yok)",
+                changesMismatch.IndexResetReason == "model dosyası SHA-256");
+
+            // -- BuildOrUpdate: uyumsuz profil -> tam yeniden olusturma + neden --
+            store.Save(dinoDir, new List<ImageIndexEntry>
+            {
+                new()
+                {
+                    RelativePath = "p1.jpg",
+                    FileSizeBytes = new FileInfo(Path.Combine(dinoDir, "p1.jpg")).Length,
+                    LastWriteTimeUtcTicks = new FileInfo(Path.Combine(dinoDir, "p1.jpg")).LastWriteTimeUtc.Ticks,
+                    Embedding = UnitVector(768),
+                },
+            });
+
+            var sameProfileRun = ImageIndex.BuildOrUpdate(dinoDir, new FakeEmbedder(768, baseProfile), store);
+            Check("N65 AYNI profille: kaydedilmis p1.jpg yeniden embed EDILMEZ (unchanged)",
+                sameProfileRun.Stats.Unchanged == 1 && sameProfileRun.Stats.IndexResetReason is null);
+
+            var mismatchRun = ImageIndex.BuildOrUpdate(dinoDir, new FakeEmbedder(768, baseProfile), mismatchedStore);
+            Check("N66 UYUMSUZ profille: hicbir kayit yeniden kullanilmaz, TAMAMI yeniden embed edilir",
+                mismatchRun.Stats.Unchanged == 0 && mismatchRun.Stats.Added == 2);
+            Check("N67 tam yeniden olusturmanin NEDENI stats'ta raporlanir",
+                mismatchRun.Stats.IndexResetReason == "model dosyası SHA-256");
+            Check("N68 yeniden olusturulan kayitlar 768 boyutlu ve normalize",
+                mismatchRun.Entries.All(e => e.Embedding.Length == 768));
+
+            // -- Eski CLIP dosyasi tum bu islemler boyunca DEGISMEDI --
+            Check("N69 Grup N'in TUM DINO islemleri sonunda eski CLIP index.json hala BAYT BAYT AYNI",
+                File.ReadAllBytes(clipPath).SequenceEqual(clipBytesBefore));
+        }
+        finally
+        {
+            try { Directory.Delete(dinoDir, recursive: true); } catch { /* best-effort */ }
+        }
+
+        // -- N70+: gercek model dosyasi varsa on isleme + embedding sozlesmesi --
+        var dinoModelPath = Path.Combine(FindRepoRoot(), "models", DinoV2BaseProfile.ModelFileName);
+        var dinoSampleDir = Path.Combine(FindRepoRoot(), "benchmark", "data", "distractors");
+        var dinoSample = Directory.Exists(dinoSampleDir)
+            ? Directory.EnumerateFiles(dinoSampleDir)
+                .FirstOrDefault(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+                    || f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+            : null;
+
+        if (!File.Exists(dinoModelPath) || dinoSample is null)
+        {
+            Console.WriteLine("  [ATLANDI] N70+ : DINOv2 ONNX modeli veya ornek gorsel bulunamadi");
+        }
+        else
+        {
+            var dinoTensor = ImagePreprocessor.PreprocessToChwTensor(dinoSample, ImagePreprocessingProfile.DinoV2);
+            Check("N70 DINO on isleme tensoru 3x224x224 = 150528 uzunlugunda",
+                dinoTensor.Length == 3 * 224 * 224, dinoTensor.Length.ToString());
+            Check("N71 tensor CHW duzeninde (3 esit kanal blogu) ve tum degerler sonlu",
+                dinoTensor.All(v => !float.IsNaN(v) && !float.IsInfinity(v)));
+
+            var clipTensor = ImagePreprocessor.PreprocessToChwTensor(dinoSample, ImagePreprocessingProfile.Clip);
+            Check("N72 DINO ve CLIP on islemesi AYNI gorselde FARKLI tensor uretir (sabitler karismamis)",
+                !dinoTensor.SequenceEqual(clipTensor));
+
+            using var dinoEmbedder = new DinoV2Embedder(dinoModelPath);
+            Check("N73 embedder profili gercek model dosyasinin SHA-256'sini tasir (64 hex)",
+                dinoEmbedder.Profile.ModelSha256.Length == 64
+                && dinoEmbedder.Profile.ModelSha256.All(c => Uri.IsHexDigit(c)),
+                dinoEmbedder.Profile.ModelSha256);
+
+            var realEmbedding = dinoEmbedder.Embed(dinoSample);
+            Check("N74 gercek embedding 768 boyutlu", realEmbedding.Length == 768, realEmbedding.Length.ToString());
+            var realNorm = Math.Sqrt(realEmbedding.Sum(v => (double)v * v));
+            Check("N75 gercek embedding L2-normalize (norm = 1)", Math.Abs(realNorm - 1.0) < 1e-5, realNorm.ToString("F8"));
+            Check("N76 gercek embedding sonlu degerlerden olusur",
+                realEmbedding.All(v => !float.IsNaN(v) && !float.IsInfinity(v)));
+            Check("N77 ayni gorsel iki kez embed edilince AYNI vektor (deterministik)",
+                dinoEmbedder.Embed(dinoSample).SequenceEqual(realEmbedding));
+            Check("N78 gorsel kendisiyle karsilastirildiginda benzerlik ~%100",
+                Math.Abs(SimilaritySearch.TopK(realEmbedding,
+                    new List<ImageIndexEntry> { new() { RelativePath = "self", Embedding = realEmbedding } }, 1)[0].Score - 1f) < 1e-3);
+            Check("N79 olmayan model dosyasi FileNotFoundException verir",
+                Throws<FileNotFoundException>(() => new DinoV2Embedder(dinoModelPath + ".yok")));
+        }
+    }
+
     Console.WriteLine();
     Console.WriteLine($"=== Sonuc: {passed} PASS, {failed} FAIL ===");
     if (failed > 0)
     {
         Environment.ExitCode = 1;
     }
+}
+
+/// <summary>[Grup N] Verilen eylemin beklenen exception tipini firlatip firlatmadigini dondurur - "sessizce gecmemeli" kontrollerini tek satirda okunur kilar.</summary>
+static bool Throws<TException>(Action action) where TException : Exception
+{
+    try
+    {
+        action();
+        return false;
+    }
+    catch (TException)
+    {
+        return true;
+    }
+    catch
+    {
+        // BASKA bir exception tipi geldiyse test gecmemeli - beklenen hata
+        // sinifi degisti demektir.
+        return false;
+    }
+}
+
+/// <summary>[Grup N] Verilen boyutta, L2 normu 1 olan basit bir test vektoru.</summary>
+static float[] UnitVector(int dimension)
+{
+    var v = new float[dimension];
+    v[0] = 1f;
+    return v;
 }
 
 static void TryDeleteCacheAndFolder(string productFolder)
@@ -1319,6 +1716,39 @@ static void WriteReport(
 
     Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
     File.WriteAllText(reportPath, sb.ToString());
+}
+
+/// <summary>
+/// [Grup N] ONNX oturumu OLMAYAN test embedder'i: index profil dogrulamasi,
+/// yol ayrimi ve yeniden-olusturma mantigini 330 MB'lik model dosyasina
+/// ihtiyac duymadan test etmeyi saglar. Deterministik, gecerli (normalize,
+/// sonlu) bir vektor uretir.
+/// </summary>
+sealed class FakeEmbedder : IImageEmbedder
+{
+    private readonly int _dimension;
+
+    public FakeEmbedder(int dimension, EmbeddingProfile profile)
+    {
+        _dimension = dimension;
+        Profile = profile;
+    }
+
+    public EmbeddingProfile Profile { get; }
+
+    public float[] Embed(string imagePath)
+    {
+        var raw = new float[_dimension];
+        // Dosya adina gore farkli ama tekrarlanabilir bir yon uret.
+        var seed = Math.Abs(Path.GetFileName(imagePath).GetHashCode());
+        raw[seed % _dimension] = 1f;
+        raw[(seed / 7) % _dimension] += 0.5f;
+        return EmbeddingVector.L2NormalizeChecked(raw, _dimension);
+    }
+
+    public void Dispose()
+    {
+    }
 }
 
 record VariationInfo(

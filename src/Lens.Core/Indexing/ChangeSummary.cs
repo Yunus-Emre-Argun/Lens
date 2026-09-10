@@ -10,7 +10,15 @@ public sealed record ChangeSummary(
     int ChangedCount,
     int RemovedCount,
     int UnchangedCount,
-    string? ScanError)
+    string? ScanError,
+    string? IndexResetReason = null)
 {
+    /// <summary>
+    /// [Profil-dogrulamali index] Index profili uyumsuz/bozuk oldugu icin tam
+    /// yeniden olusturma gerekiyorsa, kayitli hicbir dosya "unchanged"
+    /// sayilamaz - bu durumda mevcut dosyalarin TAMAMI NewCount'a yazilir,
+    /// dolayisiyla HasChanges zaten true olur. Bu alan yalnizca NEDENI
+    /// tasir (kullaniciya gosterilecek aciklama icin).
+    /// </summary>
     public bool HasChanges => NewCount > 0 || ChangedCount > 0 || RemovedCount > 0;
 }
