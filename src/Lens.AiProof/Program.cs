@@ -1423,6 +1423,290 @@ static void RunHardeningTest()
         }
     }
 
+    // ---- Grup Q: Cok modelli arama - profil, gri mod, merkezleme, alt klasor ----
+    // EN ONEMLI KONTROL: DINO RENKLI davranisinin BIT DUZEYINDE korunmasi.
+    Console.WriteLine("\n[Grup Q] Cok modelli arama: profil ayrimi, gri mod, merkezleme, alt klasor");
+    {
+        var dinoColor = SearchModelCatalog.DinoColor;
+        var dinoGray = SearchModelCatalog.DinoGray;
+        var clipColor = SearchModelCatalog.ClipColor;
+        var clipGray = SearchModelCatalog.ClipGray;
+
+        // -- Q1-Q8: KANITLANMIS DINO RENKLI PROFILI DEGISMEDI --
+        const string sha = "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233";
+        var newDinoProfile = dinoColor.CreateEmbeddingProfile(sha);
+        var oldDinoProfile = DinoV2BaseProfile.CreateProfile(sha);
+
+        Check("Q1 DINO renkli EmbeddingProfile'i onceki pilotunkiyle BIREBIR AYNI",
+            newDinoProfile == oldDinoProfile, $"{newDinoProfile}");
+        Check("Q2 DINO renkli index klasoru DEGISMEDI (mevcut ~5.000 gorsellik index gecerli kalir)",
+            dinoColor.IndexFolderName == DinoV2BaseProfile.IndexFolderName
+            && dinoColor.IndexFolderName == "dinov2-base-v1");
+        Check("Q3 DINO renkli: model dosyasi/kimlik/revision degismedi",
+            dinoColor.ModelFileName == DinoV2BaseProfile.ModelFileName
+            && dinoColor.ModelId == DinoV2BaseProfile.ModelId
+            && dinoColor.ModelRevision == DinoV2BaseProfile.ModelRevision);
+        Check("Q4 DINO renkli: 768 boyut, CLS token, L2",
+            dinoColor.EmbeddingDimension == 768 && dinoColor.FeatureType == "CLS"
+            && dinoColor.Normalization == "L2");
+        Check("Q5 DINO renkli: on isleme kimligi DEGISMEDI (gri eki YOK)",
+            dinoColor.PreprocessingVersion == ImagePreprocessingProfile.DinoV2.Version);
+        Check("Q6 DINO renkli: sema surumu 2 (mevcut index'le uyumlu)",
+            dinoColor.IndexSchemaVersion == DinoV2BaseProfile.IndexSchemaVersion);
+        Check("Q7 DINO renkli varsayilan esigi %55",
+            dinoColor.DefaultThresholdPercent == DinoV2BaseProfile.DefaultThresholdPercent
+            && dinoColor.DefaultThresholdPercent == 55);
+        Check("Q8 ilk acilis/bilinmeyen ayar KANITLANMIS DINO renkli profiline doner",
+            SearchModelCatalog.ResolveOrDefault(null, null) == dinoColor
+            && SearchModelCatalog.ResolveOrDefault("SacmaModel", "SacmaRenk") == dinoColor
+            && SearchModelCatalog.ResolveOrDefault("dinov2base", "color") == dinoColor);
+
+        // -- Q9-Q16: dort profil birbirinden AYRI --
+        Check("Q9 dort kombinasyonun index klasoru FARKLI",
+            new[] { dinoColor, dinoGray, clipColor, clipGray }
+                .Select(m => m.IndexFolderName).Distinct().Count() == 4);
+        Check("Q10 gri profiller renkliden FARKLI on isleme kimligi tasir",
+            dinoGray.PreprocessingVersion != dinoColor.PreprocessingVersion
+            && clipGray.PreprocessingVersion != clipColor.PreprocessingVersion
+            && dinoGray.PreprocessingVersion.EndsWith("+grayscale-v1", StringComparison.Ordinal));
+        Check("Q11 DINO ve CLIP embedding boyutlari ayri (768 / 512)",
+            dinoColor.EmbeddingDimension == 768 && clipColor.EmbeddingDimension == 512);
+        Check("Q12 gri profil, renkli profille AYNI index'i kullanamaz (profil uyumsuz)",
+            !dinoColor.CreateEmbeddingProfile(sha).MatchesForIndexReuse(dinoGray.CreateEmbeddingProfile(sha)));
+        Check("Q13 CLIP profili DINO index'ini kullanamaz",
+            !clipColor.CreateEmbeddingProfile(sha).MatchesForIndexReuse(dinoColor.CreateEmbeddingProfile(sha)));
+        Check("Q14 CLIP standart TEK embedding uretir (desen pilotunun 6 gorunumu TASINMADI)",
+            clipColor.EmbeddingDimension == ClipEmbedder.EmbeddingDimension
+            && clipColor.FeatureType == "ProjectedImageEmbeds");
+        Check("Q15 esik anahtari model+renk+merkezleme'yi ayirir",
+            new[]
+            {
+                dinoColor.ThresholdKey(false), dinoColor.ThresholdKey(true),
+                dinoGray.ThresholdKey(false), clipColor.ThresholdKey(false), clipGray.ThresholdKey(false),
+            }.Distinct().Count() == 5);
+        Check("Q16 CLIP renkli varsayilani CLIP'in tarihsel %80'i",
+            clipColor.DefaultThresholdPercent == SimilarityThreshold.DefaultPercent);
+
+        // -- Q17-Q26: merkezleme (embedding merkezleme + yeniden normallestirme) --
+        List<ImageIndexEntry> Catalog(params float[][] vectors) =>
+            vectors.Select((v, i) => new ImageIndexEntry { RelativePath = $"f{i}.jpg", Embedding = v }).ToList();
+
+        float[] Vec(int axis, int dim = 8)
+        {
+            var v = new float[dim];
+            v[axis % dim] = 3f;
+            v[(axis + 1) % dim] = 4f;
+            return EmbeddingVector.L2NormalizeChecked(v, dim);
+        }
+
+        var catalog = Catalog(Vec(0), Vec(2), Vec(4), Vec(6));
+        var queryVec = Vec(0);
+
+        var off = CenteredSimilaritySearch.SearchWithThreshold(queryVec, catalog, 0, 999, applyCentering: false);
+        Check("Q17 merkezleme KAPALI iken mevcut SimilaritySearch ile BIREBIR AYNI sonuc",
+            off.Outcome == CenteringOutcome.Disabled
+            && off.Results.Select(r => (r.RelativePath, r.Score))
+                .SequenceEqual(SimilaritySearch.SearchWithThreshold(queryVec, catalog, 0, 999)
+                    .Select(r => (r.RelativePath, r.Score))));
+
+        var on = CenteredSimilaritySearch.SearchWithThreshold(queryVec, catalog, -100, 999, applyCentering: true);
+        Check("Q18 merkezleme ACIK iken uygulanir ve dogru hedef 1. sirada",
+            on.Outcome == CenteringOutcome.Applied && on.Results[0].RelativePath == "f0.jpg");
+        Check("Q19 merkezleme siralamayi/skoru DEGISTIRIR (ayni sayilar degil)",
+            !on.Results.Select(r => r.Score).SequenceEqual(off.Results.Select(r => r.Score)));
+
+        Check("Q20 BOS katalogda merkezleme uygulanamaz - sessizce ham skora DONULMEZ",
+            CenteredSimilaritySearch.SearchWithThreshold(queryVec, new List<ImageIndexEntry>(), 0, 999, true)
+                is { Outcome: CenteringOutcome.NotApplicable, Results.Count: 0 });
+        Check("Q21 TEK kayitli katalogda merkezleme uygulanamaz (NaN uretilmez)",
+            CenteredSimilaritySearch.SearchWithThreshold(queryVec, Catalog(Vec(0)), 0, 999, true)
+                .Outcome == CenteringOutcome.NotApplicable);
+        var identical = CenteredSimilaritySearch.SearchWithThreshold(queryVec, Catalog(Vec(0), Vec(0), Vec(0)), -100, 999, true);
+        Check("Q22 birbirinin AYNI embedding'lerde merkezleme uygulanamaz, anlasilir neden bildirilir",
+            identical.Outcome == CenteringOutcome.NotApplicable && !string.IsNullOrWhiteSpace(identical.Reason));
+        Check("Q23 hicbir sonucta NaN/Infinity skor yok",
+            on.Results.All(r => !float.IsNaN(r.Score) && !float.IsInfinity(r.Score)));
+        Check("Q24 boyut uyusmazligi ACIK hata verir (sessiz karisik skor YOK)",
+            Throws<InvalidEmbeddingException>(() => CenteredSimilaritySearch.SearchWithThreshold(
+                Vec(0, 16), catalog, 0, 999, true)));
+        Check("Q25 NaN iceren kayitla ortalama hesaplanamaz -> merkezleme uygulanmaz",
+            EmbeddingMeanCache.Compute(Catalog(Vec(0), new float[] { float.NaN, 0, 0, 0, 0, 0, 0, 0 })) is null);
+        Check("Q26 tutarsiz boyutlu kayitla ortalama hesaplanmaz",
+            EmbeddingMeanCache.Compute(Catalog(Vec(0), Vec(0, 16))) is null);
+
+        // -- Q27-Q30: ortalama onbellegi ve gecersizlesmesi --
+        var cache = new EmbeddingMeanCache();
+        var mean1 = cache.GetOrCompute(catalog);
+        Check("Q27 ortalama hesaplanip onbellege alinir", mean1 is not null && cache.HasValue);
+        Check("Q28 AYNI liste nesnesi icin yeniden hesaplanmaz (ayni referans doner)",
+            ReferenceEquals(cache.GetOrCompute(catalog), mean1));
+        var otherCatalog = Catalog(Vec(1), Vec(3), Vec(5));
+        Check("Q29 FARKLI liste (klasor/model/renk degisimi, index yenilenmesi) onbellegi gecersizler",
+            !ReferenceEquals(cache.GetOrCompute(otherCatalog), mean1));
+        cache.Invalidate();
+        Check("Q30 acik Invalidate onbellegi bosaltir", !cache.HasValue);
+
+        // -- Q31+: alt klasor taramasi --
+        string scanDir = Path.Combine(Path.GetTempPath(), "lens_mm_scan_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(scanDir, "alt1"));
+        Directory.CreateDirectory(Path.Combine(scanDir, "alt2", "derin"));
+        Directory.CreateDirectory(Path.Combine(scanDir, ".lens", "indexes"));
+        try
+        {
+            File.WriteAllBytes(Path.Combine(scanDir, "kok.jpg"), new byte[] { 1 });
+            File.WriteAllBytes(Path.Combine(scanDir, "alt1", "ayni.jpg"), new byte[] { 2 });
+            File.WriteAllBytes(Path.Combine(scanDir, "alt2", "ayni.jpg"), new byte[] { 3 });
+            File.WriteAllBytes(Path.Combine(scanDir, "alt2", "derin", "derin.jpg"), new byte[] { 4 });
+            File.WriteAllText(Path.Combine(scanDir, ".lens", "index.json"), "[]");
+            File.WriteAllText(Path.Combine(scanDir, ".lens", "indexes", "sahte.jpg"), "x");
+
+            var scanIssues = new List<IndexFileIssue>();
+            var scanned = CatalogScanner.EnumerateFiles(scanDir, scanIssues);
+            var relatives = scanned.Select(f => f.RelativePath).OrderBy(x => x, StringComparer.Ordinal).ToList();
+
+            Check("Q31 alt klasorler taranir", relatives.Contains("alt1/ayni.jpg") && relatives.Contains("alt2/ayni.jpg"));
+            Check("Q32 ic ice alt klasor taranir", relatives.Contains("alt2/derin/derin.jpg"));
+            Check("Q33 KOK seviyesindeki dosyanin goreli yolu yalnizca dosya adi (mevcut index GECERLI kalir)",
+                relatives.Contains("kok.jpg"));
+            Check("Q34 ayni adli iki dosya AYRI kayit olarak gorunur",
+                relatives.Count(r => r.EndsWith("ayni.jpg", StringComparison.Ordinal)) == 2);
+            Check("Q35 .lens klasoru TARANMAZ",
+                !relatives.Any(r => r.StartsWith(".lens", StringComparison.OrdinalIgnoreCase)),
+                string.Join(", ", relatives));
+            Check("Q36 goreli yol ayraci her zaman '/' (platformdan bagimsiz, kararli anahtar)",
+                relatives.All(r => !r.Contains('\\')));
+            Check("Q37 katalog disina cikan yol uretilmez",
+                relatives.All(r => !r.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(r)));
+
+            // Junction: dongu riski - takip EDILMEMELI.
+            var junction = Path.Combine(scanDir, "dongu");
+            var madeJunction = false;
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe",
+                    $"/c mklink /J \"{junction}\" \"{scanDir}\"")
+                { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true })!.WaitForExit(5000);
+                madeJunction = Directory.Exists(junction);
+            }
+            catch { /* junction olusturulamadi - test atlanir */ }
+
+            if (madeJunction)
+            {
+                var loopIssues = new List<IndexFileIssue>();
+                var loopScan = CatalogScanner.EnumerateFiles(scanDir, loopIssues);
+                Check("Q38 junction TAKIP EDILMEZ (sonsuz dongu olusmaz) ve sorunlu listesine eklenir",
+                    loopScan.All(f => !f.RelativePath.StartsWith("dongu/", StringComparison.OrdinalIgnoreCase))
+                    && loopIssues.Any(i => i.Reason.Contains("junction", StringComparison.OrdinalIgnoreCase)),
+                    string.Join(", ", loopScan.Select(f => f.RelativePath)));
+            }
+            else
+            {
+                Console.WriteLine("  [ATLANDI] Q38 : junction olusturulamadi (yonetici izni gerekebilir)");
+            }
+
+            // Erisilemeyen klasor tum islemi cokertmemeli.
+            // KOK erisilemezse bu bir TARAMA HATASIDIR: sessizce "bos katalog"
+            // donmek, tum kayitlarin silinmis sayilmasina ve kullanicinin
+            // mevcut index'inin kaybina yol acardi.
+            var missing = Path.Combine(scanDir, "yok-olan");
+            Check("Q39 KOK erisilemezse hata yukari tasinir (mevcut index korunsun diye)",
+                Throws<DirectoryNotFoundException>(() => CatalogScanner.EnumerateFiles(missing, new List<IndexFileIssue>())));
+
+            // ALT klasordeki sorun ise tum islemi durdurmaz.
+            var partialIssues = new List<IndexFileIssue>();
+            var partial = CatalogScanner.EnumerateFiles(scanDir, partialIssues);
+            Check("Q39b alt klasor sorunlari taramayi durdurmaz, dosyalar yine bulunur",
+                partial.Count >= 4);
+        }
+        finally
+        {
+            try { Directory.Delete(scanDir, recursive: true); } catch { /* best-effort */ }
+        }
+
+        // -- Q40+: gercek modelle DINO RENKLI BIT DUZEYINDE esdegerlik --
+        var repoRootQ = FindRepoRoot();
+        var dinoPath = Path.Combine(repoRootQ, "models", dinoColor.ModelFileName);
+        var clipPath = Path.Combine(repoRootQ, "models", clipColor.ModelFileName);
+        var sampleQ = Directory.Exists(Path.Combine(repoRootQ, "benchmark", "data", "distractors"))
+            ? Directory.EnumerateFiles(Path.Combine(repoRootQ, "benchmark", "data", "distractors"))
+                .FirstOrDefault(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+            : null;
+
+        if (!File.Exists(dinoPath) || sampleQ is null)
+        {
+            Console.WriteLine("  [ATLANDI] Q40+ : DINOv2 modeli veya ornek gorsel bulunamadi");
+        }
+        else
+        {
+            using var newDino = new ProfiledImageEmbedder(dinoColor, dinoPath, sha);
+            using var oldDino = new DinoV2Embedder(dinoPath, sha);
+
+            var newTensor = newDino.BuildTensor(sampleQ);
+            var oldTensor = ImagePreprocessor.PreprocessToChwTensor(sampleQ, ImagePreprocessingProfile.DinoV2);
+            Check("Q40 DINO RENKLI on isleme tensoru onceki pilotla BIT DUZEYINDE AYNI",
+                newTensor.SequenceEqual(oldTensor));
+
+            var newEmbedding = newDino.Embed(sampleQ);
+            var oldEmbedding = oldDino.Embed(sampleQ);
+            Check("Q41 DINO RENKLI embedding onceki pilotla BIT DUZEYINDE AYNI",
+                newEmbedding.SequenceEqual(oldEmbedding));
+
+            // Ayni index uzerinde ayni siralama ve ayni skorlar.
+            var probe = Directory.EnumerateFiles(Path.Combine(repoRootQ, "benchmark", "data", "distractors"))
+                .Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)).Take(6).ToList();
+            var entriesQ = probe.Select(f => new ImageIndexEntry
+            {
+                RelativePath = Path.GetFileName(f),
+                Embedding = oldDino.Embed(f),
+            }).ToList();
+
+            var oldRanking = SimilaritySearch.SearchWithThreshold(oldEmbedding, entriesQ, 0, 999);
+            var newRanking = CenteredSimilaritySearch.SearchWithThreshold(
+                newEmbedding, entriesQ, 0, 999, applyCentering: false).Results;
+            Check("Q42 DINO RENKLI: ayni index uzerinde SIRALAMA ve SKORLAR birebir ayni",
+                oldRanking.Select(r => (r.RelativePath, r.Score))
+                    .SequenceEqual(newRanking.Select(r => (r.RelativePath, r.Score))));
+
+            var grayTensor = new ProfiledImageEmbedder(dinoGray, dinoPath, sha).BuildTensor(sampleQ);
+            Check("Q43 GRI tensor renkliden FARKLI (gri gercekten uygulaniyor)",
+                !grayTensor.SequenceEqual(newTensor));
+            Check("Q44 gri tensorde uc kanal AYNI (tek kanal esit kopyalandi)",
+                Enumerable.Range(0, 224 * 224).All(i =>
+                    Math.Abs(grayTensor[i] * ImagePreprocessingProfile.DinoV2.Std[0] + ImagePreprocessingProfile.DinoV2.Mean[0]
+                        - (grayTensor[224 * 224 + i] * ImagePreprocessingProfile.DinoV2.Std[1] + ImagePreprocessingProfile.DinoV2.Mean[1])) < 1e-5));
+
+            if (File.Exists(clipPath))
+            {
+                using var clip = new ProfiledImageEmbedder(clipColor, clipPath, sha);
+                var clipEmbedding = clip.Embed(sampleQ);
+                Check("Q45 CLIP standart 512 boyutlu tek embedding uretir", clipEmbedding.Length == 512);
+                var legacyClip = new ClipEmbedder(clipPath).Embed(sampleQ);
+                var maxDiff = clipEmbedding.Zip(legacyClip, (a, b) => Math.Abs(a - b)).Max();
+                var cosine = clipEmbedding.Zip(legacyClip, (a, b) => (double)a * b).Sum();
+                // [Olculmus fark] Eski ClipEmbedder VARSAYILAN oturum
+                // ayarlariyla, yeni ProfiledImageEmbedder ise
+                // allow_spinning=0 ile calisir. ONNX Runtime'da farkli thread
+                // bekleme politikasi, paralel indirgeme sirasini degistirip
+                // float32'de TEK ULP fark uretebilir. Olculen: maxAbsDiff
+                // ~6e-08, cosine ~1,000000 -> SAYISAL OLARAK ESDEGER.
+                //
+                // Bu, korunmasi gereken DINO RENKLI profilini ETKILEMEZ:
+                // orada her iki taraf da ayni ayarlari kullandigi icin sonuc
+                // BIT DUZEYINDE aynidir (bkz. Q40-Q42).
+                Check("Q46 CLIP ciktisi mevcut ClipEmbedder ile SAYISAL OLARAK ESDEGER (tek ULP)",
+                    maxDiff < 1e-6 && Math.Abs(cosine - 1.0) < 1e-6,
+                    $"maxAbsDiff={maxDiff:E3} cosine={cosine:F9}");
+                Check("Q47 DINO ve CLIP embedding'leri karsilastirilamaz (acik hata)",
+                    Throws<InvalidEmbeddingException>(() => EmbeddingVector.EnsureComparable(
+                        newEmbedding, clipEmbedding, "clip.jpg")));
+            }
+            else
+            {
+                Console.WriteLine("  [ATLANDI] Q45+ : CLIP modeli bulunamadi");
+            }
+        }
+    }
+
     Console.WriteLine();
     Console.WriteLine($"=== Sonuc: {passed} PASS, {failed} FAIL ===");
     if (failed > 0)

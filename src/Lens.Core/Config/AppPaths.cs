@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -11,7 +12,43 @@ namespace Lens.Core.Config;
 /// </summary>
 public static class AppPaths
 {
-    private const string AppFolderName = "Lens";
+    /// <summary>
+    /// %LocalAppData% altindaki veri klasorunun adi. Varsayilan "Lens".
+    ///
+    /// [Pilot izolasyonu] Bir pilot surumun, kullanicinin ASIL kurulumunun
+    /// ayarlarini (tema, esik, model secimi) ve loglarini EZMEMESI icin bu ad
+    /// derleme zamaninda degistirilebilir: giris assembly'sine
+    /// <c>[AssemblyMetadata("LensDataFolder", "...")]</c> eklenirse o ad
+    /// kullanilir (bkz. Lens.Desktop.csproj -> LensDataFolder).
+    ///
+    /// Metadata YOKSA davranis ONCEKI ile BIREBIR AYNIDIR.
+    /// </summary>
+    private static readonly string AppFolderName = ResolveAppFolderName();
+
+    private const string DefaultAppFolderName = "Lens";
+
+    private static string ResolveAppFolderName()
+    {
+        try
+        {
+            var value = Assembly.GetEntryAssembly()?
+                .GetCustomAttributes<AssemblyMetadataAttribute>()
+                .FirstOrDefault(a => string.Equals(a.Key, "LensDataFolder", StringComparison.Ordinal))?
+                .Value;
+
+            if (string.IsNullOrWhiteSpace(value)
+                || value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                return DefaultAppFolderName;
+            }
+
+            return value;
+        }
+        catch
+        {
+            return DefaultAppFolderName;
+        }
+    }
     private const string AdminConfigFileName = "appsettings.json";
     private const string UserSettingsFileName = "user-settings.json";
     private const string CacheMetaFileName = "meta.json";

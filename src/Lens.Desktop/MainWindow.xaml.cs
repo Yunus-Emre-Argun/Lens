@@ -59,6 +59,30 @@ public partial class MainWindow : Window
 
     /// <summary>[Profil ayrimi] Ayni anda iki kez model dosyasi hash'i hesaplanmasini engeller (bkz. TryEnsureProfileAsync).</summary>
     private readonly SemaphoreSlim _profileInitLock = new(1, 1);
+
+    /// <summary>
+    /// [Cok modelli arama] Kullanicinin sectigi model + renk modu.
+    /// Baslangic degeri KANITLANMIS profildir; constructor kayitli tercihi
+    /// okuyup uzerine yazar (gecersizse yine buraya doner).
+    /// </summary>
+    private SearchModelProfile _activeModel = SearchModelCatalog.DinoColor;
+
+    /// <summary>[Cok modelli arama] "Desen odakli karsilastirma" (embedding merkezleme + yeniden normallestirme) acik mi.</summary>
+    private bool _patternFocused;
+
+    /// <summary>
+    /// [Cok modelli arama] Merkezleme icin katalog ortalamasi onbellegi.
+    /// Gecersizlesme, hesaplandigi kayit LISTESI NESNESINE baglidir: klasor/
+    /// model/renk degisimi ve her index yenilemesi yeni bir liste urettigi
+    /// icin onbellek kendiliginden duser (bkz. EmbeddingMeanCache).
+    /// </summary>
+    private readonly EmbeddingMeanCache _meanCache = new();
+
+    /// <summary>[Cok modelli arama] Kombinasyon basina kullanicinin en son kullandigi esik - oturum icinde tutulur, arama sirasinda diske yazilir.</summary>
+    private Dictionary<string, double> _thresholdByProfile = new(StringComparer.Ordinal);
+
+    /// <summary>[Cok modelli arama] Acilista/programatik secim degisiminde olay isleyicisinin tetiklenmesini engeller.</summary>
+    private bool _suppressProfileSelectionEvents;
     private List<ImageIndexEntry> _indexEntries = new();
     private readonly ObservableCollection<SearchResultViewModel> _results = new();
     private DirectoryOrigin _directoryOrigin = DirectoryOrigin.None;
@@ -155,6 +179,18 @@ public partial class MainWindow : Window
         // JSON'da 0 veya 500) guvenle varsayilana (20) donulur - bu alanin kendisi
         // hicbir dogrulama yapmadigi icin kontrol burada yapiliyor (bkz. UserSettings.PreferredMaxResults).
         MaxResultsTextBox.Text = MaxResultsPreference.ValidateOrDefault(userSettings.PreferredMaxResults).ToString();
+        // [Cok modelli arama] Kayitli model/renk/merkezleme tercihi uygulanir.
+        // Eski (bu alanlari icermeyen) veya BOZUK bir ayar dosyasinda
+        // SearchModelCatalog.ResolveOrDefault KANITLANMIS DINO renkli
+        // profiline guvenle doner - kullanici bozuk ayar yuzunden farkli bir
+        // modelle arama yapmis olmaz.
+        _activeModel = SearchModelCatalog.ResolveOrDefault(userSettings.SearchModel, userSettings.ImageColorMode);
+        _patternFocused = userSettings.PatternFocusedComparison;
+        _thresholdByProfile = userSettings.ThresholdByProfile is null
+            ? new Dictionary<string, double>(StringComparer.Ordinal)
+            : new Dictionary<string, double>(userSettings.ThresholdByProfile, StringComparer.Ordinal);
+        ApplyProfileSelectionToUi();
+
         // [PILOT esigi] Acilista kutu AKTIF MODELIN varsayilaniyla dolu gelir -
         // DINOv2-Base icin %55 (bkz. DinoV2BaseProfile.DefaultThresholdPercent).
         // CLIP'in %80'i bu modelde DOGRU DEGIL: tam veri olcumunde %80, DINOv2'de
@@ -166,7 +202,7 @@ public partial class MainWindow : Window
         // model degisiminde tasinacak/goc ettirilecek KAYITLI BIR KULLANICI ESIGI
         // DE YOKTUR - gereksiz bir ayar gocu YAZILMADI. Kullanicinin bu oturumda
         // elle girdigi gecerli deger ise HIC degistirilmez.
-        ThresholdTextBox.Text = ActiveDefaultThresholdPercent.ToString(CultureInfo.InvariantCulture);
+        ThresholdTextBox.Text = ResolveThresholdForActiveProfile().ToString(CultureInfo.InvariantCulture);
         // [Yerlesim - deney] Baslangic durumu XAML varsayilanlariyla ZATEN tutarli (ikisi de
         // Visible) - burada acikca cagirmak, kodun state'e nasil baglandigini XAML'e GUVENMEDEN
         // gostermek icin savunmaci bir adim, davranis DEGISTIRMEZ.
@@ -2028,7 +2064,7 @@ public partial class MainWindow : Window
         // 100-ustu/NaN/Infinity reddi) DEGISMEDEN korunur (bkz. ResolveOrDefault).
         var thresholdInputWasEmpty = string.IsNullOrWhiteSpace(ThresholdTextBox.Text);
         if (!SimilarityThreshold.ResolveOrDefault(
-                ThresholdTextBox.Text, ActiveDefaultThresholdPercent, out var thresholdPercent))
+                ThresholdTextBox.Text, ResolveThresholdForActiveProfile(), out var thresholdPercent))
         {
             ShowThresholdValidationError();
             return;
@@ -2068,10 +2104,19 @@ public partial class MainWindow : Window
         // [Sonuç sınırı] Yalnizca GECERLI bir deger buraya kadar gelebildigi icin
         // kalici hale getirmek guvenli - Load->degistir->Save akisi diger alanlari
         // (tema/otomatik indeksleme/klasor override'i) KORUR.
+        // [Cok modelli arama] Yalnizca GECERLI degerler buraya ulasir; hem
+        // en fazla sonuc hem de AKTIF KOMBINASYONUN esigi ayni Load-degistir-
+        // Save turunda kalici hale getirilir (diger alanlar korunur).
+        RememberThresholdForActiveProfile(thresholdPercent);
         var maxResultsSettings = UserSettings.Load(_logger);
-        if (maxResultsSettings.PreferredMaxResults != maxResults)
+        var thresholdKey = _activeModel.ThresholdKey(_patternFocused);
+        var thresholdChanged = !maxResultsSettings.ThresholdByProfile.TryGetValue(thresholdKey, out var storedThreshold)
+            || Math.Abs(storedThreshold - thresholdPercent) > 1e-9;
+
+        if (maxResultsSettings.PreferredMaxResults != maxResults || thresholdChanged)
         {
             maxResultsSettings.PreferredMaxResults = maxResults;
+            maxResultsSettings.ThresholdByProfile[thresholdKey] = thresholdPercent;
             maxResultsSettings.Save(_logger);
         }
 
@@ -2122,16 +2167,42 @@ public partial class MainWindow : Window
             // birakildigindan degismesi beklenmez, ama arama KENDI baslangic
             // degeriyle tamamlansin diye alan ayrica arama sirasinda tekrar OKUNMAZ.
             var maxResultsForSearch = maxResults;
+            var patternFocusedForSearch = _patternFocused;
+            var meanCacheForSearch = _meanCache;
 
             // [İşlem ilerleme paneli - deney] Embed+arama, thumbnail hazırlamadan
             // AYRI bir arka plan görevine bölündü ki aradaki UI-thread dönüşünde
             // panelin aşama metni "Sonuçlar hazırlanıyor…"a geçebilsin - sıralı/
             // arka plan decode davranışının KENDİSİ değişmedi, yalnızca ikiye bölündü.
-            var matches = await Task.Run(() =>
+            var searchOutput = await Task.Run(() =>
             {
                 var emb = embedder.Embed(queryPath);
-                return SimilaritySearch.SearchWithThreshold(emb, entries, thresholdPercent, maxResultsForSearch);
+                // [Cok modelli arama] Merkezleme KAPALI iken mevcut arama
+                // yoluna AYNEN devredilir - kanitlanmis DINO renkli
+                // davranisi bit duzeyinde korunur.
+                return CenteredSimilaritySearch.SearchWithThreshold(
+                    emb, entries, thresholdPercent, maxResultsForSearch, patternFocusedForSearch, meanCacheForSearch);
             });
+
+            // [Cok modelli arama] Merkezleme istendi ama uygulanamadiysa
+            // SESSIZCE ham skora DONULMEZ - kullaniciya nedeni soylenir ve
+            // arama durdurulur; aksi halde farkli bir yontemin sonucunu
+            // "desen odakli" etiketiyle gostermis olurduk.
+            if (searchOutput.Outcome == CenteringOutcome.NotApplicable)
+            {
+                SetSearchStatus($"Desen odaklı karşılaştırma uygulanamadı: {searchOutput.Reason}", success: false);
+                AlertWindow.Show(this,
+                    $"Desen odaklı karşılaştırma bu aramada uygulanamadı:\n{searchOutput.Reason}\n\n"
+                    + "Seçeneği kapatıp tekrar arayabilirsiniz.",
+                    "Desen odaklı karşılaştırma", AlertKind.Warning);
+                return;
+            }
+
+            var matches = searchOutput.Results;
+            if (searchOutput.Reason is not null)
+            {
+                _logger.Warning("PatternFocusedSearch", reason: searchOutput.Reason);
+            }
 
             // [999-limit perf] Thumbnail decode'u (TryLoadPreview) bu arka plan
             // gorevinde kalir - eskiden UI thread'de, arama sonucu donduk-ten SONRA,
@@ -2344,7 +2415,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void StepThreshold(int direction)
     {
-        var current = ResolveSteppableValue(ThresholdTextBox.Text, SimilarityThreshold.MinPercent, SimilarityThreshold.MaxPercent, ActiveDefaultThresholdPercent);
+        var current = ResolveSteppableValue(ThresholdTextBox.Text, SimilarityThreshold.MinPercent, SimilarityThreshold.MaxPercent, ResolveThresholdForActiveProfile());
         var next = Math.Clamp(current + direction, SimilarityThreshold.MinPercent, SimilarityThreshold.MaxPercent);
         ThresholdTextBox.Text = FormatSteppedNumber(next, ThresholdTextBox.Text);
         ThresholdTextBox.CaretIndex = ThresholdTextBox.Text.Length;
@@ -2465,7 +2536,7 @@ public partial class MainWindow : Window
             try
             {
                 _embedder = await Task.Run<IImageEmbedder>(
-                    () => new DinoV2Embedder(modelPath, profile.ModelSha256));
+                    () => new ProfiledImageEmbedder(_activeModel, modelPath, profile.ModelSha256));
                 return (true, string.Empty);
             }
             catch (Exception ex)
@@ -2479,8 +2550,29 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>[PILOT esigi] Aktif modelin baslangic "Minimum benzerlik (%)" degeri - tek okuma kaynagi model profilidir, XAML/C# icinde ayrica yazilmaz.</summary>
-    private static double ActiveDefaultThresholdPercent => DinoV2BaseProfile.DefaultThresholdPercent;
+    /// <summary>
+    /// [Cok modelli arama] Aktif kombinasyonun esigi: kullanici daha once bu
+    /// kombinasyon icin bir deger kullandiysa O, yoksa profilin olculmus
+    /// varsayilani. Her yontemin skor dagilimi farkli oldugu icin tek bir
+    /// esik tum yontemlerde anlamli DEGILDIR.
+    /// </summary>
+    private double ResolveThresholdForActiveProfile()
+    {
+        var key = _activeModel.ThresholdKey(_patternFocused);
+        if (_thresholdByProfile.TryGetValue(key, out var saved)
+            && saved >= SimilarityThreshold.MinPercent && saved <= SimilarityThreshold.MaxPercent)
+        {
+            return saved;
+        }
+
+        return _activeModel.DefaultThresholdPercent;
+    }
+
+    /// <summary>Kullanicinin bu kombinasyon icin kullandigi gecerli esigi hatirlar.</summary>
+    private void RememberThresholdForActiveProfile(double percent)
+    {
+        _thresholdByProfile[_activeModel.ThresholdKey(_patternFocused)] = percent;
+    }
 
     /// <summary>[Profil ayrimi] Cozulmus model dosyasi yolu - profil ile AYNI anda, bir kez belirlenir.</summary>
     private string? _resolvedModelPath;
@@ -2516,17 +2608,17 @@ public partial class MainWindow : Window
             if (modelPath is null)
             {
                 return (null,
-                    $"DINOv2 ONNX model dosyası bulunamadı (models\\{DinoV2BaseProfile.ModelFileName}). "
+                    $"ONNX model dosyası bulunamadı (models\\{_activeModel.ModelFileName}). "
                     + "Model dosyasının uygulama klasöründeki 'models' alt klasöründe olduğundan emin olun.");
             }
 
             try
             {
                 var sha = await Task.Run(() => ModelFileHash.ComputeSha256(modelPath));
-                var profile = DinoV2BaseProfile.CreateProfile(sha);
+                var profile = _activeModel.CreateEmbeddingProfile(sha);
                 _resolvedModelPath = modelPath;
                 _activeProfile = profile;
-                _indexStore = ProfiledIndexStore.ForDinoV2Base(profile);
+                _indexStore = new ProfiledIndexStore(profile, _activeModel.IndexFolderName);
                 _logger.Info("ModelProfile", file: modelPath,
                     reason: $"{profile.ModelId} rev={profile.ModelRevision} sha256={sha} dim={profile.EmbeddingDimension}");
                 return (profile, string.Empty);
@@ -2612,9 +2704,202 @@ public partial class MainWindow : Window
     }
 
     /// <summary>[PILOT] Aktif model dosyasini arar. Dosya adinin TEK kaynagi <see cref="DinoV2BaseProfile.ModelFileName"/>'dir - yol iki farkli yerde yazilmaz.</summary>
-    private static string? ResolveModelPath()
+    // =====================================================================
+    // [Cok modelli arama] Profil secimi ve secim degisim davranislari
+    // =====================================================================
+
+    /// <summary>Kayitli/aktif secimi acilir listelere yansitir - olay isleyicisini TETIKLEMEDEN.</summary>
+    private void ApplyProfileSelectionToUi()
     {
-        var nextToExe = Path.Combine(AppContext.BaseDirectory, "models", DinoV2BaseProfile.ModelFileName);
+        _suppressProfileSelectionEvents = true;
+        try
+        {
+            SelectByTag(SearchModelComboBox, _activeModel.Kind.ToString());
+            SelectByTag(ImageColorModeComboBox, _activeModel.ColorMode.ToString());
+            PatternFocusedCheckBox.IsChecked = _patternFocused;
+        }
+        finally
+        {
+            _suppressProfileSelectionEvents = false;
+        }
+    }
+
+    private static void SelectByTag(System.Windows.Controls.ComboBox comboBox, string tag)
+    {
+        foreach (var item in comboBox.Items.OfType<System.Windows.Controls.ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag as string, tag, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        comboBox.SelectedIndex = 0;
+    }
+
+    private static string? SelectedTag(System.Windows.Controls.ComboBox comboBox) =>
+        (comboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string;
+
+    /// <summary>
+    /// Model veya Renkli/Gri degisti. Sorgu gorseli KORUNUR (kullanici ayni
+    /// gorselle iki yontemi karsilastirabilsin), sonuclar temizlenir ve
+    /// SECILEN PROFILIN index'i yuklenir.
+    /// </summary>
+    private async void SearchProfileSelection_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_suppressProfileSelectionEvents)
+        {
+            return;
+        }
+
+        if (IsBusy)
+        {
+            // Arama/indeksleme surerken degisiklige izin verilmez - secim
+            // geri alinir (busy guard ile tutarli).
+            ApplyProfileSelectionToUi();
+            return;
+        }
+
+        var next = SearchModelCatalog.ResolveOrDefault(
+            SelectedTag(SearchModelComboBox), SelectedTag(ImageColorModeComboBox));
+
+        if (next == _activeModel)
+        {
+            return;
+        }
+
+        _activeModel = next;
+        PersistProfileSelection();
+        await SwitchActiveProfileAsync(reloadIndex: true);
+    }
+
+    /// <summary>
+    /// "Desen odakli karsilastirma" degisti. Bu bir ARAMA ZAMANI
+    /// donusumudur - YENIDEN INDEKSLEME GEREKTIRMEZ. Sorgu korunur, eski
+    /// sonuclar temizlenir; kullanici yeniden "Ara"ya basar.
+    /// </summary>
+    private async void PatternFocusedCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressProfileSelectionEvents)
+        {
+            return;
+        }
+
+        if (IsBusy)
+        {
+            ApplyProfileSelectionToUi();
+            return;
+        }
+
+        _patternFocused = PatternFocusedCheckBox.IsChecked == true;
+        PersistProfileSelection();
+
+        // Index DEGISMEZ - yalnizca sonuclar ve esik tazelenir.
+        await SwitchActiveProfileAsync(reloadIndex: false);
+    }
+
+    /// <summary>
+    /// Profil degisiminin ortak akisi: sonuclari temizle, esigi bu
+    /// kombinasyona gore ayarla, gerekiyorsa yeni profilin index'ini yukle.
+    /// </summary>
+    private async Task SwitchActiveProfileAsync(bool reloadIndex)
+    {
+        // Sorgu gorseli BILEREK korunur - kullanici ayni gorselle iki
+        // yontemi karsilastirabilsin.
+        _results.Clear();
+        UpdateResultsHeaderText();
+        ClearComparison();
+        ResetResultsScroll();
+        _lastFreshnessCheckUtc = null;
+
+        // Merkezleme ortalamasi profile/indekse baglidir.
+        _meanCache.Invalidate();
+
+        ThresholdTextBox.Text = ResolveThresholdForActiveProfile().ToString(CultureInfo.InvariantCulture);
+        HideThresholdValidationError();
+
+        if (!reloadIndex)
+        {
+            SetIndexStatus($"{DescribeActiveProfile()} — ayar değişti, aramak için 'Ara'ya basın.");
+            return;
+        }
+
+        // Model/renk degisti: onceki ONNX oturumu kapatilir (iki buyuk model
+        // gereksiz yere ayni anda bellekte TUTULMAZ) ve profil yeniden
+        // cozulur; yeni oturum ilk aramada/indekslemede ARKA PLANDA yuklenir.
+        _embedder?.Dispose();
+        _embedder = null;
+        _activeProfile = null;
+        _indexStore = null;
+        _resolvedModelPath = null;
+        _indexEntries = new List<ImageIndexEntry>();
+        ProductCountText.Text = "0 ürün";
+
+        if (_productFolder is null)
+        {
+            SetIndexStatus($"{DescribeActiveProfile()} — klasör seçilmedi.");
+            return;
+        }
+
+        SetBusy(true);
+        BeginOperation("Seçilen profil hazırlanıyor…");
+        try
+        {
+            var folder = _productFolder;
+            var (profile, profileError) = await TryEnsureProfileAsync();
+            if (profile is null)
+            {
+                SetIndexStatus(profileError, success: false);
+                return;
+            }
+
+            var store = _indexStore!;
+            var load = await Task.Run(() => store.Load(folder, _logger));
+            _indexEntries = load.Entries;
+            _meanCache.Invalidate();
+            ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
+
+            SetIndexStatus(_indexEntries.Count > 0
+                ? $"{DescribeActiveProfile()} — kayıtlı index yüklendi ({_indexEntries.Count:N0} ürün)."
+                : "Bu model ve görüntü seçeneği için ilk indeksleme gerekiyor.",
+                success: _indexEntries.Count > 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("ProfileSwitch", reason: ex.Message);
+            SetIndexStatus($"Profil değiştirilemedi: {ex.Message}", success: false);
+        }
+        finally
+        {
+            EndOperation();
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>Durum satirinda kullanilan kisa profil aciklamasi - aktif model/goruntu her zaman gorunur olsun.</summary>
+    private string DescribeActiveProfile()
+    {
+        var suffix = _patternFocused ? " + desen odaklı" : string.Empty;
+        return _activeModel.DisplayName + suffix;
+    }
+
+    /// <summary>Model/renk/merkezleme tercihini kalici hale getirir (Load-degistir-Save; diger alanlar korunur).</summary>
+    private void PersistProfileSelection()
+    {
+        var settings = UserSettings.Load(_logger);
+        settings.SearchModel = _activeModel.Kind.ToString();
+        settings.ImageColorMode = _activeModel.ColorMode.ToString();
+        settings.PatternFocusedComparison = _patternFocused;
+        settings.Save(_logger);
+    }
+
+    /// <summary>[Cok modelli arama] Aktif modelin dosyasini arar.</summary>
+    private string? ResolveModelPath() => ResolveModelPath(_activeModel.ModelFileName);
+
+    private static string? ResolveModelPath(string modelFileName)
+    {
+        var nextToExe = Path.Combine(AppContext.BaseDirectory, "models", modelFileName);
         if (File.Exists(nextToExe))
         {
             return nextToExe;
@@ -2633,7 +2918,7 @@ public partial class MainWindow : Window
             return null;
         }
 
-        var repoCandidate = Path.Combine(dir.FullName, "models", DinoV2BaseProfile.ModelFileName);
+        var repoCandidate = Path.Combine(dir.FullName, "models", modelFileName);
         return File.Exists(repoCandidate) ? repoCandidate : null;
     }
 

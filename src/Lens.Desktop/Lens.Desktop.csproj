@@ -36,6 +36,15 @@
              CopyToOutputDirectory="PreserveNewest"
              Condition="Exists('..\..\models\dinov2-base.onnx')" />
 
+    <!-- [Cok modelli arama] Kullanici modeli arayuzden secebildigi icin HER
+         IKI model de pakete girer. Bellekte yalnizca SECILI modelin oturumu
+         tutulur (model degisiminde onceki oturum kapatilir) - dosyalarin
+         ikisinin de pakette olmasi bellek maliyeti YARATMAZ. -->
+    <Content Include="..\..\models\clip-vision-b16-openai.onnx"
+             Link="models\clip-vision-b16-openai.onnx"
+             CopyToOutputDirectory="PreserveNewest"
+             Condition="Exists('..\..\models\clip-vision-b16-openai.onnx')" />
+
     <!-- [Faz 4A] Admin default config sablonu: repo'daki hali BOS gelir
          (gercek UNC path hardcode edilmez). IT, publish ciktisindaki
          appsettings.json'i exe ile ayni klasorde elle duzenler -
@@ -46,6 +55,19 @@
          Remove" ile o kaydi cikarilir. -->
     <None Remove="appsettings.json" />
     <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- [Pilot izolasyonu] Bu dal, kullanicinin ASIL kurulumunun
+       %LocalAppData%\Lens\ altindaki ayarlarini/loglarini EZMEMELIDIR -
+       kullanici ayni makinede baska pilotlari test ediyor. Lens.Core.Config.
+       AppPaths bu metadata'yi okur; metadata olmayan derlemelerde davranis
+       DEGISMEZ. -->
+  <PropertyGroup>
+    <LensDataFolder>Lens.MultiModel</LensDataFolder>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(LensDataFolder)' != ''">
+    <AssemblyMetadata Include="LensDataFolder" Value="$(LensDataFolder)" />
   </ItemGroup>
 
   <PropertyGroup>

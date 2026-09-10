@@ -56,6 +56,40 @@ public sealed class UserSettings
     /// </summary>
     public int PreferredMaxResults { get; set; } = MaxResultsPreference.Default;
 
+    /// <summary>
+    /// [Cok modelli arama] Secili model ("DinoV2Base" / "ClipStandard").
+    /// Eski (bu alani icermeyen) bir dosya yuklendiginde KANITLANMIS
+    /// varsayilan olan DINOv2-Base kullanilir - kullanicinin dogrulanmis
+    /// davranisi ayar dosyasi eskidiginde de korunur. Bilinmeyen/gecersiz
+    /// deger de guvenle ayni varsayilana doner (bkz.
+    /// SearchModelCatalog.ResolveOrDefault).
+    /// </summary>
+    public string SearchModel { get; set; } = nameof(Lens.Core.Ai.SearchModelKind.DinoV2Base);
+
+    /// <summary>[Cok modelli arama] Goruntu degerlendirme modu ("Color" / "Grayscale"). Varsayilan renkli - kanitlanmis profil.</summary>
+    public string ImageColorMode { get; set; } = nameof(Lens.Core.Ai.ImageColorMode.Color);
+
+    /// <summary>
+    /// [Cok modelli arama] "Desen odakli karsilastirma" (embedding merkezleme
+    /// ve yeniden normallestirme) acik mi. Varsayilan KAPALI - kanitlanmis
+    /// DINO renkli davranisi degismesin diye.
+    /// </summary>
+    public bool PatternFocusedComparison { get; set; }
+
+    /// <summary>
+    /// [Cok modelli arama] Model + renk modu + merkezleme kombinasyonu basina
+    /// kullanicinin en son kullandigi minimum benzerlik esigi.
+    ///
+    /// Neden kombinasyon basina? Her yontemin skor dagilimi FARKLIDIR; tek
+    /// bir esigi tum yontemlerde kullanmak, kullanicinin bir yontemde
+    /// ayarladigi degeri digerinde anlamsiz hale getirirdi. Anahtar bicimi
+    /// icin bkz. SearchModelProfile.ThresholdKey.
+    ///
+    /// Eski bir dosyada bu alan yoksa bos sozluk olusur ve her kombinasyon
+    /// kendi olculmus varsayilaniyla baslar.
+    /// </summary>
+    public Dictionary<string, double> ThresholdByProfile { get; set; } = new();
+
     public static UserSettings Load(ILensLogger? logger = null)
     {
         try

@@ -177,7 +177,7 @@ public static class ImageIndex
             stats.IndexResetReason = load.Reason;
         }
 
-        List<string> supportedFiles;
+        List<ScannedFile> supportedFiles;
         try
         {
             var classification = ClassifyDirectory(folderPath);
@@ -198,9 +198,14 @@ public static class ImageIndex
         var result = new List<ImageIndexEntry>();
 
         int done = 0;
-        foreach (var filePath in supportedFiles)
+        foreach (var scanned in supportedFiles)
         {
-            var relativePath = Path.GetFileName(filePath);
+            var filePath = scanned.FullPath;
+
+            // [Alt klasor destegi] Kayit anahtari artik katalog kokune gore
+            // goreli yol - farkli alt klasorlerdeki ayni adli dosyalar AYRI
+            // kayitlardir.
+            var relativePath = scanned.RelativePath;
             var extension = Path.GetExtension(filePath);
             // [Reliability] Lookup TRY bloğunun disinda - FileInfo erisimi
             // basarisiz olsa bile existingEntry catch icinde kullanilabilsin.
@@ -288,7 +293,7 @@ public static class ImageIndex
     /// </summary>
     public static ChangeSummary DetectChanges(string folderPath, IIndexStore store, ILensLogger? logger = null)
     {
-        List<string> supportedFiles;
+        List<ScannedFile> supportedFiles;
         try
         {
             supportedFiles = ClassifyDirectory(folderPath).SupportedFiles;
@@ -312,9 +317,10 @@ public static class ImageIndex
         int unchangedCount = 0;
         var seenPaths = new HashSet<string>();
 
-        foreach (var filePath in supportedFiles)
+        foreach (var scanned in supportedFiles)
         {
-            var relativePath = Path.GetFileName(filePath);
+            var filePath = scanned.FullPath;
+            var relativePath = scanned.RelativePath;
             seenPaths.Add(relativePath);
 
             try
@@ -350,16 +356,27 @@ public static class ImageIndex
         return new ChangeSummary(newCount, changedCount, removedCount, unchangedCount, ScanError: null);
     }
 
+    /// <summary>
+    /// [Alt klasor destegi] Katalog artik ALT KLASORLERIYLE BIRLIKTE taranir
+    /// (bkz. <see cref="CatalogScanner"/>): `.lens` atlanir, junction/symlink
+    /// takip edilmez, erisilemeyen klasor tum islemi cokertmez.
+    ///
+    /// Kayit anahtari artik dosya adi DEGIL, katalog kokune gore '/' ayracli
+    /// GORELI YOL'dur. Kokteki bir dosyanin goreli yolu yine yalnizca dosya
+    /// adi oldugu icin MEVCUT index kayitlari GECERLI kalir ve yeniden embed
+    /// EDILMEZ.
+    /// </summary>
     private static DirectoryClassification ClassifyDirectory(string folderPath)
     {
-        var allFiles = Directory.EnumerateFiles(folderPath).ToList();
-        var supported = new List<string>();
         var unsupportedIssues = new List<IndexFileIssue>();
+        var allFiles = CatalogScanner.EnumerateFiles(folderPath, unsupportedIssues);
+        var supported = new List<ScannedFile>();
         int unsupportedCount = 0;
         int skippedCount = 0;
 
-        foreach (var filePath in allFiles)
+        foreach (var scanned in allFiles)
         {
+            var filePath = scanned.FullPath;
             var fileName = Path.GetFileName(filePath);
             if (FileClassifier.IsKnownHarmless(fileName))
             {
@@ -373,12 +390,12 @@ public static class ImageIndex
             switch (FileClassifier.Classify(extension))
             {
                 case FileClassification.SupportedImage:
-                    supported.Add(filePath);
+                    supported.Add(scanned);
                     break;
                 case FileClassification.UnsupportedImageFormat:
                     unsupportedCount++;
                     unsupportedIssues.Add(new IndexFileIssue(
-                        Path.GetFileName(filePath), extension, FileIssueKind.UnsupportedImageFormat,
+                        scanned.RelativePath, extension, FileIssueKind.UnsupportedImageFormat,
                         "Bilinen görsel formatı ama şu an desteklenmiyor"));
                     break;
                 default:
@@ -390,18 +407,18 @@ public static class ImageIndex
                     // gorunurluk ekleniyor.
                     skippedCount++;
                     unsupportedIssues.Add(new IndexFileIssue(
-                        Path.GetFileName(filePath), extension, FileIssueKind.NonImageFile,
+                        scanned.RelativePath, extension, FileIssueKind.NonImageFile,
                         "Desteklenmeyen dosya türü"));
                     break;
             }
         }
 
-        supported.Sort(StringComparer.OrdinalIgnoreCase);
+        supported.Sort((a, b) => StringComparer.OrdinalIgnoreCase.Compare(a.RelativePath, b.RelativePath));
         return new DirectoryClassification(supported, allFiles.Count, unsupportedCount, skippedCount, unsupportedIssues);
     }
 
     private sealed record DirectoryClassification(
-        List<string> SupportedFiles,
+        List<ScannedFile> SupportedFiles,
         int TotalFiles,
         int UnsupportedFormatCount,
         int SkippedNonImageCount,

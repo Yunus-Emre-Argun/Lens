@@ -422,6 +422,14 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="14" />
                             <RowDefinition Height="Auto" />
+                            <!-- [Cok modelli arama] Model / goruntu / desen odakli karsilastirma.
+                                 Mevcut satirlar (0-8) ve onlarin Grid.Row degerleri DEGISTIRILMEDI. -->
+                            <RowDefinition Height="14" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Text="ARAMA AYARLARI" FontWeight="SemiBold" FontSize="11"
@@ -506,6 +514,39 @@
                         <CheckBox Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2" x:Name="AutoIndexCheckBox" VerticalAlignment="Center"
                                   Checked="AutoIndexCheckBox_CheckedChanged" Unchecked="AutoIndexCheckBox_CheckedChanged">
                             <TextBlock Text="Arama öncesi indeksi otomatik kontrol et ve güncelle" TextWrapping="Wrap" FontSize="14"
+                                       Foreground="{DynamicResource SettingsPanelForegroundBrush}" />
+                        </CheckBox>
+
+                        <!-- [Cok modelli arama] Etiket + acilir liste AYNI satirda: sayisal
+                             kutularla ayni "etiket solda / kontrol sagda" duzeni korunur, panel
+                             gereksiz uzamaz. Acilir listeler sayisal kutularin 76 DIP sutununa
+                             SIGMAZ, bu yuzden ColumnSpan=2 ile tam genislige yayilir ve etiket
+                             ustlerinde durur - minimum pencerede tasma olusmaz.
+                             Aktif model/goruntu secimi kullaniciya BURADAN gorunur; ayrica
+                             buyuk bir baslik EKLENMEDI. -->
+                        <TextBlock Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2" Text="Model" FontSize="12"
+                                   Margin="0,0,0,3" Foreground="{DynamicResource SettingsPanelSecondaryTextBrush}" />
+                        <ComboBox Grid.Row="11" Grid.Column="0" Grid.ColumnSpan="2" x:Name="SearchModelComboBox"
+                                  MinHeight="32" FontSize="13" SelectionChanged="SearchProfileSelection_Changed"
+                                  ToolTip="Aramada kullanılacak model">
+                            <ComboBoxItem Content="DINOv2 Base" Tag="DinoV2Base" />
+                            <ComboBoxItem Content="CLIP Standart" Tag="ClipStandard" />
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="13" Grid.Column="0" Grid.ColumnSpan="2" Text="Görüntü değerlendirme" FontSize="12"
+                                   Margin="0,0,0,3" Foreground="{DynamicResource SettingsPanelSecondaryTextBrush}" />
+                        <ComboBox Grid.Row="14" Grid.Column="0" Grid.ColumnSpan="2" x:Name="ImageColorModeComboBox"
+                                  MinHeight="32" FontSize="13" SelectionChanged="SearchProfileSelection_Changed"
+                                  ToolTip="Renkten bağımsız değerlendirme için gri tonlama uygular">
+                            <ComboBoxItem Content="Renkli" Tag="Color" />
+                            <ComboBoxItem Content="Gri tonlamalı" Tag="Grayscale" />
+                        </ComboBox>
+
+                        <CheckBox Grid.Row="16" Grid.Column="0" Grid.ColumnSpan="2" x:Name="PatternFocusedCheckBox"
+                                  VerticalAlignment="Center"
+                                  ToolTip="Katalogdaki ortak görsel özelliklerin etkisini azaltarak desenlerin daha belirgin karşılaştırılmasını sağlar."
+                                  Checked="PatternFocusedCheckBox_CheckedChanged" Unchecked="PatternFocusedCheckBox_CheckedChanged">
+                            <TextBlock Text="Desen odaklı karşılaştırma" TextWrapping="Wrap" FontSize="14"
                                        Foreground="{DynamicResource SettingsPanelForegroundBrush}" />
                         </CheckBox>
                     </Grid>
