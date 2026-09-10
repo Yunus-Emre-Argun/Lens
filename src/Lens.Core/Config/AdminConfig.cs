@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lens.Core.DesenCodes;
 using Lens.Core.Logging;
 
 namespace Lens.Core.Config;
@@ -12,6 +13,21 @@ namespace Lens.Core.Config;
 public sealed class AdminConfig
 {
     public string? AdminDefaultProductDirectory { get; set; }
+
+    /// <summary>
+    /// [Desen kodu servisi] Kod sorgulama ucunun sozlesmesi. Bolum yoksa veya
+    /// alanlari bossa servis YAPILANDIRILMAMIS sayilir: "Desen Kodlarını
+    /// Güncelle" islemi calismaz, ama gorsel arama ve kayitli kodlarin
+    /// gosterimi normal calismaya devam eder.
+    ///
+    /// Metot/parametre adlari BILEREK yapilandirmadadir - gorevde verilen
+    /// metot adi hedef ucun WSDL'inde bulunamadi, dogru ad ogrenildiginde
+    /// yeniden derleme gerekmemelidir (bkz. docs/DESEN_CODE_SERVICE.md).
+    ///
+    /// Bu dosyaya KIMLIK BILGISI YAZILMAZ - servis kimliksiz cagriya yanit
+    /// vermektedir ve VPN girisi servis kimlik dogrulamasi DEGILDIR.
+    /// </summary>
+    public DesenCodeServiceOptions? DesenCodeService { get; set; }
 
     public static AdminConfig Load(string filePath, ILensLogger? logger = null)
     {

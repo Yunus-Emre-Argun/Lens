@@ -32,6 +32,10 @@
              blokta, adlandirilmis tek bir kaynak. -->
         <SolidColorBrush x:Key="CardSecondaryTextBrush" Color="#FF6B6B6B" />
 
+        <!-- [Desen kodu] WPF'te hazir bir bool->Visibility donusturucusu YOKTUR.
+             Kod olmayan kartlarda ogeyi tamamen gizlemek icin gerekli. -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
         <!-- Tema-bagimli renkler: buradaki degerler yalnizca XAML/InitializeComponent
              ilk ayristirma anindaki "Normal" temali TASARIM-ZAMANI yer tutuculardir -
              kullanicinin GERCEKTE gordugu ilk renkler DEGILDIR. MainWindow constructor'i
@@ -266,6 +270,11 @@
                                       IsCheckable="True" Click="ThemeMenuItem_Click" />
                         </MenuItem>
                         <Separator />
+                        <!-- [Desen kodu] VPN erisimi olan bilgisayarda ELLE calistirilan bakim
+                             islemi - normal aramada ASLA otomatik tetiklenmez. -->
+                        <MenuItem x:Name="RefreshDesenCodesMenuItem" Header="Desen Kodlarını Güncelle"
+                                  Click="RefreshDesenCodesMenuItem_Click" />
+                        <Separator />
                         <MenuItem Header="Hakkında" Click="AboutMenuItem_Click" />
                     </ContextMenu>
                 </Button.ContextMenu>
@@ -299,6 +308,11 @@
                      SIFIR yer kaplar, bos bir mesaj/bosluk BIRAKMAZ. -->
                 <TextBlock x:Name="DetailedStatsText" Text="" Visibility="Collapsed" VerticalAlignment="Center"
                            TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,6" />
+                <!-- [Desen kodu] Kod/metadata durumu TEK bir yerde bildirilir; kod bulunamayan
+                     kartlarda tekrar eden hata yazisi OLUSMAZ. Collapsed iken WrapPanel icinde
+                     gercekten sifir yer kaplar. -->
+                <TextBlock x:Name="DesenCodeStatusText" Text="" Visibility="Collapsed" VerticalAlignment="Center"
+                           TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Margin="10,0,0,6" />
             </WrapPanel>
             <!-- ProblemFilesButton native (temadan bagimsiz, hep acik gri) buton
                  yuzeyi uzerinde durur - WarningBrush artik tema-bagimli oldugundan
@@ -530,8 +544,20 @@
                                TextAlignment="Center" TextWrapping="Wrap"
                                Foreground="{StaticResource CardSecondaryTextBrush}" />
                 </Grid>
-                <TextBox x:Name="ComparisonFileNameText" Text="" Width="320" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
-                         Foreground="{DynamicResource SecondaryTextBrush}" />
+                <!-- [Desen kodu] Burada 320 DIP genislik var, bu yuzden kod dosya adinin
+                     YANINDA gosterilir. Grid "*" + "Auto": kod her zaman sigar, uzun dosya
+                     adi kendi sutununda kaydirilir - tasma olusmaz. -->
+                <Grid Width="320">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="ComparisonFileNameText" Text="" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Right"
+                             Foreground="{DynamicResource SecondaryTextBrush}" />
+                    <TextBlock x:Name="ComparisonDesenCodeText" Grid.Column="1" Text="" FontWeight="Bold" Margin="4,0,0,0"
+                               VerticalAlignment="Center" Visibility="Collapsed"
+                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                </Grid>
                 <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" FontSize="14" Margin="0,4,0,0" HorizontalAlignment="Center"
                            Foreground="{DynamicResource NeutralTextBrush}" />
             </StackPanel>
@@ -586,6 +612,14 @@
                                         </Button>
                                         <TextBox Text="{Binding FileName, Mode=OneWay}"
                                                  Style="{StaticResource SelectableFileNameStyle}" Margin="0,6,0,0" />
+                                        <!-- [Desen kodu] Dosya adi secilebilir bir TextBox oldugu icin (karar #54)
+                                             icinde KALIN parca olamaz; kod bu yuzden hemen ALTINDA, ayri ve kalin
+                                             gosterilir. Kart genisligi ~130 DIP oldugundan uzun dosya adlarinda
+                                             satir ici gosterim zaten tasardi. Kod yoksa oge tamamen GIZLENIR -
+                                             bos "()" veya kartlarda tekrar eden hata yazisi OLUSMAZ. -->
+                                        <TextBlock Text="{Binding DesenCodeDisplay}" FontWeight="Bold" FontSize="11"
+                                                   Margin="0,1,0,0" TextWrapping="Wrap" ToolTip="{Binding DesenCodeToolTip}"
+                                                   Visibility="{Binding HasDesenCode, Converter={StaticResource BoolToVisibility}}" />
                                         <TextBlock Text="{Binding ScoreText}" FontWeight="Bold" FontSize="11" Margin="0,2,0,0" />
                                     </StackPanel>
                                 </Border>

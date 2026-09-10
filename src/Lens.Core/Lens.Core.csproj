@@ -6,6 +6,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- [Test gorunurlugu] Lens.AiProof, Lens.Core'un dahili (internal) yardimci
+       metotlarini dogrudan test edebilsin diye. Bu, yalnizca test icin public
+       API yuzeyi buyutmemek amaciyla tercih edilen standart kaliptir. -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Lens.AiProof</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />

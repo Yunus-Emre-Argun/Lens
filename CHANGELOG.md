@@ -8,6 +8,58 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Desen Kodu Servisi ve Çevrimdışı Kod Gösterimi] — 2026-09-10
+
+> **Durum: deney dalı (`feature/desen-code-service`), ayrı worktree.**
+> `main` ve diğer pilot dalları değiştirilmemiştir. Detay:
+> `docs/DESEN_CODE_SERVICE.md`.
+
+### ⚠ Gerçek servis doğrulanamadı
+- Uç (`ozx.asmx`) erişilebilir ve **92 metot** yayınlıyor, ancak istenen
+  `GetDesenKodu` metodu **bu serviste YOK** (canlı kanıt: SOAPAction
+  tanınmadı, HTTP 500). "desen/pattern/dosya" geçen hiçbir metot yok.
+- Buna karşılık istemcinin **taşıma katmanı canlı doğrulandı**: aynı servisteki
+  gerçek `HelloWorld` metodu, bu istemcinin ürettiği zarf ve SOAPAction
+  biçimiyle HTTP 200 döndürdü.
+- Bu yüzden **uç adresi, metot adı ve parametre adı yapılandırmadadır**
+  (`appsettings.json` → `DesenCodeService`); doğru ad öğrenildiğinde yeniden
+  derleme gerekmez.
+
+### Eklendi
+- `Lens.Core.DesenCodes`: `IDesenCodeService` + `SoapDesenCodeService`
+  (ASMX SOAP 1.1), `DesenCodeStore` (atomik yazım, **ayrı** kilit),
+  `DesenCodeRefresh` (tekilleştirme, iptal, erken durdurma, koruma kuralları).
+- Ortak metadata: `<ÜrünDizini>\.lens\metadata\desen-codes-v1.json` —
+  modelden bağımsız, embedding indekslerinden ayrı, arama skorlarını
+  etkilemez, model/renk seçimi değişince yeniden sorgulama gerektirmez.
+- ⋮ → **Desen Kodlarını Güncelle** (VPN'li bilgisayarda elle çalıştırılır;
+  normal aramada asla otomatik tetiklenmez).
+- Sonuç kartında ve Seçilen Sonuç'ta **kalın** `(00123)` gösterimi.
+- `Lens.AiProof hardeningtest` Grup P: 43 yeni kontrol (sahte servisle).
+
+### Davranış kuralları
+- Kod **string** saklanır; baştaki sıfırlar korunur, sabit hane kısıtı yok.
+- "Kod yok", "servise erişilemedi" ve "geçersiz cevap" **ayrı** durumlardır.
+- Servis hatasında **eski kod ve eski tarih aynen korunur**; boş cevap gerçek
+  kod gibi kaydedilmez; bağlantı hatası "bulunamadı" diye kalıcılaştırılmaz.
+- Katalogdan silinen dosyanın kaydı düşer — kod başka dosyaya taşınmaz.
+- Art arda 5 bağlantı hatasında işlem durur (binlerce zaman aşımı beklenmez).
+- Kataloğa yazılamazsa açık hata gösterilir; kullanıcı ayarlarına gizlice
+  yazılmaz.
+
+### Korunanlar
+- Model seçimi, ön işleme, benzerlik hesabı, eşik ve embedding verisi
+  DEĞİŞMEDİ; mevcut DINO renkli arama davranışı korundu.
+- Kod güncellemesi embedding index dosyasını değiştirmez (testle doğrulandı).
+- Kod bilgisi sonradan geldiğinde sıralama, seçim ve kaydırma konumu değişmez.
+
+### Bilinen sınırlamalar
+- Servis yalnızca dosya **adı** kabul ettiği için, farklı klasörlerdeki aynı
+  adlı dosyalar aynı kodu alır; içerikleri farklıysa doğruluk
+  kesinleştirilemez. Bugün oluşmaz (tarama yalnızca üst dizin).
+- Parametre adı, dönüş alanı ve uzantılı/uzantısız biçim doğrulanamadı.
+- Canlı arayüz açılmadı.
+
 ## [PİLOT — DINOv2 ViT-B/14 Entegrasyonu] — 2026-09-10
 
 > **Durum: deney dalı (`feature/dinov2-base-pilot`), çalıştırılabilir pilot.**
