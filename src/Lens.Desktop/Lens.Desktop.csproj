@@ -5,7 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- [PILOT - DINOv2-Base] Aktif ONNX model: repo kokunde models/ altinda
+    <!-- [PILOT - desen odakli CLIP] Aktif ONNX model: repo kokunde models/ altinda
          tutuluyor (buyuk binary, git'e commit edilmiyor - bkz.
          docs/DECISIONS.md #28). Build/publish ciktisinda "models\" alt
          klasorune kopyalanir, MainWindow.ResolveModelPath bunu
@@ -31,10 +31,10 @@
          ETKILEMEZ. Bilerek "IsDataFile" metadata'si YOK - model kullanici
          verisi degil, normal uygulama dosyasi olarak paketlenir (bkz.
          docs/CLICKONCE.md). -->
-    <Content Include="..\..\models\dinov2-base.onnx"
-             Link="models\dinov2-base.onnx"
+    <Content Include="..\..\models\clip-vision-b16-openai.onnx"
+             Link="models\clip-vision-b16-openai.onnx"
              CopyToOutputDirectory="PreserveNewest"
-             Condition="Exists('..\..\models\dinov2-base.onnx')" />
+             Condition="Exists('..\..\models\clip-vision-b16-openai.onnx')" />
 
     <!-- [Faz 4A] Admin default config sablonu: repo'daki hali BOS gelir
          (gercek UNC path hardcode edilmez). IT, publish ciktisindaki
@@ -46,6 +46,20 @@
          Remove" ile o kaydi cikarilir. -->
     <None Remove="appsettings.json" />
     <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- [PILOT izolasyonu] Bu dal, kullanicinin ASIL kurulumunun
+       %LocalAppData%\Lens\ altindaki ayarlarini/loglarini EZMEMELIDIR -
+       kullanici su anda DINOv2 pilotunu ayni makinede test ediyor. Bu deger
+       asagida bir assembly metadata'sina cevrilir; Lens.Core.Config.AppPaths
+       onu okur. Metadata olmayan derlemelerde (orn. Lens.AiProof) davranis
+       DEGISMEZ, "Lens" kullanilir. -->
+  <PropertyGroup>
+    <LensDataFolder>Lens.ClipPattern</LensDataFolder>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(LensDataFolder)' != ''">
+    <AssemblyMetadata Include="LensDataFolder" Value="$(LensDataFolder)" />
   </ItemGroup>
 
   <PropertyGroup>

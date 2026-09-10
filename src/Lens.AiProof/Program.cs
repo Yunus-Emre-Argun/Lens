@@ -31,6 +31,24 @@ if (args.Length > 0 && args[0] == "hardeningtest")
 // Ikinci argument (opsiyonel), kullanicinin bildirdigi dogrulama ciftinin
 // bulundugu klasordur - verilmezse o adim ATLANIR. O klasordeki hicbir dosya
 // kopyalanmaz/repoya alinmaz, raporda gercek dosya adi GECMEZ.
+// [DENEY] CLIP desen odakli iyilestirme olcumu (bkz. Lens.AiProof.ClipPatternExperiment).
+//   clippattern <katalog-klasoru> <calisma-dizini> [mode] [havuz-boyutu]
+// Katalog klasorune HICBIR SEY YAZILMAZ; tum ciktilar calisma dizinine gider.
+if (args.Length > 2 && args[0] == "clippattern")
+{
+    Lens.AiProof.ClipPatternExperiment.Run(
+        FindRepoRoot(),
+        catalogDir: args[1],
+        workDir: args[2],
+        mode: args.Length > 3 ? args[3] : "elim",
+        poolSize: args.Length > 4 ? int.Parse(args[4]) : 300,
+        strategyFilter: args.Length > 5 ? args[5] : null,
+        knownQueryPath: args.Length > 6 ? args[6] : null,
+        knownTargetName: args.Length > 7 ? args[7] : null,
+        modelKey: args.Length > 8 ? args[8] : "clip");
+    return;
+}
+
 if (args.Length > 0 && args[0] == "ortbench")
 {
     Lens.AiProof.OrtThreadProbe.Run(FindRepoRoot(), args.Length > 1 ? args[1] : "default");
@@ -1423,6 +1441,252 @@ static void RunHardeningTest()
         }
     }
 
+    // ---- Grup O: [PILOT] Desen odakli CLIP - profil, coklu gorunum, arama ----
+    // Bu grubun buyuk kismi MODEL GEREKTIRMEZ: profil/yol ayrimi, coklu
+    // gorunum sozlesmesi, whitening ve skor birlestirme sentetik vektorlerle
+    // test edilir. Yalnizca O30+ gercek CLIP modeliyle calisir.
+    Console.WriteLine("\n[Grup O] Desen odakli CLIP pilotu: profil, coklu gorunum, arama");
+    {
+        // -- O1-O7: profil sabitleri --
+        Check("O1 gorunum sayisi 6 (1 global + 5 ortusen bolge)", ClipPatternProfile.ViewCount == 6);
+        Check("O2 gorunum boyutu 512 (CLIP), birlesik 3072",
+            ClipPatternProfile.ViewDimension == 512 && ClipPatternProfile.EmbeddingDimension == 3072);
+        Check("O3 index sema surumu 3 (DINOv2'nin 2'sinden FARKLI)",
+            ClipPatternProfile.IndexSchemaVersion == 3 && DinoV2BaseProfile.IndexSchemaVersion == 2);
+        Check("O4 index klasoru 'clip-pattern-v1'", ClipPatternProfile.IndexFolderName == "clip-pattern-v1");
+        Check("O5 model dosyasi mevcut CLIP modeli (yeni model indirilmedi)",
+            ClipPatternProfile.ModelFileName == "clip-vision-b16-openai.onnx");
+        Check("O6 model kimligi resmi CLIP (agirliklar DEGISMEDI)",
+            ClipPatternProfile.ModelId == "openai/clip-vit-base-patch16");
+        Check("O7 pilot esigi %55 (CLIP baseline %80'den FARKLI - whitening olcegi degistirir)",
+            ClipPatternProfile.DefaultThresholdPercent == 55 && SimilarityThreshold.DefaultPercent == 80);
+
+        var patternProfile = ClipPatternProfile.CreateProfile("aa" + new string('0', 62));
+        Check("O8 profil, on isleme/crop/normalizasyon alanlarini tasiyor",
+            patternProfile.PreprocessingVersion == "clip-pattern-center-overlap5-v1"
+            && patternProfile.CropStrategy == "CenterCrop224+Overlap5@0.60"
+            && patternProfile.Normalization == "L2-per-view+catalog-mean-whitening"
+            && patternProfile.EmbeddingDimension == 3072);
+        Check("O9 desen profili, DINOv2 profiliyle UYUMSUZ (yanlislikla index paylasamazlar)",
+            !patternProfile.MatchesForIndexReuse(DinoV2BaseProfile.CreateProfile("aa" + new string('0', 62))));
+        Check("O10 desen profili, duz CLIP profiliyle de UYUMSUZ (crop/normalizasyon farkli)",
+            patternProfile.DescribeMismatch(patternProfile with { CropStrategy = "SingleCenterCrop224" }) is not null);
+
+        // -- O11+: yol ayrimi ve mevcut indekslerin korunmasi --
+        string patternDir = Path.Combine(Path.GetTempPath(), "lens_clippattern_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(patternDir);
+        try
+        {
+            var patternStore = ProfiledIndexStore.ForClipPattern(patternProfile);
+            var dinoStore = ProfiledIndexStore.ForDinoV2Base(DinoV2BaseProfile.CreateProfile("bb" + new string('0', 62)));
+            var legacyStore = LegacyClipIndexStore.Instance;
+
+            var expectedPath = Path.Combine(patternDir, ".lens", "indexes", "clip-pattern-v1", "index.json");
+            Check("O11 desen index yolu: .lens/indexes/clip-pattern-v1/index.json",
+                patternStore.IndexFilePath(patternDir) == expectedPath, patternStore.IndexFilePath(patternDir));
+            Check("O12 uc index yolu da BIRBIRINDEN FARKLI (eski CLIP / DINOv2 / desen)",
+                patternStore.IndexFilePath(patternDir) != legacyStore.IndexFilePath(patternDir)
+                && patternStore.IndexFilePath(patternDir) != dinoStore.IndexFilePath(patternDir)
+                && legacyStore.IndexFilePath(patternDir) != dinoStore.IndexFilePath(patternDir));
+            Check("O13 kilit dosyalari da ayri",
+                patternStore.LockFilePath(patternDir) != legacyStore.LockFilePath(patternDir)
+                && patternStore.LockFilePath(patternDir) != dinoStore.LockFilePath(patternDir));
+            Check("O14 yolu OGRENMEK klasor OLUSTURMAZ", !Directory.Exists(Path.Combine(patternDir, ".lens")));
+
+            // Once eski CLIP ve DINOv2 index'lerini yaz - desen pilotu bunlara
+            // DOKUNMAMALI.
+            legacyStore.Save(patternDir, new List<ImageIndexEntry>
+            {
+                new() { RelativePath = "urun.jpg", FileSizeBytes = 1, LastWriteTimeUtcTicks = 2, Embedding = PatternUnit(512, 1) },
+            });
+            dinoStore.Save(patternDir, new List<ImageIndexEntry>
+            {
+                new() { RelativePath = "urun.jpg", FileSizeBytes = 1, LastWriteTimeUtcTicks = 2, Embedding = PatternUnit(768, 1) },
+            });
+
+            var legacyBefore = File.ReadAllBytes(legacyStore.IndexFilePath(patternDir));
+            var dinoBefore = File.ReadAllBytes(dinoStore.IndexFilePath(patternDir));
+
+            patternStore.Save(patternDir, new List<ImageIndexEntry>
+            {
+                new() { RelativePath = "urun.jpg", FileSizeBytes = 1, LastWriteTimeUtcTicks = 2, Embedding = PatternVector(1) },
+            });
+
+            Check("O15 desen kaydi sonrasi ESKI CLIP index.json BAYT BAYT DEGISMEDI",
+                File.ReadAllBytes(legacyStore.IndexFilePath(patternDir)).SequenceEqual(legacyBefore));
+            Check("O16 desen kaydi sonrasi DINOv2 index.json BAYT BAYT DEGISMEDI",
+                File.ReadAllBytes(dinoStore.IndexFilePath(patternDir)).SequenceEqual(dinoBefore));
+            Check("O17 her uc store da kendi dosyasini gecerli okuyor",
+                legacyStore.Load(patternDir).Outcome == IndexLoadOutcome.Loaded
+                && dinoStore.Load(patternDir).Outcome == IndexLoadOutcome.Loaded
+                && patternStore.Load(patternDir).Outcome == IndexLoadOutcome.Loaded);
+            Check("O18 desen kaydinin embedding'i 3072 boyutlu",
+                patternStore.Load(patternDir).Entries[0].Embedding.Length == 3072);
+            Check("O19 belge sema surumu 3 olarak yazildi",
+                File.ReadAllText(expectedPath).Contains("\"SchemaVersion\":3"));
+
+            // -- O20-O22: profil uyusmazliginda tam yeniden indeksleme --
+            var changedCrop = ProfiledIndexStore.ForClipPattern(patternProfile with { CropStrategy = "Grid3x3" });
+            Check("O20 crop stratejisi degisti -> ProfileMismatch + BOS liste",
+                changedCrop.Load(patternDir) is { Outcome: IndexLoadOutcome.ProfileMismatch, Entries.Count: 0 });
+            var changedNorm = ProfiledIndexStore.ForClipPattern(patternProfile with { Normalization = "L2" });
+            Check("O21 normalizasyon (whitening kaldirildi) degisti -> ProfileMismatch",
+                changedNorm.Load(patternDir).Outcome == IndexLoadOutcome.ProfileMismatch);
+            var changedViews = ProfiledIndexStore.ForClipPattern(patternProfile with { EmbeddingDimension = 512 * 3 });
+            Check("O22 gorunum sayisi degisti (6 -> 3) -> ProfileMismatch",
+                changedViews.Load(patternDir).Outcome == IndexLoadOutcome.ProfileMismatch);
+
+            File.WriteAllBytes(Path.Combine(patternDir, "a.jpg"), new byte[] { 1, 2, 3 });
+            File.WriteAllBytes(Path.Combine(patternDir, "b.jpg"), new byte[] { 4, 5, 6 });
+            var rebuilt = ImageIndex.BuildOrUpdate(patternDir, new FakeEmbedder(3072, patternProfile), changedCrop);
+            Check("O23 uyumsuz profilde TUM dosyalar yeniden embed edilir",
+                rebuilt.Stats.Added == 2 && rebuilt.Stats.Unchanged == 0
+                && rebuilt.Stats.IndexResetReason is not null);
+
+            Check("O24 tum bu islemler sonunda eski CLIP ve DINOv2 index'leri HALA degismemis",
+                File.ReadAllBytes(legacyStore.IndexFilePath(patternDir)).SequenceEqual(legacyBefore)
+                && File.ReadAllBytes(dinoStore.IndexFilePath(patternDir)).SequenceEqual(dinoBefore));
+        }
+        finally
+        {
+            try { Directory.Delete(patternDir, recursive: true); } catch { /* best-effort */ }
+        }
+
+        // -- O25-O35: arama sozlesmesi (whitening + global/yerel birlestirme) --
+        var self = PatternVector(7);
+        var catalogEntries = new List<ImageIndexEntry>
+        {
+            new() { RelativePath = "hedef.jpg", Embedding = self },
+            new() { RelativePath = "b.jpg", Embedding = PatternVector(11) },
+            new() { RelativePath = "c.jpg", Embedding = PatternVector(23) },
+            new() { RelativePath = "d.jpg", Embedding = PatternVector(37) },
+            new() { RelativePath = "e.jpg", Embedding = PatternVector(51) },
+        };
+
+        var selfResults = PatternSimilaritySearch.SearchWithThreshold(self, catalogEntries, 0);
+        Check("O25 gorsel kendisiyle karsilastirildiginda 1. sirada", selfResults[0].RelativePath == "hedef.jpg");
+        Check("O26 kendisiyle benzerlik ~%100", Math.Abs(selfResults[0].Score - 1f) < 1e-3, selfResults[0].Score.ToString("F5"));
+        Check("O27 sonuclar azalan sirada",
+            selfResults.Zip(selfResults.Skip(1), (a, b) => a.Score >= b.Score).All(ok => ok));
+        // [Whitening'in gozlemlenen sonucu] Ortalama cikarildiktan sonra
+        // benzemeyen kayitlar NEGATIF kosinus alabilir. Bu yuzden "%0 esigi"
+        // artik "her sey" anlamina GELMEZ - skoru negatif olanlar elenir.
+        // Bu bir hata degil, esik sozlesmesinin (score >= threshold) dogal
+        // sonucudur; dogru eslesmeler yuksek skor aldigi icin pratik bir
+        // kayip olusturmaz (bkz. esik taramasi: %45'te dogru hedeflerin
+        // %99'u listede kalir).
+        Check("O28 esik %0: yalnizca skoru >= 0 olan kayitlar doner (whitening negatif skor uretebilir)",
+            selfResults.Count <= catalogEntries.Count && selfResults.All(r => r.Score >= -1e-4f)
+            && selfResults.Any(r => r.RelativePath == "hedef.jpg"),
+            $"{selfResults.Count}/{catalogEntries.Count} kayit esigi gecti");
+        Check("O28b whitening gercekten negatif skor uretebiliyor (belgelenen davranis)",
+            selfResults.Count < catalogEntries.Count);
+
+        var strict = PatternSimilaritySearch.SearchWithThreshold(self, catalogEntries, 100);
+        Check("O29 esik %100 iken yalnizca birebir ayni kayit kalir",
+            strict.Count == 1 && strict[0].RelativePath == "hedef.jpg");
+
+        var capped = PatternSimilaritySearch.SearchWithThreshold(self, catalogEntries, 0, maxResults: 2);
+        Check("O30 en fazla sonuc siniri uygulanir (en iyi 2)",
+            capped.Count == 2 && capped[0].RelativePath == "hedef.jpg");
+        Check("O31 maxResults araligi disi deger reddedilir",
+            Throws<ArgumentOutOfRangeException>(() => PatternSimilaritySearch.SearchWithThreshold(self, catalogEntries, 0, 0))
+            && Throws<ArgumentOutOfRangeException>(() => PatternSimilaritySearch.SearchWithThreshold(self, catalogEntries, 0, 1000)));
+
+        Check("O32 yanlis boyutlu SORGU sessizce gecmez (512 vs 3072)",
+            Throws<InvalidEmbeddingException>(() => PatternSimilaritySearch.SearchWithThreshold(PatternUnit(512, 1), catalogEntries, 0)));
+        Check("O33 yanlis boyutlu KAYIT sessizce gecmez (DINOv2'nin 768'i)",
+            Throws<InvalidEmbeddingException>(() => PatternSimilaritySearch.SearchWithThreshold(
+                self, new List<ImageIndexEntry> { new() { RelativePath = "dino.jpg", Embedding = PatternUnit(768, 1) } }, 0)));
+        Check("O34 bos katalogda arama bos liste doner, exception YOK",
+            PatternSimilaritySearch.SearchWithThreshold(self, new List<ImageIndexEntry>(), 0).Count == 0);
+        Check("O35 ayni girdi iki kez arandiginda AYNI sonuc (deterministik)",
+            PatternSimilaritySearch.SearchWithThreshold(self, catalogEntries, 0)
+                .Zip(selfResults, (a, b) => a.RelativePath == b.RelativePath && a.Score == b.Score).All(ok => ok));
+        Check("O36 en fazla sonuc sozlesmesi SimilaritySearch ile AYNI kaynaktan (999)",
+            PatternSimilaritySearch.MaxResults == SimilaritySearch.MaxResults);
+
+        // Tek kayitli katalog: ortalama o kaydin kendisidir, whitening sonrasi
+        // norm sifira duser - kod bu sinir durumunda NaN URETMEMELI.
+        var single = PatternSimilaritySearch.SearchWithThreshold(
+            self, new List<ImageIndexEntry> { new() { RelativePath = "tek.jpg", Embedding = self } }, 0);
+        Check("O37 tek kayitli katalogda (whitening normu sifir) NaN uretilmez",
+            single.Count == 1 && !float.IsNaN(single[0].Score) && !float.IsInfinity(single[0].Score),
+            single.Count > 0 ? single[0].Score.ToString("F5") : "-");
+
+        // -- O38+: gercek model ile coklu gorunum sozlesmesi --
+        var clipModelPath = Path.Combine(FindRepoRoot(), "models", ClipPatternProfile.ModelFileName);
+        var sampleDir = Path.Combine(FindRepoRoot(), "benchmark", "data", "distractors");
+        var sample = Directory.Exists(sampleDir)
+            ? Directory.EnumerateFiles(sampleDir).FirstOrDefault(f =>
+                f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+            : null;
+
+        if (!File.Exists(clipModelPath) || sample is null)
+        {
+            Console.WriteLine("  [ATLANDI] O38+ : CLIP modeli veya ornek gorsel bulunamadi");
+        }
+        else
+        {
+            using var patternEmbedder = new ClipPatternEmbedder(clipModelPath);
+            Check("O38 embedder profili gercek dosyanin SHA-256'sini tasir (64 hex)",
+                patternEmbedder.Profile.ModelSha256.Length == 64 && patternEmbedder.Profile.ModelSha256.All(Uri.IsHexDigit));
+
+            var vector = patternEmbedder.Embed(sample);
+            Check("O39 birlesik vektor 3072 boyutlu (6 x 512)", vector.Length == 3072, vector.Length.ToString());
+            Check("O40 tum degerler sonlu", vector.All(v => !float.IsNaN(v) && !float.IsInfinity(v)));
+
+            bool allViewsNormalized = true;
+            var norms = new List<double>();
+            for (int view = 0; view < ClipPatternProfile.ViewCount; view++)
+            {
+                double sumSquares = 0;
+                for (int i = 0; i < ClipPatternProfile.ViewDimension; i++)
+                {
+                    var value = vector[view * ClipPatternProfile.ViewDimension + i];
+                    sumSquares += (double)value * value;
+                }
+
+                var norm = Math.Sqrt(sumSquares);
+                norms.Add(norm);
+                if (Math.Abs(norm - 1.0) > 1e-4)
+                {
+                    allViewsNormalized = false;
+                }
+            }
+
+            Check("O41 HER gorunum blogu AYRI AYRI L2-normalize (birlesik vektor toplu normalize EDILMEDI)",
+                allViewsNormalized, string.Join(", ", norms.Select(n => n.ToString("F4"))));
+
+            bool viewsDiffer = false;
+            for (int i = 0; i < ClipPatternProfile.ViewDimension; i++)
+            {
+                if (Math.Abs(vector[i] - vector[ClipPatternProfile.ViewDimension + i]) > 1e-6)
+                {
+                    viewsDiffer = true;
+                    break;
+                }
+            }
+
+            Check("O42 global gorunum ile ilk bolge gorunumu FARKLI (kadraj gercekten uygulaniyor)", viewsDiffer);
+            Check("O43 ayni gorsel iki kez embed edilince AYNI vektor (deterministik)",
+                patternEmbedder.Embed(sample).SequenceEqual(vector));
+            Check("O44 olmayan model dosyasi FileNotFoundException verir",
+                Throws<FileNotFoundException>(() => new ClipPatternEmbedder(clipModelPath + ".yok")));
+
+            var selfMatch = PatternSimilaritySearch.SearchWithThreshold(
+                vector,
+                new List<ImageIndexEntry>
+                {
+                    new() { RelativePath = "self", Embedding = vector },
+                    new() { RelativePath = "other", Embedding = PatternVector(3) },
+                },
+                minSimilarityPercent: 0);
+            Check("O45 gercek embedding kendisiyle 1. sirada ve ~%100",
+                selfMatch[0].RelativePath == "self" && Math.Abs(selfMatch[0].Score - 1f) < 1e-3);
+        }
+    }
+
     Console.WriteLine();
     Console.WriteLine($"=== Sonuc: {passed} PASS, {failed} FAIL ===");
     if (failed > 0)
@@ -1449,6 +1713,36 @@ static bool Throws<TException>(Action action) where TException : Exception
         // sinifi degisti demektir.
         return false;
     }
+}
+
+/// <summary>[Grup O] Verilen boyutta, tek bir eksende 1 olan (normu 1) vektor.</summary>
+static float[] PatternUnit(int dimension, int axis)
+{
+    var v = new float[dimension];
+    v[axis % dimension] = 1f;
+    return v;
+}
+
+/// <summary>
+/// [Grup O] Desen pilotunun bekledigi bicimde bir test vektoru: 6 adet
+/// 512'lik blok, HER BIRI AYRI L2-normalize. Bloklar birbirinden farkli
+/// yonlerde olsun diye tohumdan turetilir.
+/// </summary>
+static float[] PatternVector(int seed)
+{
+    int dim = ClipPatternProfile.ViewDimension;
+    var combined = new float[ClipPatternProfile.EmbeddingDimension];
+    for (int view = 0; view < ClipPatternProfile.ViewCount; view++)
+    {
+        var block = new float[dim];
+        // Iki eksende deger vererek bloklarin birbirine dik olmamasini saglar
+        // (tamamen dik vektorler skorlari yapay olarak 0'a sabitlerdi).
+        block[(seed * (view + 1)) % dim] = 3f;
+        block[(seed * (view + 2) + 17) % dim] += 4f;
+        Array.Copy(EmbeddingVector.L2NormalizeChecked(block, dim), 0, combined, view * dim, dim);
+    }
+
+    return combined;
 }
 
 /// <summary>[Grup N] Verilen boyutta, L2 normu 1 olan basit bir test vektoru.</summary>

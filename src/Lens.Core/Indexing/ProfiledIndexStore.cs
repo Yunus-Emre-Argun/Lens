@@ -44,6 +44,15 @@ public sealed class ProfiledIndexStore : IIndexStore
     public static ProfiledIndexStore ForDinoV2Base(EmbeddingProfile profile) =>
         new(profile, DinoV2BaseProfile.IndexFolderName);
 
+    /// <summary>
+    /// [PILOT] Desen odakli CLIP icin store. Klasor adi
+    /// <see cref="ClipPatternProfile.IndexFolderName"/> sabitinden gelir ve
+    /// hem eski CLIP dosyasindan (<c>.lens/index.json</c>) hem DINOv2
+    /// klasorunden (<c>.lens/indexes/dinov2-base-v1/</c>) AYRIDIR.
+    /// </summary>
+    public static ProfiledIndexStore ForClipPattern(EmbeddingProfile profile) =>
+        new(profile, ClipPatternProfile.IndexFolderName);
+
     /// <summary>Bu store'un beklediği profil - yuklemede dosyadaki profil bununla karsilastirilir.</summary>
     public EmbeddingProfile Profile => _profile;
 

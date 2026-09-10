@@ -38,10 +38,11 @@ public partial class MainWindow : Window
     private string? _productFolder;
     private string? _queryImagePath;
     /// <summary>
-    /// [PILOT - DINOv2-Base] Aktif embedder. Tip artik somut bir model degil
-    /// <see cref="IImageEmbedder"/> - bu dalda ornek olarak
-    /// <see cref="DinoV2Embedder"/> olusturulur. Kullaniciya model secme
-    /// menusu BILEREK eklenmedi (bkz. gorev kapsami) - tek aktif model vardir.
+    /// [PILOT - CLIP desen odakli] Aktif embedder. Tip somut bir model degil
+    /// <see cref="IImageEmbedder"/> - bu dalda
+    /// <see cref="ClipPatternEmbedder"/> olusturulur (CLIP agirliklari
+    /// DEGISMEDI; degisen kadraj/skor katmani). Kullaniciya model secme
+    /// menusu BILEREK eklenmedi - tek aktif yontem vardir.
     /// </summary>
     private IImageEmbedder? _embedder;
 
@@ -155,10 +156,10 @@ public partial class MainWindow : Window
         // JSON'da 0 veya 500) guvenle varsayilana (20) donulur - bu alanin kendisi
         // hicbir dogrulama yapmadigi icin kontrol burada yapiliyor (bkz. UserSettings.PreferredMaxResults).
         MaxResultsTextBox.Text = MaxResultsPreference.ValidateOrDefault(userSettings.PreferredMaxResults).ToString();
-        // [PILOT esigi] Acilista kutu AKTIF MODELIN varsayilaniyla dolu gelir -
-        // DINOv2-Base icin %55 (bkz. DinoV2BaseProfile.DefaultThresholdPercent).
-        // CLIP'in %80'i bu modelde DOGRU DEGIL: tam veri olcumunde %80, DINOv2'de
-        // dogru eslesmelerin yalnizca ~%68'ini listede birakiyordu.
+        // [PILOT esigi] Acilista kutu AKTIF YONTEMIN varsayilaniyla dolu gelir -
+        // desen odakli CLIP icin %55 (bkz. ClipPatternProfile.DefaultThresholdPercent).
+        // Whitening skor olcegini degistirdigi icin eski %80 AYNEN TASINAMAZ;
+        // %55, mevcut uretimin tutulma oranini (%96) koruyacak sekilde secildi.
         //
         // Bu deger icin kalici bir UserSettings alani YOKTUR (bilerek - kod
         // incelemesiyle dogrulandi: UserSettings yalnizca klasor override'i,
@@ -2130,7 +2131,11 @@ public partial class MainWindow : Window
             var matches = await Task.Run(() =>
             {
                 var emb = embedder.Embed(queryPath);
-                return SimilaritySearch.SearchWithThreshold(emb, entries, thresholdPercent, maxResultsForSearch);
+                // [PILOT] Coklu gorunumlu kayitlar duz nokta carpimiyla
+                // karsilastirilamaz - whitening + global/yerel birlestirme
+                // PatternSimilaritySearch icindedir. Threshold/siralama/
+                // en-fazla-sonuc sozlesmesi SimilaritySearch ile AYNIDIR.
+                return PatternSimilaritySearch.SearchWithThreshold(emb, entries, thresholdPercent, maxResultsForSearch);
             });
 
             // [999-limit perf] Thumbnail decode'u (TryLoadPreview) bu arka plan
@@ -2465,7 +2470,7 @@ public partial class MainWindow : Window
             try
             {
                 _embedder = await Task.Run<IImageEmbedder>(
-                    () => new DinoV2Embedder(modelPath, profile.ModelSha256));
+                    () => new ClipPatternEmbedder(modelPath, profile.ModelSha256));
                 return (true, string.Empty);
             }
             catch (Exception ex)
@@ -2480,7 +2485,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>[PILOT esigi] Aktif modelin baslangic "Minimum benzerlik (%)" degeri - tek okuma kaynagi model profilidir, XAML/C# icinde ayrica yazilmaz.</summary>
-    private static double ActiveDefaultThresholdPercent => DinoV2BaseProfile.DefaultThresholdPercent;
+    private static double ActiveDefaultThresholdPercent => ClipPatternProfile.DefaultThresholdPercent;
 
     /// <summary>[Profil ayrimi] Cozulmus model dosyasi yolu - profil ile AYNI anda, bir kez belirlenir.</summary>
     private string? _resolvedModelPath;
@@ -2516,17 +2521,17 @@ public partial class MainWindow : Window
             if (modelPath is null)
             {
                 return (null,
-                    $"DINOv2 ONNX model dosyası bulunamadı (models\\{DinoV2BaseProfile.ModelFileName}). "
+                    $"CLIP ONNX model dosyası bulunamadı (models\\{ClipPatternProfile.ModelFileName}). "
                     + "Model dosyasının uygulama klasöründeki 'models' alt klasöründe olduğundan emin olun.");
             }
 
             try
             {
                 var sha = await Task.Run(() => ModelFileHash.ComputeSha256(modelPath));
-                var profile = DinoV2BaseProfile.CreateProfile(sha);
+                var profile = ClipPatternProfile.CreateProfile(sha);
                 _resolvedModelPath = modelPath;
                 _activeProfile = profile;
-                _indexStore = ProfiledIndexStore.ForDinoV2Base(profile);
+                _indexStore = ProfiledIndexStore.ForClipPattern(profile);
                 _logger.Info("ModelProfile", file: modelPath,
                     reason: $"{profile.ModelId} rev={profile.ModelRevision} sha256={sha} dim={profile.EmbeddingDimension}");
                 return (profile, string.Empty);
@@ -2611,10 +2616,10 @@ public partial class MainWindow : Window
         OperationProgressText.Visibility = Visibility.Collapsed;
     }
 
-    /// <summary>[PILOT] Aktif model dosyasini arar. Dosya adinin TEK kaynagi <see cref="DinoV2BaseProfile.ModelFileName"/>'dir - yol iki farkli yerde yazilmaz.</summary>
+    /// <summary>[PILOT] Aktif model dosyasini arar. Dosya adinin TEK kaynagi <see cref="ClipPatternProfile.ModelFileName"/>'dir - yol iki farkli yerde yazilmaz.</summary>
     private static string? ResolveModelPath()
     {
-        var nextToExe = Path.Combine(AppContext.BaseDirectory, "models", DinoV2BaseProfile.ModelFileName);
+        var nextToExe = Path.Combine(AppContext.BaseDirectory, "models", ClipPatternProfile.ModelFileName);
         if (File.Exists(nextToExe))
         {
             return nextToExe;
@@ -2633,7 +2638,7 @@ public partial class MainWindow : Window
             return null;
         }
 
-        var repoCandidate = Path.Combine(dir.FullName, "models", DinoV2BaseProfile.ModelFileName);
+        var repoCandidate = Path.Combine(dir.FullName, "models", ClipPatternProfile.ModelFileName);
         return File.Exists(repoCandidate) ? repoCandidate : null;
     }
 
