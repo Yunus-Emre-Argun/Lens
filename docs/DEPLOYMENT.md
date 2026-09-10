@@ -22,9 +22,17 @@ dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 --self
 >   -o publish/Lens.Desktop-win-x64-dinov2-base
 > ```
 >
-> Paket ~506 MB'dır. **ClickOnce dalı ve mevcut ClickOnce paketi bu turda
-> güncellenmemiştir** — DINOv2 sürümü kullanıcı tarafından kabul edilmeden
-> dağıtım sistemine taşınmamalıdır.
+> Paket ~506 MB'dır.
+>
+> Kullanıcının kurarak deneyebilmesi için **ayrı** bir ClickOnce paketi de
+> üretilmiştir: `publish/ClickOnce-dinov2-base/` (profil:
+> `ClickOnceDinoV2.pubxml`). **Mevcut CLIP ClickOnce profili ve
+> `publish/ClickOnce/` klasörü DEĞİŞTİRİLMEMİŞTİR.** Yan yana kurulum yoktur —
+> pilot, kurulu Lens'in üzerine kurulur; geri dönüş `publish\ClickOnce\setup.exe`.
+> Ayrıntı ve doğrulama listesi: `docs/CLICKONCE.md` §12b.
+>
+> DINOv2 sürümü kullanıcı tarafından kabul edilmeden gerçek dağıtım
+> adresine/sistemine taşınmamalıdır.
 
 - **Hedef mimari: x64.** `win-x86`/`win-arm64` için ayrıca test edilmemiştir.
 - Self-contained olduğu için hedef makinede .NET runtime kurulu olması

@@ -23,6 +23,11 @@ bilgi netleşmeden **üretim dağıtımı tamamlanmış sayılmaz**:
 
 Bu üç madde `docs/DECISIONS.md` "Not Yet Decided" bölümüne de eklenmiştir.
 
+> **Not:** `feature/dinov2-base-pilot` dalında, bu profile DOKUNULMADAN,
+> ayrı bir deneme paketi (`ClickOnceDinoV2.pubxml` → `publish/ClickOnce-dinov2-base/`)
+> üretilmiştir — bkz. §12b. Yukarıdaki üç eksik bilgi o paket için de
+> aynen geçerlidir.
+
 ## 1. Gerekli Araçlar (önemli — `dotnet publish` YETERSİZ)
 
 `dotnet publish`/`dotnet msbuild` (.NET Core MSBuild) ClickOnce manifestlerini
@@ -414,6 +419,108 @@ doğrulanmalıdır:
    uygulamayı yeniden açıp güncellemenin sorulduğunu/uygulandığını ve daha
    önce seçtiğiniz tarama klasörü/eşik/tema gibi tercihlerin **korunduğunu**
    doğrulayın.
+
+## 12b. [PİLOT] DINOv2 deneme paketi — `feature/dinov2-base-pilot`
+
+> Bu bölüm yalnızca `feature/dinov2-base-pilot` dalını anlatır. `main`
+> dalındaki CLIP tabanlı ClickOnce profili ve paketi **değiştirilmemiştir**.
+
+Kullanıcının DINOv2-Base sürümünü **kurup deneyebilmesi** için, mevcut CLIP
+paketine hiç dokunmadan ayrı bir ClickOnce paketi üretilir.
+
+| | CLIP (mevcut) | DINOv2 pilotu (yeni) |
+|---|---|---|
+| Profil | `Properties/PublishProfiles/ClickOnce.pubxml` | `Properties/PublishProfiles/ClickOnceDinoV2.pubxml` |
+| Çıktı klasörü | `publish/ClickOnce/` | `publish/ClickOnce-dinov2-base/` |
+| Görünen ad | `Lens` | `Lens (DINOv2 Pilot)` |
+| ClickOnce sürümü | `1.0.0.0` (`$(FileVersion)`'dan türer) | `1.1.0.0` (bilerek sabit — aşağıya bkz.) |
+| Paketlenen model | `clip-vision-b16-openai.onnx` | `dinov2-base.onnx` (~330 MB) |
+
+Diğer **tüm** ayarlar bilerek aynıdır: kullanıcı bazlı kurulum,
+self-contained (hedefte .NET gerekmez), çevrimdışı çalışma, masaüstü +
+Başlat menüsü kısayolu, imzasız manifestler, boş `InstallUrl`/`UpdateUrl`,
+placeholder yayıncı adı.
+
+### Üretme komutu
+
+```
+"%ProgramFiles%\Microsoft Visual Studio\<sürüm>\<edition>\MSBuild\Current\Bin\MSBuild.exe" ^
+  src\Lens.Desktop\Lens.Desktop.csproj /t:Restore,Publish ^
+  /p:PublishProfile=ClickOnceDinoV2 /p:Configuration=Release /p:DebugType=none
+```
+
+`/p:DebugType=none`'ın komut satırında **ayrıca** verilmesi gerekçesi §2
+"Neden `/p:DebugType=none` Ayrıca Gerekli" ile aynıdır ve bu profilde de
+geçerlidir.
+
+### ⚠️ Yan yana kurulum YOKTUR — pilot, kurulu Lens'in üzerine kurulur
+
+ClickOnce'ın kurulum **kimliği** görünen addan (`ProductName`) değil,
+deployment manifestindeki `assemblyIdentity` adından türer; o da
+`AssemblyName`'e bağlıdır. Her iki paket de aynı kimliği taşır:
+
+```
+<assemblyIdentity name="Lens.Desktop.application" version="..." />
+```
+
+Sonuç: pilot paketi kurulduğunda **mevcut kurulu Lens'in üzerine kurulur**,
+iki uygulama yan yana durmaz. Yan yana kurulum için `AssemblyName`'in
+değiştirilmesi gerekirdi — bu, pilot kapsamı dışında bilerek bırakıldı
+(uygulama adını/çıktı dosya adını değiştirmek daha geniş bir değişikliktir).
+
+Masaüstü/Başlat menüsü kısayolu **`Lens (DINOv2 Pilot)`** adıyla oluşur, bu
+sayede hangi sürümün kurulu olduğu kısayol adından anlaşılır.
+
+**Neden sürüm `1.1.0.0`:** `FileVersion` hâlâ `1.0.0.0` ve mevcut CLIP
+paketi de `1.0.0.0` ile üretilmişti. Aynı kimlik + aynı sürümle kurulum
+denendiğinde ClickOnce "zaten kurulu" deyip hiçbir şey yapmayabilir, yani
+pilot **denenemez**. Bu yüzden pilot profilinde `ApplicationVersion` bilerek
+sabit `1.1.0.0`'dır — bu bir ürün sürüm artışı **değildir** ve §4'teki
+"tek sürüm kaynağı `FileVersion`" kuralını değiştirmez.
+`Lens.Desktop.csproj`'daki `AssemblyVersion`/`FileVersion`/
+`InformationalVersion` **değiştirilmemiştir**; uygulama içinde görünen sürüm
+metni hâlâ `08.09.26 — v1.0`'dır (iki farklı sürüm kavramı için bkz. §4).
+
+**Pilot kabul edilirse** bu override kaldırılmalı ve normal `$(FileVersion)`
+akışına dönülmelidir.
+
+### CLIP sürümüne geri dönme
+
+```
+publish\ClickOnce\setup.exe
+```
+
+Eski paket yerinde durmaktadır. Alternatif olarak Windows
+**Ayarlar → Uygulamalar** üzerinden `Lens (DINOv2 Pilot)` kaldırılıp eski
+kurulum tekrar yapılabilir (bkz. §11).
+
+**İndeks açısından risk yoktur:** DINOv2 sürümü kendi indeksini
+`<ÜrünDizini>\.lens\indexes\dinov2-base-v1\` altında tutar; CLIP'in
+`<ÜrünDizini>\.lens\index.json` dosyasına **dokunmaz**. CLIP sürümüne
+dönüldüğünde yeniden indeksleme gerekmez (bkz. `docs/MODEL_CARD.md`
+"PİLOT ENTEGRASYON", `docs/DECISIONS.md` #96).
+
+### Bu paketin doğrulanmış içeriği (2026-09-10)
+
+| Kontrol | Sonuç |
+|---|---|
+| Toplam boyut / dosya | 506 MB / 478 dosya |
+| `setup.exe` + `Lens.Desktop.application` + `Application Files\Lens.Desktop_1_1_0_0` | ✅ mevcut |
+| `models\dinov2-base.onnx.deploy` | ✅ mevcut |
+| `appsettings.json.deploy` | ✅ mevcut, **boş şablon** (`AdminDefaultProductDirectory: ""`) |
+| `co.v1:createDesktopShortcut="true"` | ✅ manifestte mevcut |
+| `asmv2:product="Lens (DINOv2 Pilot)"` | ✅ manifestte mevcut |
+| CLIP modeli | ✅ **yok** |
+| `.pdb` dosyası | ✅ **yok** |
+| `Lens.Core.dll` / `Lens.Desktop.dll` içinde gömülü PDB yolu | ✅ **yok** |
+| Yerel geliştirici yolu (`...\Users\<kullanıcı>\...`) | ✅ **yok** |
+| Gerçek kullanıcı ayarı / index / log / ürün görseli | ✅ **yok** |
+| Eski `publish\ClickOnce\` klasörü | ✅ **değişmedi** (dosya tarihleri korundu) |
+
+**Yapılmayan:** paket kurulmadı ve çalıştırılmadı — kurulum penceresi ve
+canlı arayüz kullanıcının izni olmadan açılmadı. Kurulum davranışının
+(özellikle "üzerine kurulma" ve kısayol adı) gerçek doğrulaması
+kullanıcıyı beklemektedir.
 
 ## 13. Açık Kararlar (özet)
 

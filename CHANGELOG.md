@@ -91,7 +91,27 @@ güncellenmelidir.
   thread bekleme politikasıdır, **sayısal çıktıyı değiştirmez** (smoke testi
   skorları birebir aynı kaldı).
 
+### Deneme paketi (ClickOnce)
+- `Properties/PublishProfiles/ClickOnceDinoV2.pubxml` → `publish/ClickOnce-dinov2-base/`
+  (506 MB): kullanıcının pilotu kurup deneyebilmesi için ayrı bir ClickOnce
+  paketi. **Mevcut CLIP profili ve `publish/ClickOnce/` klasörü
+  DEĞİŞTİRİLMEMİŞTİR** (dosya tarihleri korundu).
+- Görünen ad `Lens (DINOv2 Pilot)`, ClickOnce sürümü `1.1.0.0`. Sürüm bilerek
+  `$(FileVersion)`'dan türetilmedi: mevcut CLIP paketi de `1.0.0.0` olduğu için
+  aynı sürümle kurulum "zaten kurulu" sayılıp pilot denenemezdi.
+  `Lens.Desktop.csproj`'daki sürüm alanları DEĞİŞMEDİ.
+- Paket doğrulaması: DINOv2 modeli ve boş `appsettings.json` şablonu var;
+  CLIP modeli, `.pdb`, gömülü PDB yolu, yerel geliştirici yolu, gerçek
+  kullanıcı ayarı, index, log ve ürün görseli YOK; masaüstü kısayolu
+  (`createDesktopShortcut="true"`) manifestte mevcut.
+
 ### Bilinen sınırlamalar
+- **ClickOnce yan yana kurulum YOK:** her iki paket de aynı uygulama kimliğini
+  (`Lens.Desktop.application`) taşıdığı için pilot, kurulu Lens'in ÜZERİNE
+  kurulur. Geri dönüş: `publish\ClickOnce\setup.exe`. İndeks açısından risk
+  yoktur — DINOv2 kendi klasörünü kullanır, CLIP index'ine dokunmaz.
+- Paket kurulmadı/çalıştırılmadı; kurulum davranışının gerçek doğrulaması
+  kullanıcıyı bekliyor.
 - Saf çıkarım (aynı tensor, ImageSharp araya girmeden) ~115 ms iken indeksleme
   döngüsünde ~422 ms ölçülmektedir; fark tamamen giderilememiştir.
 - Hız ölçümleri **bu geliştirme makinesine** aittir. Hedef ofis bilgisayarının
