@@ -8,6 +8,77 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [DENEY/PİLOT — CLIP Desen Odaklı İyileştirme] — 2026-09-10
+
+> **Durum: deney dalı (`feature/clip-pattern-pilot`), ayrı bir git worktree'de
+> yürütüldü.** `main`, DINOv2 pilot dalı ve mevcut ClickOnce paketleri
+> DEĞİŞTİRİLMEMİŞTİR (hash karşılaştırmasıyla doğrulandı). **CLIP ağırlıkları
+> eğitilmedi**; yalnızca modelin etrafındaki kadraj/renk/skor katmanları
+> değişti. Tam ölçüm kaydı: `docs/CLIP_PATTERN_EXPERIMENT.md`.
+
+### Ölçüm (gerçek katalog: 2.007 görsel, 336 sentetik dönüşüm sorgusu)
+- CLIP baseline val R@1 **85,1%** → seçilen yöntemle **96,4%**; MRR 0,880 →
+  0,976; doğru–rakip ayrımı 0,050 → **0,244** (5×).
+- **Elenen yöntemler (negatif bulgu):** 3×3 ızgara, gri tonlama tek başına ve
+  sorgu tarafı dönüş çeşitlemesi baseline'ı **iyileştirmedi veya kötüleştirdi**.
+- **DINOv2-Base aynı koşullarda ölçüldü**: val R@1 93,5% (1 görünüm).
+  Seçilen CLIP yöntemi bunu geçiyor ama **6 görünüm** karşılığında —
+  ~3,4× indeksleme süresi, 4× indeks boyutu, ~3× sorgu gecikmesi.
+  Elimizdeki tek gerçek çiftte DINOv2 daha iyi ayırıyor (+0,097 vs +0,077).
+  **DINOv2'nin yerine önerilmemektedir.**
+
+### Eklendi
+- `Lens.Core.Ai.ClipPatternProfile` / `ClipPatternEmbedder`: görsel başına
+  6 görünüm (tam görüntü + %60'lık 5 örtüşen bölge), her görünüm **ayrı**
+  L2-normalize, birleşik 3072 boyutlu vektör.
+- `Lens.Core.Search.PatternSimilaritySearch`: arama anında katalog-ortalaması
+  whitening + `0,5×global + 0,5×en iyi görünüm çifti` birleştirme. Eşik/
+  sıralama/en-fazla-sonuç sözleşmesi `SimilaritySearch` ile AYNI.
+- Profil doğrulamalı ayrı index: `.lens/indexes/clip-pattern-v1/` (şema 3).
+- `Lens.AiProof clippattern`: deney harness'ı (görünüm bazında embedding
+  önbelleği, dev/val ayrımı, birebir kopya farkındalığı, eşik taraması,
+  aynı koşullarda DINOv2 karşılaştırması).
+- `docs/CLIP_PATTERN_EXPERIMENT.md`, `ClickOnceClipPattern.pubxml`.
+- `Lens.AiProof hardeningtest` Grup O: 46 yeni kontrol.
+
+### Değiştirildi
+- Bu dalda aktif yöntem desen odaklı CLIP; paketlenen model
+  `clip-vision-b16-openai.onnx` (DINOv2 modeli pakete DAHİL DEĞİL).
+- Başlangıç eşiği **%55** — mevcut üretimin (CLIP @ %80) tutulma oranını
+  (%96) birebir korur. Geçici pilot değeridir.
+- Pencere başlığı: `Lens - Ürün Görsel Arama (CLIP Desen Pilotu)`.
+- `AppPaths`: veri klasörü adı derleme zamanında değiştirilebilir hale geldi
+  (`LensDataFolder` assembly metadata'sı). Bu dalda `%LocalAppData%\Lens.ClipPattern\`
+  kullanılır — kullanıcının DINOv2 test tercihlerini/loglarını EZMEZ.
+  Metadata yoksa davranış öncekiyle BİREBİR aynıdır.
+
+### Korunanlar (kanıtlı)
+- `publish/ClickOnce/` ve `publish/ClickOnce-dinov2-base/`: **478'er dosyanın
+  tamamı bayt bayt aynı** (öncesi/sonrası SHA-256 listesi karşılaştırıldı).
+- Kullanıcının `.lens/index.json` ve `.lens/indexes/dinov2-base-v1/`
+  indeksleri **değişmedi**.
+- İşlem paneli, busy guard, otomatik indeksleme, Yeni Arama temizliği,
+  kaydırma, sayısal girişler, varsayılan 20 / azami 999 sonuç, temalar,
+  sürükle-bırak, büyütme DEĞİŞMEDİ. Arayüz tasarımına dokunulmadı.
+
+### ClickOnce: bu kez GERÇEK yan yana kurulum
+- `AssemblyName` profile özel olarak `Lens.Desktop.ClipPattern` yapıldı →
+  manifest kimliği `Lens.Desktop.ClipPattern.application`, mevcut
+  `Lens.Desktop.application` kimliğinden **FARKLI**. Manifest düzeyinde
+  doğrulandı; DINOv2 pilotunun üzerine kurulmaz.
+- **Kurulum yapılmadı** — gerçek yan yana kurulum davranışı kullanıcı
+  testiyle doğrulanacak.
+
+### Bilinen sınırlamalar
+- Asıl iş senaryosu ("düz desen ↔ ürüne uygulanmış hâli") için etiketli veri
+  yok; **doğrulanamadı**. Sentetik dönüşümler bunu kanıtlamaz.
+- Tüm R@k/MRR değerleri sentetik sorgulardan gelir; gerçek ground truth tek
+  bir çiftle sınırlıdır ve yalnızca tek yönde geçerlidir.
+- 5.000 görsel süresi **tahmindir** (~2,1 saat); ölçülen 2.007 görselde
+  ~51 dakikadır.
+- Whitening sonrası benzemeyen kayıtlar negatif skor alabilir; %0 eşiği artık
+  "her şey" demek değildir.
+
 ## [PİLOT — DINOv2 ViT-B/14 Entegrasyonu] — 2026-09-10
 
 > **Durum: deney dalı (`feature/dinov2-base-pilot`), çalıştırılabilir pilot.**

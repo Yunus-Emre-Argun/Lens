@@ -34,6 +34,22 @@ dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 --self
 > DINOv2 sürümü kullanıcı tarafından kabul edilmeden gerçek dağıtım
 > adresine/sistemine taşınmamalıdır.
 
+> **[DENEY dalı — `feature/clip-pattern-pilot`]** Desen odaklı CLIP pilotu
+> ayrı paketler üretir; paketlenen model **CLIP**'tir (DINOv2 dahil değildir):
+>
+> ```
+> dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 \
+>   --self-contained true -p:DebugType=none -p:DebugSymbols=false \
+>   -o publish/Lens.Desktop-win-x64-clip-pattern
+> ```
+>
+> ClickOnce için `ClickOnceClipPattern.pubxml` → `publish/ClickOnce-clip-pattern/`.
+> Bu profil, önceki pilotlardan farklı olarak **bağımsız kurulum kimliği**
+> üretir (`AssemblyName` = `Lens.Desktop.ClipPattern`), dolayısıyla DINOv2
+> pilotunun üzerine kurulmaz. Mevcut iki ClickOnce paketi
+> DEĞİŞTİRİLMEMİŞTİR — 478'er dosyanın tamamı bayt bayt aynı kalmıştır
+> (SHA-256 listesiyle doğrulandı). Ayrıntı: `docs/CLICKONCE.md` §12c.
+
 - **Hedef mimari: x64.** `win-x86`/`win-arm64` için ayrıca test edilmemiştir.
 - Self-contained olduğu için hedef makinede .NET runtime kurulu olması
   gerekmez; WPF runtime ve ONNX Runtime native binary'leri publish çıktısına

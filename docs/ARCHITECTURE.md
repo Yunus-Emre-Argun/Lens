@@ -164,6 +164,30 @@ politikası (#56), atomik yazma (#40, #63) ve tek-yazarlı kilit (#62) mantığ�
 **tek kopya** olarak `ImageIndex`/`IndexLock` içinde kalır — her model için
 yeniden yazılmaz.
 
+### [PİLOT dalı - `feature/clip-pattern-pilot`] Çoklu görünümlü CLIP
+
+Desen pilotu, kayıt başına **6 görünüm** tutar (tam görüntü + %60'lık 5
+örtüşen bölge). Bunlar ayrı alanlarda değil, **birleşik tek bir vektörde**
+(512'lik bloklar ard arda, 3072 uzunluk) saklanır. Gerekçe: mevcut
+index/kilit/atomik-yazma altyapısı kayıt başına tek `float[]` taşır; bloklama
+sayesinde o altyapı **kopyalanmadan** yeniden kullanılır.
+
+Normalizasyon **görünüm bazındadır** — birleşik vektörü toplu normalize etmek
+görünümleri birbirine bulaştırır ve görünüm-bazlı benzerliğin anlamını bozardı.
+
+Okuma tarafında `Lens.Core.Search.PatternSimilaritySearch` vektörü bloklara
+böler, arama anında katalog ortalamasını çıkarıp yeniden normalize eder
+(whitening) ve skoru `0,5×global + 0,5×en iyi görünüm çifti` olarak
+hesaplar. Eşik/sıralama/en-fazla-sonuç sözleşmesi `SimilaritySearch` ile
+birebir aynıdır. Whitening ortalaması **diskte saklanmaz** — katalog
+değiştiğinde eskiyeceği için her aramada yeniden hesaplanır.
+
+`%LocalAppData%` veri klasörünün adı artık `LensDataFolder` assembly
+metadata'sıyla derleme zamanında değiştirilebilir (bkz.
+`Lens.Core.Config.AppPaths`). Bu, bir pilotun kullanıcının asıl kurulumunun
+ayarlarını/loglarını ezmemesi içindir; metadata yoksa davranış öncekiyle
+birebir aynıdır.
+
 ### [PİLOT dalı] Model soyutlaması
 
 `IImageEmbedder` (profil + `Embed`) arayüzünü `ClipEmbedder` ve

@@ -227,3 +227,32 @@ Lens.AiProof ortbench intra4
 
 Hedef ofis bilgisayarında 5.000 görsellik indeksleme süresini tahmin etmek
 için bu modu orada da çalıştırın (bkz. `docs/MODEL_CARD.md` hız bölümü).
+
+---
+
+## [PİLOT dalı] Desen odaklı CLIP deneyini yeniden çalıştırma
+
+> Yalnızca `feature/clip-pattern-pilot` dalı için. Yeni model **indirilmez**;
+> mevcut `models/clip-vision-b16-openai.onnx` kullanılır.
+
+```
+# Eleme turu (küçük havuz, hızlı)
+Lens.AiProof clippattern <katalog> <çalışma-dizini> elim 300
+
+# Tam katalog, seçili stratejiler
+Lens.AiProof clippattern <katalog> <çalışma-dizini> full 2007 "A0_baseline_rgb,E4_center+overlap5_whiten"
+
+# Aynı koşullarda DINOv2 karşılaştırması (son argüman model anahtarı)
+Lens.AiProof clippattern <katalog> <çalışma-dizini> full 2007 "A0_baseline_rgb" "" "" dinov2
+```
+
+- Katalog klasörüne **hiçbir şey yazılmaz**; sorgu görselleri, embedding
+  önbelleği ve raporlar yalnızca çalışma dizinine gider (git ve katalog
+  dışında tutun).
+- Embedding'ler **görünüm bazında** önbelleklenir; tekrar çalıştırmalar
+  saniyeler sürer. Önbellek model başına ayrı klasördedir — aynı görünüm
+  kimliği CLIP'te 512, DINOv2'de 768 boyutlu farklı bir vektördür.
+- Deney, baseline görünümünün üretim ön işlemesiyle bit düzeyinde aynı
+  olduğunu her koşuda doğrular; eşleşmezse durur.
+
+Sonuçların yorumu ve doğrulanamayan noktalar: `docs/CLIP_PATTERN_EXPERIMENT.md`.

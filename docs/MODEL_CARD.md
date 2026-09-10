@@ -1,8 +1,11 @@
 # Model Card — Lens Görsel Encoder
 
 > `main` dalının production modeli **CLIP ViT-B/16**'dır (aşağıdaki ilk bölümler).
-> `feature/dinov2-base-pilot` dalında ayrıca **DINOv2 ViT-B/14** pilotu entegre
-> edilmiştir — bkz. "PİLOT ENTEGRASYON" bölümü.
+> İki ayrı pilot dalı vardır:
+> - `feature/dinov2-base-pilot` → **DINOv2 ViT-B/14** (bkz. "PİLOT ENTEGRASYON")
+> - `feature/clip-pattern-pilot` → **desen odaklı CLIP** — aynı ağırlıklar,
+>   değişen kadraj/renk/skor katmanı (bkz. "PİLOT 2" ve
+>   `docs/CLIP_PATTERN_EXPERIMENT.md`)
 
 Bu doküman, Lens'in görsel embedding üretimi için kullandığı ONNX modelini
 tanımlar. Bu, modelin kendisiyle ilgili bir "karar dokümanı" değildir — karar
@@ -111,7 +114,42 @@ kontrol edilip buraya kesin lisans adı/linki eklenmelidir. Bu alan **uydurulmam
 — bilinmeyen bir lisans bilgisiyle production dağıtımı yapılmamalıdır
 (bkz. `CLAUDE.md` kural 6).
 
+## PİLOT 2 — Desen Odaklı CLIP (`feature/clip-pattern-pilot`)
+
+> **CLIP ağırlıkları DEĞİŞTİRİLMEMİŞTİR** — aşağıdaki dosyanın aynısı
+> kullanılır. Değişen yalnızca modelin ETRAFINDAKİ katmanlardır. Bu bölüm
+> `main`'i anlatmaz.
+
+| | Değer |
+|---|---|
+| Model | `openai/clip-vit-base-patch16` (değişmedi) |
+| Revision | `57c216476eefef5ab752ec549e440a49ae4ae5f3` |
+| ONNX dosyası | `models/clip-vision-b16-openai.onnx` (329 MB) |
+| **ONNX SHA-256** | `b75f9ea71a29fe3ad98406d63986ad99a2714ae18fcbddcc48a664d151f40126` |
+| Görünüm/görsel | **6** — tam görüntü + kenarın %60'ı boyutunda 5 örtüşen bölge |
+| Embedding boyutu | **3072** (6 × 512, birleşik tek vektör) |
+| Normalizasyon | Görünüm başına L2 + arama anında katalog-ortalaması whitening |
+| Skor | `0,5 × global + 0,5 × en iyi görünüm çifti` |
+| Ön işleme sürümü | `clip-pattern-center-overlap5-v1` |
+| Index şeması | 3 — `.lens/indexes/clip-pattern-v1/` |
+| Başlangıç eşiği | **%55** (geçici; mevcut üretimin %96 tutulma oranını korur) |
+
+**Ölçülen kazanç** (gerçek katalog, 2.007 görsel, 336 sentetik sorgu):
+val R@1 85,1% → **96,4%**, MRR 0,880 → 0,976, doğru–rakip ayrımı 5×.
+
+**Maliyet:** görsel başına 6 embedding → ~3,4× indeksleme süresi, 4× indeks
+boyutu, ~3× sorgu gecikmesi (DINOv2-Base'e göre).
+
+**DINOv2'nin yerine önerilmemektedir.** Aynı koşullarda DINOv2-Base val R@1
+93,5% (tek görünümle) ve tek gerçek örnekte daha iyi ayırıyor. Ayrıntı ve
+doğrulanamayanlar: `docs/CLIP_PATTERN_EXPERIMENT.md`.
+
 ## SHA-256 Doğrulama Yaklaşımı
+
+> **[2026-09-10 güncellemesi]** CLIP ONNX dosyasının resmî SHA-256'sı artık
+> kayıtlıdır: `b75f9ea71a29fe3ad98406d63986ad99a2714ae18fcbddcc48a664d151f40126`.
+> Desen pilotu bu değeri index profiline yazar ve her açılışta doğrular —
+> dosya adı/boyutu aynı kalsa bile içerik değişmişse index geçersiz sayılır.
 
 **Release sırasında doldurulacak.** Model dosyası commit edilmediği için, farklı
 geliştiriciler/ortamlar `export_onnx.py`'yi kendi çalıştırarak veya paylaşılan

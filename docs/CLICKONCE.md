@@ -522,6 +522,77 @@ canlı arayüz kullanıcının izni olmadan açılmadı. Kurulum davranışını
 (özellikle "üzerine kurulma" ve kısayol adı) gerçek doğrulaması
 kullanıcıyı beklemektedir.
 
+## 12c. [DENEY] Desen odaklı CLIP paketi — GERÇEK yan yana kurulum
+
+> Bu bölüm yalnızca `feature/clip-pattern-pilot` dalını anlatır. Diğer iki
+> profil ve paket **değiştirilmemiştir**.
+
+| | CLIP (orijinal) | DINOv2 pilotu | **CLIP Desen pilotu** |
+|---|---|---|---|
+| Profil | `ClickOnce.pubxml` | `ClickOnceDinoV2.pubxml` | `ClickOnceClipPattern.pubxml` |
+| Klasör | `publish/ClickOnce/` | `publish/ClickOnce-dinov2-base/` | `publish/ClickOnce-clip-pattern/` |
+| Görünen ad | `Lens` | `Lens (DINOv2 Pilot)` | `Lens (CLIP Desen Pilotu)` |
+| **Kurulum kimliği** | `Lens.Desktop.application` | `Lens.Desktop.application` | **`Lens.Desktop.ClipPattern.application`** |
+| Sürüm | 1.0.0.0 | 1.1.0.0 | 1.0.0.0 (`$(FileVersion)`) |
+| Model | CLIP | DINOv2 | CLIP |
+| Veri klasörü | `%LocalAppData%\Lens\` | `%LocalAppData%\Lens\` | **`%LocalAppData%\Lens.ClipPattern\`** |
+
+### §12b'deki sınırlama bu pakette GİDERİLDİ
+
+DINOv2 pilotu, ayrı klasör ve ayrı görünen ada rağmen mevcut kurulumun
+**üzerine** kuruluyordu; çünkü ClickOnce kimliği `AssemblyName`'den türer.
+Bu profil `AssemblyName`'i `Lens.Desktop.ClipPattern` yapar, böylece manifest
+kimliği farklılaşır ve ClickOnce bunu **ayrı bir uygulama** olarak görür.
+
+`AssemblyName` değişikliğinin güvenli olmasının nedeni: WPF pack URI'leri
+(`/Assets/Lens.ico`) çalışma zamanında aktif assembly'ye göre çözülür,
+`AppVersionInfo` çalışan assembly'nin metadata'sını okur, model ve
+`appsettings.json` ada göre değil klasöre göre bulunur.
+
+**Sürüm yapay olarak yükseltilmedi** — kimlik zaten bağımsız olduğu için buna
+gerek yoktur; tek sürüm kaynağı (`FileVersion`) korunur ve uygulamada görünen
+sürüm metni değişmez.
+
+### Kullanıcı ayarlarının ayrılması
+
+`Lens.Desktop.csproj` içindeki `LensDataFolder` özelliği bir assembly
+metadata'sına dönüşür; `Lens.Core.Config.AppPaths` onu okuyup veri klasörünü
+`%LocalAppData%\Lens.ClipPattern\` yapar. Böylece pilot, kullanıcının DINOv2
+testindeki temasını/eşiğini/loglarını **ezmez**. Metadata taşımayan
+derlemelerde davranış öncekiyle **birebir aynıdır** (`Lens`).
+
+### Üretme
+
+```
+"%ProgramFiles%\Microsoft Visual Studio\<sürüm>\<edition>\MSBuild\Current\Bin\MSBuild.exe" ^
+  src\Lens.Desktop\Lens.Desktop.csproj /t:Restore,Publish ^
+  /p:PublishProfile=ClickOnceClipPattern /p:Configuration=Release /p:DebugType=none
+```
+
+### Doğrulanan içerik (2026-09-10)
+
+| Kontrol | Sonuç |
+|---|---|
+| Toplam boyut | 505 MB |
+| `setup.exe` + `Lens.Desktop.ClipPattern.application` + `Application Files\Lens.Desktop.ClipPattern_1_0_0_0` | ✅ |
+| `models\clip-vision-b16-openai.onnx.deploy` (manifestte kayıtlı) | ✅ |
+| `appsettings.json.deploy` boş şablon | ✅ |
+| `createDesktopShortcut="true"`, `product="Lens (CLIP Desen Pilotu)"` | ✅ |
+| Kimlik, mevcut paketlerden **farklı** | ✅ manifestte doğrulandı |
+| DINOv2 modeli / `.pdb` / gömülü PDB yolu / yerel geliştirici yolu | ✅ **yok** |
+| Kullanıcı ayarı / index / log / ürün görseli | ✅ **yok** |
+| `publish/ClickOnce/` ve `publish/ClickOnce-dinov2-base/` | ✅ **478'er dosyanın tamamı bayt bayt aynı** (öncesi/sonrası SHA-256 listesi) |
+
+**Manifest düzeyinde doğrulananlar ile gerçek kurulumda doğrulanmayanlar:**
+kimlik ayrımı, kısayol adı, model varlığı ve paket temizliği **dosya/manifest
+incelemesiyle** doğrulandı. **Kurulum yapılmadı ve uygulama açılmadı** —
+gerçek yan yana kurulum davranışı, kısayolların ayırt edilebilirliği ve
+DINOv2 kurulumunun bozulmadığı **kullanıcı testiyle** doğrulanacaktır.
+
+Bu paket, `InstallUrl`/`UpdateUrl` boş olduğu için **yerel/offline bir deneme
+paketidir**; otomatik güncelleme işlevsizdir ve tamamlanmış bir üretim
+dağıtımı **değildir**.
+
 ## 13. Açık Kararlar (özet)
 
 Bkz. `docs/DECISIONS.md` "Not Yet Decided": yayıncı/şirket adı, gerçek
