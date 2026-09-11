@@ -266,6 +266,12 @@
                                       IsCheckable="True" Click="ThemeMenuItem_Click" />
                         </MenuItem>
                         <Separator />
+                        <!-- [Desen kodu] VPN erisimi olan bilgisayarda ELLE calistirilan bakim
+                             islemi - normal aramada ASLA otomatik tetiklenmez, arama servis
+                             cevabi BEKLEMEZ. -->
+                        <MenuItem x:Name="RefreshDesenCodesMenuItem" Header="Desen Kodlarını Güncelle"
+                                  Click="RefreshDesenCodesMenuItem_Click" />
+                        <Separator />
                         <MenuItem Header="Hakkında" Click="AboutMenuItem_Click" />
                     </ContextMenu>
                 </Button.ContextMenu>
@@ -299,6 +305,12 @@
                      SIFIR yer kaplar, bos bir mesaj/bosluk BIRAKMAZ. -->
                 <TextBlock x:Name="DetailedStatsText" Text="" Visibility="Collapsed" VerticalAlignment="Center"
                            TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,6" />
+                <!-- [Desen kodu] Kod/metadata durumu TEK bir yerde bildirilir; kodu olmayan
+                     kartlarda tekrar eden hata yazisi OLUSMAZ (kartta yalnizca sade "(—)"
+                     yer tutucusu gorunur). Collapsed iken WrapPanel icinde gercekten sifir
+                     yer kaplar. -->
+                <TextBlock x:Name="DesenCodeStatusText" Text="" Visibility="Collapsed" VerticalAlignment="Center"
+                           TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Margin="10,0,0,6" />
             </WrapPanel>
             <!-- ProblemFilesButton native (temadan bagimsiz, hep acik gri) buton
                  yuzeyi uzerinde durur - WarningBrush artik tema-bagimli oldugundan
@@ -589,8 +601,28 @@
                                TextAlignment="Center" TextWrapping="Wrap"
                                Foreground="{StaticResource CardSecondaryTextBrush}" />
                 </Grid>
-                <TextBox x:Name="ComparisonFileNameText" Text="" Width="320" Style="{StaticResource SelectableFileNameStyle}" TextAlignment="Center"
-                         Foreground="{DynamicResource SecondaryTextBrush}" />
+                <!-- [Desen kodu] Dosya adi ve kod YAN YANA. Sutunlar "*" + "Auto": kod
+                     sutunu once olculur ve her zaman sigar, uzun dosya adi kendi
+                     sutununda kirpilir - kod hicbir genislikte ekrandan itilmez.
+                     Kod yoksa ayni yerde "(—)" gosterilir; kutu kaybolmadigi icin
+                     kod sonradan geldiginde yerlesim KAYMAZ. -->
+                <!-- Genislik artik TEK yerden (UpdateResponsiveLayout) bu satira verilir;
+                     TextBox'a dogrudan sabit genislik ATANMAZ, aksi halde "*" sutunu
+                     anlamsizlasir ve kod sutunu disari itilirdi. -->
+                <Grid x:Name="ComparisonFileNameRow" Width="320">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- TextWrapping=NoWrap: stildeki Wrap bilerek EZILIYOR - sarma olsaydi
+                         uzun ad kodu asagi/disari iterdi. Tam ad araci ipucunda kalir. -->
+                    <TextBox x:Name="ComparisonFileNameText" Text="" Style="{StaticResource SelectableFileNameStyle}"
+                             TextAlignment="Right" TextWrapping="NoWrap" VerticalAlignment="Center"
+                             Foreground="{DynamicResource SecondaryTextBrush}" />
+                    <TextBlock x:Name="ComparisonDesenCodeText" Grid.Column="1" Text="" FontWeight="Bold" Margin="4,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                </Grid>
                 <TextBlock x:Name="ComparisonScoreText" Text="" FontWeight="Bold" FontSize="14" Margin="0,4,0,0" HorizontalAlignment="Center"
                            Foreground="{DynamicResource NeutralTextBrush}" />
             </StackPanel>
@@ -643,8 +675,29 @@
                                                 <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2" />
                                             </Border>
                                         </Button>
-                                        <TextBox Text="{Binding FileName, Mode=OneWay}"
-                                                 Style="{StaticResource SelectableFileNameStyle}" Margin="0,6,0,0" />
+                                        <!-- [Desen kodu] Dosya adi + kod ayni satirda. "*" + "Auto"
+                                             sutunlari sayesinde dar kartta bile kod HER ZAMAN gorunur;
+                                             tasan ad kendi sutununda kirpilir. Kart, goreli yolun
+                                             yalnizca son parcasini gosterir (FileNameDisplay) - tam
+                                             goreli yol araci ipucundadir, cunku alt klasor taramasinda
+                                             yol kartin genisligini kat kat asabilir.
+                                             NOT: dosya adi karar #54 geregi secilebilir/kopyalanabilir
+                                             bir TextBox'tir; WPF TextBox TextTrimming DESTEKLEMEZ, bu
+                                             yuzden kirpma "..." karakteri olmadan sutun kenarinda olur. -->
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding FileNameDisplay, Mode=OneWay}"
+                                                     ToolTip="{Binding FileNameToolTip}"
+                                                     TextWrapping="NoWrap" VerticalAlignment="Center" Margin="0"
+                                                     Style="{StaticResource SelectableFileNameStyle}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding DesenCodeDisplay}"
+                                                       ToolTip="{Binding DesenCodeToolTip}"
+                                                       FontWeight="Bold" FontSize="11" Margin="3,0,0,0"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
                                         <TextBlock Text="{Binding ScoreText}" FontWeight="Bold" FontSize="11" Margin="0,2,0,0" />
                                     </StackPanel>
                                 </Border>

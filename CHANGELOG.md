@@ -8,6 +8,75 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Eksik Desen Kodları İçin Kısa Gösterim] — 2026-09-11
+
+> **Durum: deney dalı (`feature/desen-code-placeholder`), ayrı worktree.**
+> Çok modelli sürümden (`feature/multi-model-search`) açıldı, `main`'e
+> **birleştirilmedi**. Uygulama açılmadı, publish üretilmedi — mevcut
+> paketler bu değişikliği **içermez**. Detay: `docs/DESEN_CODE_SERVICE.md`.
+
+### Eklendi
+- Desen kodu servisi altyapısı (`Lens.Core.DesenCodes`) `feature/desen-code-service`
+  dalından çok modelli sürüme **taşındı**: `IDesenCodeService` +
+  `SoapDesenCodeService` (ASMX SOAP 1.1), `DesenCodeStore` (atomik yazım,
+  embedding kilidinden ayrı kilit), `DesenCodeRefresh` (tekilleştirme, iptal,
+  art arda hatada erken duruş), `AdminConfig.DesenCodeService`,
+  ⋮ → **Desen Kodlarını Güncelle**.
+- **Eksik kod yer tutucusu:** dosya adının yanında parantez içinde kalın kod —
+  kod varsa `desen.jpg` **(00123)**, yoksa aynı konumda `desen.jpg` **(—)**.
+  `(—)` üzerine gelindiğinde *"Desen kodu henüz alınamadı"* açıklaması çıkar.
+  Aynı davranış hem sonuç kartlarında hem "Seçilen Sonuç" alanında geçerli;
+  biçim tek kaynaktan (`DesenCodeDisplay`) geliyor.
+- Kod kutusu hiçbir zaman gizlenmiyor, bu yüzden kod sonradan geldiğinde
+  yerleşim kaymıyor. Yer tutucu em dash (U+2014) — **rakam değil**, `00000`
+  ile karıştırılamaz.
+
+### Değiştirildi
+- **Kod eşleme anahtarı dosya adı yerine göreli yol oldu.** Çok modelli
+  sürümde alt klasör taraması açık olduğu için `a/desen.jpg` ile
+  `b/desen.jpg` artık ayrı kayıtlar; biri diğerinin kodunu göstermiyor.
+- Toplu güncelleme, dosya listesini indekslemenin kullandığı aynı tarama
+  sözleşmesinden (`CatalogScanner`) alıyor — alt klasörler dâhil, `.lens`
+  atlanıyor, junction/symlink takip edilmiyor.
+- Art arda hata eşiği artık yapılandırmadan (`AbortAfterConsecutiveFailures`)
+  okunuyor; erken duruşta **tek bir durum mesajı** gösteriliyor ve son
+  hatanın açıklaması (SOAP faultstring vb.) o mesajın içinde. Her dosya için
+  ayrı uyarı açılmıyor.
+- Kartta göreli yolun yalnızca son parçası gösteriliyor; tam yol araç
+  ipucunda. Dosya adı ve kod `*` + `Auto` sütunlarda — kod hiçbir genişlikte
+  ekrandan itilmiyor.
+
+### Veri davranışı (değişmedi / garanti edildi)
+- `(—)` **yalnızca görünüm**: metadata'ya `00000`, tire veya başka bir sahte
+  kod **yazılmıyor**.
+- Daha önce alınmış geçerli bir kod; bağlantı hatası, zaman aşımı, SOAP fault
+  veya boş cevap nedeniyle **silinmiyor** (eski kod ve eski tarih korunuyor).
+- Servis ayarları eksikken açılış, arama ve indeksleme normal çalışıyor ve
+  **hiçbir servis isteği denenmiyor**. Sıradan arama servis cevabı beklemiyor.
+- Servis sonradan hazır olduğunda aynı işlem gerçek kodları alıyor; ekrandaki
+  `(—)` kodla değişiyor, sıralama/seçim/kaydırma korunuyor.
+- VPN'siz kullanıcılar yerel metadata'daki kodları görmeye devam ediyor.
+- DINO/CLIP seçimi, renkli/gri modu, "desen odaklı karşılaştırma", ön işleme,
+  benzerlik hesabı, eşikler, dört indeks ve embedding verisi **değişmedi**.
+
+### Bilinen sınırlamalar
+- **Servisin yalnızca dosya adı kabul etmesi çözülmedi.** Metadata göreli yolla
+  ayırıyor, ama aynı adlı iki dosya servisten **aynı kodu** alıyor. Alt klasör
+  taramasıyla birlikte bu belirsizlik gerçek hale geldi; çözülmüş gibi
+  sunulmuyor.
+- **Dosya adında görünür `…` yok.** Ad, karar #54 gereği seçilebilir bir
+  `TextBox` ve WPF `TextBox` `TextTrimming` desteklemiyor; çok uzun ad sütun
+  kenarında kırpılıyor. Görünür `…` için adın `TextBlock`'a çevrilmesi
+  gerekir — bu #54'ün kopyalanabilirlik kuralını kaldırır, ayrı onay konusu.
+- **Canlı servis doğrulaması yapılmadı**: `GetDesenKodu` hedef uçta hâlâ yok
+  ve bu turda uca çağrı da yapılmadı. Tüm doğrulama sahte servisle.
+
+### Test
+- `dotnet build Lens.sln` Debug/Release **0 warning / 0 error**.
+- `Lens.AiProof hardeningtest` **415 PASS / 0 FAIL** — çok modelli daldaki 349
+  mevcut test değiştirilmeden geçti; Grup P'de 66 kontrol (43'ü desen kodu
+  dalından taşındı, 23'ü bu görevle eklendi). Tamamı sahte servisle.
+
 ## [Düzeltme — Arama Ayarları paneli yerleşim çakışması] — 2026-09-10
 
 ### Düzeltildi

@@ -13,6 +13,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Lens.Core.Ai;
 using Lens.Core.Config;
+using Lens.Core.DesenCodes;
 using Lens.Core.Indexing;
 using Lens.Core.Logging;
 using Lens.Core.Search;
@@ -59,6 +60,23 @@ public partial class MainWindow : Window
 
     /// <summary>[Profil ayrimi] Ayni anda iki kez model dosyasi hash'i hesaplanmasini engeller (bkz. TryEnsureProfileAsync).</summary>
     private readonly SemaphoreSlim _profileInitLock = new(1, 1);
+
+    /// <summary>
+    /// [Desen kodu] Aktif klasore ait, GORELI YOL -> kod eslemesi. Anahtar
+    /// bilerek dosya adi DEGIL goreli yoldur: alt klasor taramasinda
+    /// "a/desen.jpg" ile "b/desen.jpg" AYRI kayitlardir ve birbirinin kodunu
+    /// EZMEZ. Katalog yanindaki ortak metadata dosyasindan CEVRIMDISI okunur;
+    /// servis/VPN erisimi GEREKTIRMEZ. Klasor degisiminde tamamen YENILENIR.
+    /// </summary>
+    private Dictionary<string, string> _desenCodes = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>[Desen kodu] Kod metadata'sinin durumu - TEK bir yerde bildirilir, her kartta tekrarlanmaz.</summary>
+    private string _desenCodeStatus = string.Empty;
+
+    private readonly DesenCodeStore _desenCodeStore = new();
+
+    /// <summary>[Desen kodu] Toplu guncellemenin iptali - islem disinda null.</summary>
+    private CancellationTokenSource? _desenCodeCancellation;
 
     /// <summary>
     /// [Cok modelli arama] Kullanicinin sectigi model + renk modu.
@@ -376,7 +394,10 @@ public partial class MainWindow : Window
         ComparisonResultBorder.Width = imageWidth;
         ComparisonResultBorder.Height = imageHeight;
         QueryFileNameText.Width = imageWidth;
-        ComparisonFileNameText.Width = imageWidth;
+        // [Desen kodu] Dosya adi artik kod ile ayni satirdaki bir Grid'in "*"
+        // sutunundadir - genislik TextBox'a degil SATIRA verilir, boylece kod
+        // sutunu (Auto) her genislikte gorunur kalir.
+        ComparisonFileNameRow.Width = imageWidth;
         QueryDropHintText.Width = imageWidth;
         QueryEmptyStatePanel.MaxWidth = Math.Max(0, imageWidth - 24);
         ComparisonEmptyStateText.MaxWidth = Math.Max(0, imageWidth - 24);
@@ -703,6 +724,11 @@ public partial class MainWindow : Window
         var hadCacheFile = loadResult.Outcome != IndexLoadOutcome.Missing;
         var loadedEntries = loadResult.Entries;
 
+        // [Desen kodu] Kodlar embedding index'inden BAGIMSIZ olarak, ayni
+        // arka plan turunda okunur - servis erisimi gerekmez, servis
+        // yapilandirilmamis olsa bile bu yol calisir.
+        var desenLoad = await Task.Run(() => LoadDesenCodes(folder));
+
         // [Yarış durumu önlemi] İkinci await ("index yükleme") sürerken de
         // kullanıcı araya girmiş olabilir - _productFolder/FolderPathTextBox
         // yukarıda zaten değişmişti, ama kullanıcının KENDİ işlemi bu arada
@@ -715,6 +741,7 @@ public partial class MainWindow : Window
 
         _indexEntries = loadedEntries;
         _lastFreshnessCheckUtc = null;
+        ApplyDesenCodes(desenLoad);
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
         SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
@@ -837,8 +864,10 @@ public partial class MainWindow : Window
         var loadResult = await Task.Run(() => storeForLoad.Load(folder, _logger));
         var hadCacheFile = loadResult.Outcome != IndexLoadOutcome.Missing;
         var loadedEntries = loadResult.Entries;
+        var desenLoad = await Task.Run(() => LoadDesenCodes(folder));
 
         _indexEntries = loadedEntries;
+        ApplyDesenCodes(desenLoad);
         ProductCountText.Text = $"{_indexEntries.Count} ürün (kayıtlı index)";
         SetIndexStatus(_indexEntries.Count > 0
             ? "Kayıtlı index yüklendi. Yeni/değişen görsel varsa taramak için 'İndeksi Güncelle'ye basın."
@@ -1997,7 +2026,9 @@ public partial class MainWindow : Window
 
         _selectedResult = result;
         ComparisonResultImage.Source = result.Thumbnail;
-        ComparisonFileNameText.Text = result.FileName;
+        ComparisonFileNameText.Text = result.FileNameDisplay;
+        ComparisonFileNameText.ToolTip = result.FileNameToolTip;
+        UpdateComparisonDesenCode(result);
         ComparisonScoreText.Text = result.ScoreText;
         UpdateComparisonEmptyStateVisibility();
         // [Faz 4D polish] Yalnizca goruntulenen deger tam %100 oldugunda
@@ -2032,6 +2063,8 @@ public partial class MainWindow : Window
         _selectedResult = null;
         ComparisonResultImage.Source = null;
         ComparisonFileNameText.Text = string.Empty;
+        ComparisonFileNameText.ToolTip = null;
+        UpdateComparisonDesenCode(null);
         ComparisonScoreText.Text = string.Empty;
         ComparisonScoreText.Foreground = (Brush)FindResource("NeutralTextBrush");
         UpdateComparisonEmptyStateVisibility();
@@ -2252,6 +2285,12 @@ public partial class MainWindow : Window
                     progressValue: percent, progressText: $"{p.Done} / {p.Total}");
             });
 
+            // [Desen kodu] Arka plan gorevi, aramanin BASLADIGI andaki eslemenin
+            // kopyasini kullanir. Bu sirada klasor degistirilirse yeni klasorun
+            // kodlari bu sonuclara KARISMAZ (ve tersi). Servise burada hicbir
+            // istek GONDERILMEZ - arama servis cevabi beklemez.
+            var codesForSearch = new Dictionary<string, string>(_desenCodes, StringComparer.OrdinalIgnoreCase);
+
             var viewModels = await Task.Run(() =>
             {
                 var list = new List<SearchResultViewModel>(matches.Count);
@@ -2263,10 +2302,18 @@ public partial class MainWindow : Window
                     list.Add(new SearchResultViewModel
                     {
                         FileName = r.RelativePath,
+                        RelativePath = r.RelativePath,
                         ScoreText = scoreText,
                         Thumbnail = TryLoadPreview(fullPath),
                         FullPath = fullPath,
                         IsPerfectMatch = scoreText.EndsWith("100.0%", StringComparison.Ordinal),
+
+                        // [Desen kodu] YALNIZCA aktif klasorun metadata'sindan,
+                        // GORELI YOL anahtariyla okunur. Kod yoksa null kalir -
+                        // arayuzde "(—)" gorunur, metadata'ya hicbir sey yazilmaz.
+                        // Sorgu gorselinin kodu BURADAN TURETILMEZ (sorgu
+                        // katalogda olmayabilir).
+                        DesenCode = codesForSearch.TryGetValue(r.RelativePath, out var desenCode) ? desenCode : null,
                     });
 
                     done++;
@@ -2719,6 +2766,273 @@ public partial class MainWindow : Window
 
     /// <summary>[PILOT] Aktif model dosyasini arar. Dosya adinin TEK kaynagi <see cref="DinoV2BaseProfile.ModelFileName"/>'dir - yol iki farkli yerde yazilmaz.</summary>
     // =====================================================================
+    // [Desen kodu] Cevrimdisi kod okuma + ELLE toplu guncelleme
+    //
+    // Arama yolu bu bolumu HIC CAGIRMAZ: sonuc kartlarindaki kodlar katalog
+    // yanindaki ortak metadata dosyasindan okunur, servise arama sirasinda
+    // istek gonderilmez ve servis yapilandirilmamis olsa bile acilis, arama
+    // ve indeksleme normal calisir.
+    // =====================================================================
+
+    /// <summary>
+    /// Katalog yanindaki ortak metadata dosyasindan kodlari okur. Servis
+    /// erisimi GEREKTIRMEZ - VPN'siz kullanicinin kodlari gorme yolu budur.
+    /// Arka planda cagrilir (UNC yavas olabilir).
+    /// </summary>
+    private DesenCodeLoadResult LoadDesenCodes(string folder)
+    {
+        try
+        {
+            return _desenCodeStore.Load(folder, _logger);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("DesenCodeLoad", file: folder, reason: ex.Message);
+            return new DesenCodeLoadResult(DesenCodeLoadOutcome.Invalid, new DesenCodeMetadata(), ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Yuklenen metadata'yi aktif esleme haline getirir ve TEK bir durum
+    /// metni uretir. Kartlarda tekrar eden hata yazisi OLUSMAZ - kodu
+    /// olmayan kart yalnizca sade "(—)" yer tutucusunu gosterir.
+    /// </summary>
+    private void ApplyDesenCodes(DesenCodeLoadResult load)
+    {
+        // Klasor degistiginde esleme TAMAMEN yenilenir - eski klasorun
+        // kodlari yeni sonuclara sizamaz. Anahtar GORELI YOL'dur.
+        _desenCodes = load.Metadata.Entries
+            .Where(e => e.State == DesenCodeEntryState.Found && !string.IsNullOrWhiteSpace(e.Code))
+            .GroupBy(e => e.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Code!, StringComparer.OrdinalIgnoreCase);
+
+        _desenCodeStatus = load.Outcome switch
+        {
+            DesenCodeLoadOutcome.Missing => "Desen kodları henüz hazırlanmamış.",
+            DesenCodeLoadOutcome.Invalid => $"Desen kodu dosyası okunamadı ({load.Reason}).",
+            _ => _desenCodes.Count > 0
+                ? $"{_desenCodes.Count} desen kodu yüklendi."
+                : "Desen kodu dosyası boş.",
+        };
+
+        UpdateDesenCodeStatusUi();
+    }
+
+    private void UpdateDesenCodeStatusUi()
+    {
+        DesenCodeStatusText.Text = _desenCodeStatus;
+        DesenCodeStatusText.Visibility = string.IsNullOrEmpty(_desenCodeStatus)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Bir katalog kaydinin kodunu GORELI YOL ile dondurur; yoksa null.
+    /// Dosya ADIYLA arama BILEREK yapilmaz - alt klasorlerdeki ayni adli
+    /// dosyalar birbirinin kodunu almamalidir. Sorgu gorseli de bu yolu
+    /// KULLANMAZ (sorgu katalogda olmayabilir).
+    /// </summary>
+    private string? TryGetDesenCode(string relativePath) =>
+        _desenCodes.TryGetValue(relativePath, out var code) ? code : null;
+
+    /// <summary>
+    /// [Bakim islemi] VPN erisimi olan bilgisayarda ELLE calistirilir.
+    /// Normal aramada ASLA otomatik tetiklenmez.
+    /// </summary>
+    private async void RefreshDesenCodesMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        if (_productFolder is null)
+        {
+            AlertWindow.Show(this, "Önce bir ürün klasörü seçin.", "Klasör seçilmedi", AlertKind.Warning);
+            return;
+        }
+
+        var adminConfig = AdminConfig.Load(AppPaths.AdminConfigFilePath, _logger);
+        var options = adminConfig.DesenCodeService;
+        if (options is null || !options.IsConfigured)
+        {
+            // Yapilandirma eksikse TEK bir mesaj gosterilir ve HICBIR servis
+            // istegi denenmez - her urun icin tekrarlayan basarisiz cagri
+            // olusmaz.
+            AlertWindow.Show(this,
+                (options ?? new DesenCodeServiceOptions()).DescribeMissingConfiguration(),
+                "Servis yapılandırılmamış", AlertKind.Warning);
+            return;
+        }
+
+        var folder = _productFolder;
+        SetBusy(true);
+        BeginOperation("Desen kodları güncelleniyor…", "Katalog taranıyor…");
+        _desenCodeCancellation = new CancellationTokenSource();
+
+        try
+        {
+            // [Alt klasor] Dosya listesi indekslemenin KULLANDIGI ayni tarama
+            // sozlesmesinden gelir (CatalogScanner): anahtar '/' ayracli goreli
+            // yoldur, ".lens" atlanir, junction/symlink takip edilmez. Boylece
+            // kod kayitlari index kayitlariyla AYNI anahtari tasir.
+            var scanIssues = new List<IndexFileIssue>();
+            var relativePaths = await Task.Run(() =>
+                CatalogScanner.EnumerateFiles(folder, scanIssues)
+                    .Where(f => FileClassifier.Classify(Path.GetExtension(f.FullPath)) == FileClassification.SupportedImage)
+                    .Select(f => f.RelativePath)
+                    .ToList());
+
+            if (relativePaths.Count == 0)
+            {
+                AlertWindow.Show(this, "Bu klasörde (alt klasörler dâhil) desteklenen görsel (jpg/jpeg/png) bulunamadı.",
+                    "Görsel bulunamadı", AlertKind.Warning);
+                return;
+            }
+
+            var lastPercent = -1;
+            var lastReport = DateTime.MinValue;
+            var progress = new Progress<(int Done, int Total)>(p =>
+            {
+                var percent = p.Total > 0 ? (int)(100.0 * p.Done / p.Total) : 100;
+                var isFinal = p.Done >= p.Total;
+                var now = DateTime.UtcNow;
+                if (!isFinal && percent == lastPercent && now - lastReport < TimeSpan.FromMilliseconds(100))
+                {
+                    return;
+                }
+
+                lastPercent = percent;
+                lastReport = now;
+                SetOperationStage("Desen kodları güncelleniyor…", indeterminate: false,
+                    progressValue: percent,
+                    progressText: $"{p.Done:N0} / {p.Total:N0} sorgu — %{percent}");
+            });
+
+            using var service = new SoapDesenCodeService(options);
+            var token = _desenCodeCancellation.Token;
+            var result = await Task.Run(
+                () => DesenCodeRefresh.RunAsync(
+                    folder, relativePaths, service, _desenCodeStore, progress, token, _logger,
+                    options.AbortAfterConsecutiveFailures),
+                token);
+
+            ReportDesenCodeRefresh(result, folder);
+        }
+        catch (OperationCanceledException)
+        {
+            SetIndexStatus("Desen kodu güncellemesi iptal edildi. Mevcut kodlar korundu.", success: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("DesenCodeRefresh", file: folder, reason: ex.Message);
+            AlertWindow.Show(this, $"Desen kodu güncellemesi başarısız oldu:\n{ex.Message}", "Hata", AlertKind.Error);
+        }
+        finally
+        {
+            _desenCodeCancellation?.Dispose();
+            _desenCodeCancellation = null;
+            EndOperation();
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>
+    /// Toplu guncellemenin sonucunu kullaniciya TEK bir mesajla bildirir ve
+    /// ekrandaki kodlari tazeler. Dosya basina uyari ACILMAZ.
+    /// </summary>
+    private void ReportDesenCodeRefresh(DesenCodeRefreshResult result, string folder)
+    {
+        switch (result.Outcome)
+        {
+            case DesenCodeRefreshOutcome.LockUnavailable:
+                AlertWindow.Show(this,
+                    "Desen kodları şu anda başka bir kullanıcı tarafından güncelleniyor.\nLütfen daha sonra tekrar deneyin.",
+                    "Kod dosyası kilitli", AlertKind.Warning);
+                return;
+
+            case DesenCodeRefreshOutcome.SaveFailed:
+                AlertWindow.Show(this,
+                    $"Desen kodları katalog klasörüne KAYDEDİLEMEDİ:\n{result.Failure?.Message}\n\n"
+                    + "Bu klasöre yazma izniniz olmayabilir. Kodlar kaydedilmedi.",
+                    "Kaydedilemedi", AlertKind.Error);
+                return;
+
+            case DesenCodeRefreshOutcome.AbortedAfterFailures:
+                // TEK mesaj: metot bulunamamasi, kapali uc veya zaman asimi gibi
+                // TUM urunleri ayni sekilde etkileyen hatalarda islem burada
+                // durur; kalan binlerce dosya icin ayni cagri TEKRARLANMAZ ve
+                // her dosya icin ayri uyari ACILMAZ.
+                AlertWindow.Show(this,
+                    "Servis istekleri art arda başarısız olduğu için işlem durduruldu; "
+                    + "kalan görseller için tekrar denenmedi.\n\n"
+                    + $"Son hata: {result.FailureDetail ?? "ayrıntı yok"}\n\n"
+                    + "Bu hata tüm görselleri aynı şekilde etkiliyor olabilir (servis metodu, "
+                    + "adres veya ağ/VPN erişimi). Mevcut kodlar korundu.",
+                    "Servisten kod alınamadı", AlertKind.Warning);
+                break;
+
+            case DesenCodeRefreshOutcome.Cancelled:
+                SetIndexStatus("Desen kodu güncellemesi iptal edildi. Alınan kodlar kaydedildi.", success: false);
+                break;
+        }
+
+        _logger.Info("DesenCodeRefresh",
+            reason: $"outcome={result.Outcome} total={result.TotalFiles} queries={result.UniqueQueries} "
+                + $"updated={result.Updated} notFound={result.NotFound} failed={result.Failed}");
+
+        // Servis sonradan hazir oldugunda bu ayni islem gercek kodlari alir ve
+        // ekrandaki "(—)" yer tutuculari gercek kodla DEGISIR.
+        ApplyDesenCodes(LoadDesenCodes(folder));
+        RefreshDisplayedDesenCodes();
+
+        if (result.Outcome == DesenCodeRefreshOutcome.Completed)
+        {
+            SetIndexStatus(
+                $"Desen kodları güncellendi — {result.Updated:N0} kod, {result.NotFound:N0} bulunamadı"
+                + (result.Failed > 0 ? $", {result.Failed:N0} başarısız (eski kodlar korundu)" : string.Empty),
+                success: result.Failed == 0);
+        }
+    }
+
+    /// <summary>
+    /// Kod bilgisi sonradan geldiginde EKRANDAKI kartlari tazeler. Liste
+    /// YENIDEN OLUSTURULMAZ - yalnizca her ogenin kod alani guncellenir,
+    /// boylece siralama, secim ve kaydirma konumu DEGISMEZ.
+    /// </summary>
+    private void RefreshDisplayedDesenCodes()
+    {
+        foreach (var item in _results)
+        {
+            // GORELI YOL ile eslenir - dosya adiyla degil.
+            item.DesenCode = TryGetDesenCode(item.RelativePath);
+        }
+
+        if (_selectedResult is not null)
+        {
+            UpdateComparisonDesenCode(_selectedResult);
+        }
+    }
+
+    /// <summary>
+    /// "Secilen Sonuc" alanindaki kod ogesi. Kartlarla AYNI bicimi kullanir
+    /// (<see cref="DesenCodeDisplay"/>) - iki yer birbirinden sapmaz. Oge
+    /// kod yokken de GORUNUR kalir ("(—)"), yalnizca metni degisir.
+    /// </summary>
+    private void UpdateComparisonDesenCode(SearchResultViewModel? result)
+    {
+        if (result is null)
+        {
+            ComparisonDesenCodeText.Text = string.Empty;
+            ComparisonDesenCodeText.ToolTip = null;
+            return;
+        }
+
+        ComparisonDesenCodeText.Text = result.DesenCodeDisplay;
+        ComparisonDesenCodeText.ToolTip = result.DesenCodeToolTip;
+    }
+
+    // =====================================================================
     // [Cok modelli arama] Profil secimi ve secim degisim davranislari
     // =====================================================================
 
@@ -3012,9 +3326,67 @@ public sealed class SearchResultViewModel : INotifyPropertyChanged
 {
     private bool _isSelected;
 
+    private string? _desenCode;
+
     public string FileName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// [Desen kodu] Katalog kokune gore '/' ayracli goreli yol - desen kodu
+    /// eslemesinin TEK anahtaridir. Alt klasor taramasinda "a/desen.jpg" ile
+    /// "b/desen.jpg" AYRI kayitlardir; dosya ADIYLA eslesme yapilsaydi biri
+    /// digerinin kodunu gosterirdi.
+    /// </summary>
+    public string RelativePath { get; set; } = string.Empty;
+
     public string ScoreText { get; set; } = string.Empty;
     public BitmapImage? Thumbnail { get; set; }
+
+    /// <summary>
+    /// [Desen kodu] Katalog yanindaki ortak metadata'dan gelen kod; yoksa
+    /// null. String'tir - bastaki sifirlar ("00123") KORUNUR, sayiya
+    /// CEVRILMEZ. Degistiginde yalnizca kod alanlari yeniden cizilir;
+    /// siralama, secim ve kaydirma konumu ETKILENMEZ.
+    /// </summary>
+    public string? DesenCode
+    {
+        get => _desenCode;
+        set
+        {
+            if (_desenCode == value)
+            {
+                return;
+            }
+
+            _desenCode = value;
+            OnPropertyChanged(nameof(DesenCode));
+            OnPropertyChanged(nameof(DesenCodeDisplay));
+            OnPropertyChanged(nameof(HasDesenCode));
+            OnPropertyChanged(nameof(DesenCodeToolTip));
+        }
+    }
+
+    /// <summary>
+    /// Kartta ve "Secilen Sonuc" alaninda gosterilen metin: kod varsa
+    /// "(00123)", yoksa "(—)". Yer tutucu YALNIZCA gorunumdur - metadata'ya
+    /// asla yazilmaz (bkz. <see cref="DesenCodeDisplay"/>).
+    /// </summary>
+    public string DesenCodeDisplay => Lens.Core.DesenCodes.DesenCodeDisplay.Format(_desenCode);
+
+    /// <summary>Gercek bir kod var mi - "(—)" yer tutucusu bunu true YAPMAZ.</summary>
+    public bool HasDesenCode => Lens.Core.DesenCodes.DesenCodeDisplay.HasCode(_desenCode);
+
+    /// <summary>Kod ogesinin araci ipucu: kod yoksa nedenini ("Desen kodu henüz alınamadı") soyler.</summary>
+    public string DesenCodeToolTip => Lens.Core.DesenCodes.DesenCodeDisplay.ToolTip(FileName, _desenCode);
+
+    /// <summary>
+    /// Dar kartta gosterilen kisa ad - goreli yolun yalnizca son parcasi.
+    /// Tam yol <see cref="FileNameToolTip"/> icinde kalir; boylece uzun bir
+    /// alt klasor yolu kod sutununu ekrandan itemez.
+    /// </summary>
+    public string FileNameDisplay => Lens.Core.DesenCodes.DesenCodeDisplay.ShortenFileName(FileName);
+
+    /// <summary>Kisaltilmis ad gosterildiginde tam goreli yolun gorulebilecegi araci ipucu.</summary>
+    public string FileNameToolTip => FileName;
 
     /// <summary>[Faz 4D polish] Buyuk onizleme icin diskten tam cozunurlukte yeniden okunacak dosya yolu.</summary>
     public string FullPath { get; set; } = string.Empty;
@@ -3043,6 +3415,10 @@ public sealed class SearchResultViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>[Desen kodu] Tek satirlik bildirim yardimcisi - IsSelected'in mevcut kalibiyla ayni olay uzerinden calisir.</summary>
+    private void OnPropertyChanged(string propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
 /// <summary>

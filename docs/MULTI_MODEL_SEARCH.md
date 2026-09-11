@@ -297,8 +297,13 @@ işlevsizdir ve tamamlanmış bir üretim dağıtımı değildir.
   denenmedi**.
 - Canlı arayüz açılmadı; panel yerleşimi, DPI ve minimum pencere davranışı
   kullanıcı kontrolünü bekliyor.
-- Desen kodu özelliği bu dala **birleştirilmedi** (§17); sonuç kartı yerleşimi
-  ileride kod eklenmesini engellemeyecek şekilde bırakıldı.
+- Desen kodu özelliği bu dalda **yoktu** (§17); sonuç kartı yerleşimi ileride
+  kod eklenmesini engellemeyecek şekilde bırakılmıştı. **Güncelleme:** özellik
+  daha sonra bu sürümün üzerine, `feature/desen-code-placeholder` dalında
+  taşındı — kod eşlemesi alt klasör taramasıyla tutarlı olsun diye **göreli
+  yol** anahtarını kullanır ve kodu alınamayan ürünlerde `(—)` yer tutucusu
+  gösterilir. Arama, model/renk seçimi ve indeksleme davranışı bundan
+  **etkilenmez**. Ayrıntı: `docs/DESEN_CODE_SERVICE.md`.
 
 ## İlgili Dokümanlar
 

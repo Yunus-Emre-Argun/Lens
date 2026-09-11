@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lens.Core.Ai;
 using Lens.Core.Config;
+using Lens.Core.DesenCodes;
 using Lens.Core.Indexing;
 using Lens.Core.Search;
 using SixLabors.ImageSharp;
@@ -1423,6 +1424,363 @@ static void RunHardeningTest()
         }
     }
 
+    // ---- Grup P: Desen kodu servisi + cevrimdisi metadata + "(—)" yer tutucusu ----
+    // Tamami SAHTE servisle calisir - gercek servis dogrulamasi AYRIDIR ve
+    // YAPILMAMISTIR (bkz. docs/DESEN_CODE_SERVICE.md "Doğrulama").
+    Console.WriteLine("\n[Grup P] Desen kodu servisi, cevrimdisi metadata ve eksik kod gosterimi");
+    {
+        var options = new DesenCodeServiceOptions
+        {
+            Endpoint = "http://ornek.local/ozx.asmx",
+            MethodName = "GetDesenKodu",
+            ParameterName = "DosyaAdi",
+        };
+
+        // -- P1-P10: SOAP zarfi ve cevap ayristirma (ag KULLANILMAZ) --
+        using var soap = new SoapDesenCodeService(options, new System.Net.Http.HttpClient());
+
+        string Envelope(string value) => soap.BuildEnvelope(value);
+        DesenCodeLookupResult Parse(string body) => soap.ParseResponse(body, "a.jpg");
+        string Ok(string code) =>
+            $"<?xml version=\"1.0\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">"
+            + $"<soap:Body><GetDesenKoduResponse xmlns=\"http://tempuri.org/\">"
+            + $"<GetDesenKoduResult>{code}</GetDesenKoduResult></GetDesenKoduResponse></soap:Body></soap:Envelope>";
+
+        var sampleEnvelope = Envelope("a.jpg");
+        Check("P1 istek zarfi SOAP govdesi + metot + parametre + degeri iceriyor",
+            sampleEnvelope.Contains("<soap:Envelope") && sampleEnvelope.Contains("<soap:Body>")
+            && sampleEnvelope.Contains("GetDesenKodu") && sampleEnvelope.Contains("DosyaAdi")
+            && sampleEnvelope.Contains("a.jpg") && sampleEnvelope.Contains("http://tempuri.org/"));
+        Check("P2 XML ozel karakterli dosya adi KACISLANIR (elle string birlestirme yok)",
+            Envelope("a&b<c>.jpg").Contains("a&amp;b&lt;c&gt;.jpg"));
+        Check("P3 '00123' kodunda BASTAKI SIFIRLAR korunur (sayiya cevrilmez)",
+            Parse(Ok("00123")) is { Status: DesenCodeLookupStatus.Found, Code: "00123" });
+        Check("P4 cevaptaki bas/son bosluklar temizlenir, ic deger korunur",
+            Parse(Ok("  00123  ")).Code == "00123");
+        Check("P5 BOS cevap gercek kod DEGIL, 'bulunamadi' sayilir",
+            Parse(Ok(string.Empty)).Status == DesenCodeLookupStatus.NotFound);
+        Check("P6 XML'in TAMAMI kod olarak dondurulmez - yalnizca sonuc alani",
+            Parse(Ok("00123")).Code!.Length == 5);
+        Check("P7 beklenen sonuc alani yoksa InvalidResponse (sessiz kabul YOK)",
+            Parse("<?xml version=\"1.0\"?><root><baska>00123</baska></root>").Status == DesenCodeLookupStatus.InvalidResponse);
+        Check("P8 XML olmayan cevap InvalidResponse",
+            Parse("<html>500</html>").Status is DesenCodeLookupStatus.InvalidResponse);
+        Check("P9 SOAP fault ServiceUnavailable sayilir ('bulunamadi' DEGIL)",
+            Parse("<?xml version=\"1.0\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">"
+                + "<soap:Body><soap:Fault><faultstring>Method not found</faultstring></soap:Fault></soap:Body></soap:Envelope>")
+                .Status == DesenCodeLookupStatus.ServiceUnavailable);
+        Check("P10 yapilandirilmamis secenekler istemci olusturmayi ENGELLER",
+            Throws<InvalidOperationException>(() => new SoapDesenCodeService(new DesenCodeServiceOptions())));
+
+        // -- P11-P16: kayit guncelleme kurallari (servis hatasinda koruma) --
+        var now = DateTimeOffset.UtcNow;
+        var old = new DesenCodeEntry
+        {
+            RelativePath = "a.jpg", QueriedFileName = "a.jpg", Code = "00111",
+            State = DesenCodeEntryState.Found, UpdatedUtc = now.AddDays(-3),
+        };
+
+        Check("P11 gecerli yeni cevap kodu GUNCELLER",
+            DesenCodeRefresh.Apply("a.jpg", old, DesenCodeLookupResult.Found("00222", "a.jpg"), now)!.Code == "00222");
+        Check("P12 SERVIS HATASINDA eski kod ve eski tarih AYNEN korunur",
+            DesenCodeRefresh.Apply("a.jpg", old, DesenCodeLookupResult.Unavailable("ag"), now) is { Code: "00111" } kept
+            && kept.UpdatedUtc == old.UpdatedUtc);
+        Check("P13 GECERSIZ CEVAPTA da eski kayit korunur",
+            DesenCodeRefresh.Apply("a.jpg", old, DesenCodeLookupResult.Invalid("bozuk"), now)!.Code == "00111");
+        Check("P14 baglanti hatasi, kaydi OLMAYAN dosya icin 'bulunamadi' OLARAK KALICILASTIRILMAZ",
+            DesenCodeRefresh.Apply("yeni.jpg", null, DesenCodeLookupResult.Unavailable("ag"), now) is null);
+        Check("P15 servis 'kod yok' derse NotFound kaydedilir (kod null)",
+            DesenCodeRefresh.Apply("a.jpg", old, DesenCodeLookupResult.NotFound("a.jpg"), now)
+                is { State: DesenCodeEntryState.NotFound, Code: null });
+        Check("P16 eslesen sorgu bicimi kayda yazilir (uzantili/uzantisiz)",
+            DesenCodeRefresh.Apply("a.jpg", null, DesenCodeLookupResult.Found("00123", "a"), now)!.QueriedFileName == "a");
+
+        // -- P17+: metadata deposu (dosya sistemi) --
+        string codeDir = Path.Combine(Path.GetTempPath(), "lens_desen_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(codeDir);
+        try
+        {
+            var store = new DesenCodeStore();
+            var metaPath = DesenCodeStore.MetadataFilePath(codeDir);
+
+            Check("P17 metadata yolu .lens/metadata/desen-codes-v1.json",
+                metaPath == Path.Combine(codeDir, ".lens", "metadata", "desen-codes-v1.json"), metaPath);
+            Check("P18 yolu OGRENMEK klasor OLUSTURMAZ", !Directory.Exists(Path.Combine(codeDir, ".lens")));
+            Check("P19 kilit dosyasi embedding kilidinden AYRI",
+                DesenCodeStore.LockFilePath(codeDir) != AppPaths.SharedIndexLockFilePath(codeDir));
+            Check("P20 dosya yokken Missing donulur, exception YOK",
+                store.Load(codeDir).Outcome == DesenCodeLoadOutcome.Missing);
+
+            var meta = new DesenCodeMetadata
+            {
+                SourceService = "test",
+                Entries =
+                {
+                    new DesenCodeEntry { RelativePath = "a.jpg", QueriedFileName = "a.jpg", Code = "00123", State = DesenCodeEntryState.Found, UpdatedUtc = now },
+                    new DesenCodeEntry { RelativePath = "alt/b.jpg", QueriedFileName = "b.jpg", Code = "00456", State = DesenCodeEntryState.Found, UpdatedUtc = now },
+                    new DesenCodeEntry { RelativePath = "c.jpg", QueriedFileName = "c.jpg", Code = null, State = DesenCodeEntryState.NotFound, UpdatedUtc = now },
+                },
+            };
+            store.Save(codeDir, meta);
+
+            var loaded = store.Load(codeDir);
+            Check("P21 kaydedilen metadata geri okunur", loaded.Outcome == DesenCodeLoadOutcome.Loaded);
+            Check("P22 bastaki sifirlar diskte de korunur",
+                loaded.Metadata.Entries.First(e => e.RelativePath == "a.jpg").Code == "00123");
+            Check("P23 alt klasor yolu goreli olarak saklanir (ayni adli dosyalar ayrilabilir)",
+                loaded.Metadata.Entries.Any(e => e.RelativePath == "alt/b.jpg"));
+            Check("P24 'bulunamadi' kaydi kod olmadan saklanir",
+                loaded.Metadata.Entries.First(e => e.RelativePath == "c.jpg").State == DesenCodeEntryState.NotFound);
+            Check("P25 atomik kayit sonrasi klasorde gecici dosya kalmaz",
+                Directory.EnumerateFiles(DesenCodeStore.MetadataDirectory(codeDir))
+                    .All(f => Path.GetFileName(f) is "desen-codes-v1.json" or "desen-codes.lock"),
+                string.Join(", ", Directory.EnumerateFiles(DesenCodeStore.MetadataDirectory(codeDir)).Select(Path.GetFileName)));
+
+            File.WriteAllText(metaPath, "{ bozuk json");
+            Check("P26 bozuk JSON -> Invalid + BOS metadata, exception YOK",
+                store.Load(codeDir) is { Outcome: DesenCodeLoadOutcome.Invalid, Metadata.Entries.Count: 0 });
+
+            File.WriteAllText(metaPath, "{\"SchemaVersion\":99,\"Entries\":[]}");
+            Check("P27 bilinmeyen sema surumu KULLANILMAZ",
+                store.Load(codeDir).Outcome == DesenCodeLoadOutcome.Invalid);
+
+            store.Save(codeDir, meta);
+            using (var reader = new FileStream(metaPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                Check("P28 yazar kilidi tutarken okuyucu dosyayi acabilir (yarim JSON gormez)",
+                    store.Load(codeDir).Outcome == DesenCodeLoadOutcome.Loaded);
+            }
+
+            using (var first = store.TryAcquireLock(codeDir, out var lockFailure))
+            {
+                Check("P29 kod kilidi alinabildi", first is not null && lockFailure is null);
+                using var second = store.TryAcquireLock(codeDir, out _);
+                Check("P30 ayni kilit ikinci kez ALINAMAZ (tek yazar)", second is null);
+                using var indexLock = IndexLock.TryAcquire(codeDir, out var indexFailure);
+                Check("P31 kod kilidi tutulurken EMBEDDING kilidi de alinabilir (birbirini bloklamaz)",
+                    indexLock is not null && indexFailure is null);
+            }
+
+            // -- P32+: toplu guncelleme davranisi (sahte servis) --
+            File.WriteAllBytes(Path.Combine(codeDir, "x.jpg"), new byte[] { 1 });
+            File.WriteAllBytes(Path.Combine(codeDir, "y.jpg"), new byte[] { 2 });
+
+            var indexBefore = ImageIndex.IndexPath(codeDir);
+            ImageIndex.Save(codeDir, new List<ImageIndexEntry>
+            {
+                new() { RelativePath = "x.jpg", Embedding = UnitVector(512) },
+            });
+            var indexBytes = File.ReadAllBytes(indexBefore);
+
+            store.Save(codeDir, new DesenCodeMetadata());
+            var okService = new FakeDesenCodeService(name => name == "x.jpg"
+                ? DesenCodeLookupResult.Found("00999", name)
+                : DesenCodeLookupResult.NotFound(name));
+
+            var run = DesenCodeRefresh.RunAsync(codeDir, new[] { "x.jpg", "y.jpg" }, okService, store).GetAwaiter().GetResult();
+            Check("P32 toplu guncelleme tamamlandi", run.Outcome == DesenCodeRefreshOutcome.Completed);
+            Check("P33 bulunan kod kaydedildi, bulunamayan ayri sayildi",
+                run.Updated == 1 && run.NotFound == 1);
+            Check("P34 kod guncellemesi EMBEDDING index'ini DEGISTIRMEDI (bayt bayt ayni)",
+                File.ReadAllBytes(indexBefore).SequenceEqual(indexBytes));
+
+            var duplicateService = new FakeDesenCodeService(_ => DesenCodeLookupResult.Found("00777", "x.jpg"));
+            var dupRun = DesenCodeRefresh.RunAsync(codeDir, new[] { "x.jpg", "alt/x.jpg" }, duplicateService, store).GetAwaiter().GetResult();
+            Check("P35 ayni dosya adi TEK sorgu ile karsilanir (tekillestirme)",
+                dupRun.UniqueQueries == 1 && duplicateService.CallCount == 1, $"sorgu={dupRun.UniqueQueries} cagri={duplicateService.CallCount}");
+
+            var failing = new FakeDesenCodeService(_ => DesenCodeLookupResult.Unavailable("ag yok"));
+            var beforeFail = store.Load(codeDir).Metadata.Entries.Where(e => e.State == DesenCodeEntryState.Found).ToList();
+            var failRun = DesenCodeRefresh.RunAsync(codeDir, new[] { "x.jpg", "alt/x.jpg" }, failing, store).GetAwaiter().GetResult();
+            var afterFail = store.Load(codeDir).Metadata.Entries.Where(e => e.State == DesenCodeEntryState.Found).ToList();
+            Check("P36 servis tamamen erisilemezken MEVCUT KODLAR SILINMEZ",
+                afterFail.Count == beforeFail.Count && afterFail.All(a => beforeFail.Any(b => b.Code == a.Code)));
+            Check("P37 basarisiz yenilemede kayitlarin ESKI tarihi korunur",
+                afterFail.All(a => beforeFail.Any(b => b.RelativePath == a.RelativePath && b.UpdatedUtc == a.UpdatedUtc)));
+            Check("P38 basarisizlik sayaci raporlanir", failRun.Failed > 0);
+
+            var alwaysDown = new FakeDesenCodeService(_ => DesenCodeLookupResult.Unavailable("ag yok"));
+            var many = Enumerable.Range(0, 50).Select(i => $"f{i}.jpg").ToArray();
+            var abortRun = DesenCodeRefresh.RunAsync(codeDir, many, alwaysDown, store).GetAwaiter().GetResult();
+            Check("P39 art arda hatada islem DURUR (binlerce zaman asimi beklenmez)",
+                abortRun.Outcome == DesenCodeRefreshOutcome.AbortedAfterFailures && alwaysDown.CallCount <= 6,
+                $"cagri={alwaysDown.CallCount}");
+
+            using var cancelled = new CancellationTokenSource();
+            var cancelService = new FakeDesenCodeService(name =>
+            {
+                cancelled.Cancel();
+                return DesenCodeLookupResult.Found("00555", name);
+            });
+            var beforeCancel = store.Load(codeDir).Metadata.Entries.Count;
+            var cancelRun = DesenCodeRefresh.RunAsync(
+                codeDir, new[] { "x.jpg", "y.jpg" }, cancelService, store, null, cancelled.Token).GetAwaiter().GetResult();
+            Check("P40 iptalde mevcut kayitlar KORUNUR ve sonuc 'Cancelled' bildirilir",
+                cancelRun.Outcome == DesenCodeRefreshOutcome.Cancelled
+                && store.Load(codeDir).Metadata.Entries.Count >= 1, $"kayit={store.Load(codeDir).Metadata.Entries.Count}/{beforeCancel}");
+
+            // Artik katalogda olmayan dosyanin kaydi DUSMELI - kod baska
+            // dosyaya TASINMAMALI.
+            var pruneService = new FakeDesenCodeService(name => DesenCodeLookupResult.Found("00888", name));
+            DesenCodeRefresh.RunAsync(codeDir, new[] { "x.jpg" }, pruneService, store).GetAwaiter().GetResult();
+            var pruned = store.Load(codeDir).Metadata;
+            Check("P41 katalogda olmayan dosyanin kaydi temizlenir (kod baska dosyaya TASINMAZ)",
+                pruned.Entries.All(e => e.RelativePath == "x.jpg"),
+                string.Join(", ", pruned.Entries.Select(e => e.RelativePath)));
+
+            Check("P42 VPN OLMADAN kodlar metadata'dan okunabiliyor (servis nesnesi hic kullanilmadan)",
+                store.Load(codeDir).Metadata.Entries.Any(e => e.State == DesenCodeEntryState.Found && e.Code == "00888"));
+        }
+        finally
+        {
+            try { Directory.Delete(codeDir, recursive: true); } catch { /* best-effort */ }
+        }
+
+        // -- P43: yazma izni olmayan katalog --
+        var readOnlyDir = Path.Combine(Path.GetTempPath(), "lens_desen_ro_" + Guid.NewGuid().ToString("N"));
+        Check("P43 var olmayan/erisilemeyen katalogda kaydetme SESSIZCE basarili sayilmaz",
+            Throws<DirectoryNotFoundException>(() => new DesenCodeStore().Save(
+                Path.Combine(readOnlyDir, "olmayan", "\0gecersiz"), new DesenCodeMetadata()))
+            || Throws<ArgumentException>(() => new DesenCodeStore().Save(
+                Path.Combine(readOnlyDir, "olmayan", "\0gecersiz"), new DesenCodeMetadata()))
+            || Throws<IOException>(() => new DesenCodeStore().Save(
+                Path.Combine(readOnlyDir, "olmayan", "\0gecersiz"), new DesenCodeMetadata())));
+
+        // =================================================================
+        // P44+ : "(—)" YER TUTUCUSU ve alt klasor anahtari
+        // Bu bolum bu gorevle eklendi (kod alinamayan urunde kisa gosterim).
+        // =================================================================
+
+        Check("P44 gercek kod parantez icinde gosterilir",
+            DesenCodeDisplay.Format("00123") == "(00123)", DesenCodeDisplay.Format("00123"));
+        Check("P45 kod yoksa AYNI yerde '(—)' gosterilir (bos string DEGIL)",
+            DesenCodeDisplay.Format(null) == "(—)" && DesenCodeDisplay.Format(string.Empty) == "(—)"
+            && DesenCodeDisplay.Format("   ") == "(—)");
+        Check("P46 yer tutucu rakam DEGILDIR - '00000' veya '0' ile karistirilamaz",
+            DesenCodeDisplay.MissingCode != "00000" && DesenCodeDisplay.MissingCode != "0"
+            && !DesenCodeDisplay.MissingCode.Any(char.IsDigit));
+        Check("P47 gosterim bicimi bastaki sifirlari KIRPMAZ",
+            DesenCodeDisplay.Format("00007") == "(00007)");
+        Check("P48 yer tutucu HasCode'u true YAPMAZ",
+            !DesenCodeDisplay.HasCode(null) && !DesenCodeDisplay.HasCode(" ") && DesenCodeDisplay.HasCode("00123"));
+        Check("P49 kod yokken araci ipucu nedeni acikca soyler",
+            DesenCodeDisplay.ToolTip("desen.jpg", null).Contains("Desen kodu henüz alınamadı"),
+            DesenCodeDisplay.ToolTip("desen.jpg", null));
+        Check("P50 kod varken araci ipucu tam yolu ve kodu icerir",
+            DesenCodeDisplay.ToolTip("alt/desen.jpg", "00123") is var tip
+            && tip.Contains("alt/desen.jpg") && tip.Contains("00123"));
+        Check("P51 dar kartta gosterilen ad goreli yolun SON parcasidir",
+            DesenCodeDisplay.ShortenFileName("alt/klasor/desen.jpg") == "desen.jpg"
+            && DesenCodeDisplay.ShortenFileName("alt\\klasor\\desen.jpg") == "desen.jpg");
+        Check("P52 kokteki dosyanin adi AYNEN kalir (kisaltma bozmaz)",
+            DesenCodeDisplay.ShortenFileName("desen.jpg") == "desen.jpg"
+            && DesenCodeDisplay.ShortenFileName(string.Empty) == string.Empty);
+
+        // -- P53+: goreli yol anahtari ve yer tutucunun diske YAZILMAMASI --
+        string subDir = Path.Combine(Path.GetTempPath(), "lens_desen_sub_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(subDir, "a"));
+        Directory.CreateDirectory(Path.Combine(subDir, "b"));
+        try
+        {
+            var store = new DesenCodeStore();
+            File.WriteAllBytes(Path.Combine(subDir, "a", "desen.jpg"), new byte[] { 1 });
+            File.WriteAllBytes(Path.Combine(subDir, "b", "desen.jpg"), new byte[] { 2 });
+
+            // Servis YALNIZCA dosya adi kabul ettigi icin iki yol ayni cevabi
+            // alir - bu KNOWN bir belirsizliktir ve cozulmus gibi sunulmaz
+            // (bkz. docs/DESEN_CODE_SERVICE.md "Bilinen sınırlama").
+            var service = new FakeDesenCodeService(name => DesenCodeLookupResult.Found("00123", name));
+            var paths = new[] { "a/desen.jpg", "b/desen.jpg" };
+            var subRun = DesenCodeRefresh.RunAsync(subDir, paths, service, store).GetAwaiter().GetResult();
+            var subMeta = store.Load(subDir).Metadata;
+
+            Check("P53 alt klasorlerdeki ayni adli iki dosya AYRI kayit olur (birbirini EZMEZ)",
+                subMeta.Entries.Count == 2
+                && subMeta.Entries.Any(e => e.RelativePath == "a/desen.jpg")
+                && subMeta.Entries.Any(e => e.RelativePath == "b/desen.jpg"),
+                string.Join(", ", subMeta.Entries.Select(e => e.RelativePath)));
+            Check("P54 servis kisiti geregi tek sorgu yapilir ama kayit anahtari yine GORELI YOL",
+                subRun.UniqueQueries == 1 && service.CallCount == 1);
+
+            // Arayuzun kullandigi esleme: goreli yol -> kod.
+            var byPath = subMeta.Entries
+                .Where(e => e.State == DesenCodeEntryState.Found && !string.IsNullOrWhiteSpace(e.Code))
+                .ToDictionary(e => e.RelativePath, e => e.Code!, StringComparer.OrdinalIgnoreCase);
+            Check("P55 'c/desen.jpg' (kaydi olmayan yol) kod DONDURMEZ - komsu klasorun kodunu almaz",
+                !byPath.ContainsKey("c/desen.jpg"));
+
+            var json = File.ReadAllText(DesenCodeStore.MetadataFilePath(subDir));
+            Check("P56 YER TUTUCU METADATA'YA YAZILMAZ ('—' ve sahte '00000' kaydi yok)",
+                !json.Contains(DesenCodeDisplay.MissingCode) && !json.Contains("00000"), json.Length.ToString());
+
+            // Servis tamamen dusuyor: ekranda "(—)" cikmali AMA diskteki kod
+            // KORUNMALI; sonra servis duzeldiginde kod geri gelmeli.
+            var down = new FakeDesenCodeService(_ => DesenCodeLookupResult.Unavailable("SOAPAction tanınmadı (HTTP 500)"));
+            var downRun = DesenCodeRefresh.RunAsync(subDir, paths, down, store, null, default, null, 1).GetAwaiter().GetResult();
+            Check("P57 tum urunleri etkileyen hatada islem ILK hatadan sonra durur (esik yapilandirmadan gelir)",
+                downRun.Outcome == DesenCodeRefreshOutcome.AbortedAfterFailures && down.CallCount == 1,
+                $"cagri={down.CallCount}");
+            Check("P58 erken duruste TEK bir anlasilir durum ayrintisi raporlanir",
+                downRun.FailureDetail is not null && downRun.FailureDetail.Contains("SOAPAction"),
+                downRun.FailureDetail ?? "(yok)");
+            Check("P59 servis hatasi ONCEDEN ALINMIS gecerli kodu SILMEZ",
+                store.Load(subDir).Metadata.Entries.Count(e => e.Code == "00123") == 2);
+
+            // Kaydi hic olmayan bir dosya: ekranda "(—)" gorunur ama diskte
+            // hicbir sey olusmaz.
+            var newFileRun = DesenCodeRefresh.RunAsync(
+                subDir, new[] { "a/desen.jpg", "b/desen.jpg", "yeni.jpg" },
+                new FakeDesenCodeService(name => name == "yeni.jpg"
+                    ? DesenCodeLookupResult.Unavailable("zaman asimi")
+                    : DesenCodeLookupResult.Found("00123", name)),
+                store).GetAwaiter().GetResult();
+            var afterNew = store.Load(subDir).Metadata;
+            Check("P60 kodu alinamayan dosya icin METADATA'DA KAYIT OLUSMAZ (ekranda yalnizca '(—)')",
+                newFileRun.Outcome == DesenCodeRefreshOutcome.Completed
+                && afterNew.Entries.All(e => e.RelativePath != "yeni.jpg"),
+                string.Join(", ", afterNew.Entries.Select(e => e.RelativePath)));
+            Check("P61 ekran esleme kurali: kaydi olmayan dosya '(—)' gosterir",
+                DesenCodeDisplay.Format(
+                    afterNew.Entries.FirstOrDefault(e => e.RelativePath == "yeni.jpg")?.Code) == "(—)");
+
+            // Servis sonradan hazir oldugunda AYNI islem gercek kodu alir.
+            var recovered = DesenCodeRefresh.RunAsync(
+                subDir, new[] { "a/desen.jpg", "b/desen.jpg", "yeni.jpg" },
+                new FakeDesenCodeService(name => name == "yeni.jpg"
+                    ? DesenCodeLookupResult.Found("00456", name)
+                    : DesenCodeLookupResult.Found("00123", name)),
+                store).GetAwaiter().GetResult();
+            var recoveredCode = store.Load(subDir).Metadata.Entries
+                .FirstOrDefault(e => e.RelativePath == "yeni.jpg")?.Code;
+            Check("P62 servis hazir oldugunda AYNI islem gercek kodu alir ve '(—)' yerini kod alir",
+                recovered.Outcome == DesenCodeRefreshOutcome.Completed
+                && recoveredCode == "00456" && DesenCodeDisplay.Format(recoveredCode) == "(00456)",
+                recoveredCode ?? "(yok)");
+
+            // Servis "kod yok" dedi: bu GERCEK bir cevaptir, kayit olusur ama
+            // kod null kalir - ekranda yine "(—)" gorunur, sahte kod YAZILMAZ.
+            DesenCodeRefresh.RunAsync(subDir, new[] { "yeni.jpg" },
+                new FakeDesenCodeService(name => DesenCodeLookupResult.NotFound(name)), store).GetAwaiter().GetResult();
+            var notFoundEntry = store.Load(subDir).Metadata.Entries.FirstOrDefault(e => e.RelativePath == "yeni.jpg");
+            Check("P63 'kod yok' cevabinda kayit kod OLMADAN tutulur, ekranda '(—)' gorunur",
+                notFoundEntry is { State: DesenCodeEntryState.NotFound, Code: null }
+                && DesenCodeDisplay.Format(notFoundEntry.Code) == "(—)");
+        }
+        finally
+        {
+            try { Directory.Delete(subDir, recursive: true); } catch { /* best-effort */ }
+        }
+
+        // -- P64-P66: servis yapilandirilmamisken uygulama akisi --
+        var unconfigured = new DesenCodeServiceOptions();
+        Check("P64 yapilandirilmamis servis ACIKCA bildirilir (IsConfigured=false)",
+            !unconfigured.IsConfigured && unconfigured.DescribeMissingConfiguration().Contains("appsettings.json"));
+        Check("P65 eksik yapilandirmada HICBIR servis nesnesi olusturulamaz - tekrarlayan basarisiz istek olmaz",
+            Throws<InvalidOperationException>(() => new SoapDesenCodeService(unconfigured)));
+        Check("P66 kismi yapilandirma (yalnizca Endpoint) da yapilandirilmis SAYILMAZ",
+            !new DesenCodeServiceOptions { Endpoint = "http://x/y.asmx" }.IsConfigured);
+    }
+
     // ---- Grup Q: Cok modelli arama - profil, gri mod, merkezleme, alt klasor ----
     // EN ONEMLI KONTROL: DINO RENKLI davranisinin BIT DUZEYINDE korunmasi.
     Console.WriteLine("\n[Grup Q] Cok modelli arama: profil ayrimi, gri mod, merkezleme, alt klasor");
@@ -2032,6 +2390,26 @@ sealed class FakeEmbedder : IImageEmbedder
 
     public void Dispose()
     {
+    }
+}
+
+/// <summary>
+/// [Grup P] Ag KULLANMAYAN sahte desen kodu servisi. Gercek servis
+/// dogrulamasinin YERINE GECMEZ - yalnizca cagiran katmanin kurallarini
+/// (koruma, tekillestirme, iptal, erken durus, goreli yol anahtari) test eder.
+/// </summary>
+sealed class FakeDesenCodeService : IDesenCodeService
+{
+    private readonly Func<string, DesenCodeLookupResult> _responder;
+
+    public FakeDesenCodeService(Func<string, DesenCodeLookupResult> responder) => _responder = responder;
+
+    public int CallCount { get; private set; }
+
+    public Task<DesenCodeLookupResult> LookupAsync(string fileName, CancellationToken cancellationToken)
+    {
+        CallCount++;
+        return Task.FromResult(_responder(fileName));
     }
 }
 

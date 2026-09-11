@@ -50,6 +50,15 @@ dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 --self
 > DEĞİŞTİRİLMEMİŞTİR (478'er dosya bayt bayt aynı). Ayrıntı:
 > `docs/MULTI_MODEL_SEARCH.md`.
 
+> **[Desen kodu metadata'sı — katalogla birlikte taşınır]** Desen kodları
+> görsellerin yanındaki `<ÜrünDizini>\.lens\metadata\desen-codes-v1.json`
+> dosyasında tutulur. **Yerel katalog kopyası alınırken bu klasörün de
+> kopyalanması gerekir**; aksi halde o kopyada tüm ürünler `(—)` görünür
+> (arama normal çalışır). Paylaşılan katalogda VPN erişimi olan bir bilgisayar
+> kodları bir kez günceller, tüm kullanıcılar aynı dosyadan çevrimdışı okur —
+> **VPN'siz kullanıcılar da kodları görür**. Dosya git'e ve kurulum paketine
+> gerçek verilerle **dahil edilmez**. Ayrıntı: `docs/DESEN_CODE_SERVICE.md`.
+
 - **Hedef mimari: x64.** `win-x86`/`win-arm64` için ayrıca test edilmemiştir.
 - Self-contained olduğu için hedef makinede .NET runtime kurulu olması
   gerekmez; WPF runtime ve ONNX Runtime native binary'leri publish çıktısına
