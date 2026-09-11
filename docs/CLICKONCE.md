@@ -639,6 +639,70 @@ açısından risk yoktur** — desen kodu metadata'sı
 (`.lens\metadata\desen-codes-v1.json`) embedding indekslerinden ayrıdır,
 yeniden indeksleme gerekmez.
 
+## 12d. Kompakt arama yerleşimi paketi — `feature/compact-search-layout`
+
+> Yalnızca `feature/compact-search-layout` dalını anlatır. Önceki ClickOnce
+> profilleri ve çıktıları **değiştirilmemiştir**.
+
+| | Çok modelli + desen kodu | Kompakt yerleşim (yeni) |
+|---|---|---|
+| Profil | `ClickOnceMultiModelDesenCode.pubxml` | `ClickOnceCompactLayout.pubxml` |
+| Çıktı klasörü | `publish/ClickOnce-multi-model-desen-code/` | `publish/ClickOnce-compact-search-layout/` |
+| `AssemblyName` | `Lens.Desktop.MultiModel` | `Lens.Desktop.MultiModel` (**aynı**) |
+| Manifest kimliği | `Lens.Desktop.MultiModel.application` | `Lens.Desktop.MultiModel.application` (**aynı**) |
+| Görünen ad | `Lens (Çok Modelli Pilot)` | `Lens (Çok Modelli Pilot)` (**aynı**) |
+| ClickOnce sürümü | `1.0.0.1` | **`1.0.0.2`** (`ApplicationRevision` 2) |
+| İçerik | DINOv2 + CLIP + desen kodu | aynı + kompakt arama yerleşimi |
+
+**Hangi kurulumun güncellemesi?** Kurulu **"Lens (Çok Modelli Pilot)"**
+kurulumunun — onun üzerine kurulur. Yan yana kurulum yoktur; bu bir yerleşim
+düzenlemesidir, ayrı bir ürün değil. `Lens` ve `Lens (DINOv2 Pilot)`
+kurulumları **etkilenmez**.
+
+**Sürüm zinciri:** `1.0.0.0` (çok modelli) → `1.0.0.1` (desen kodu) →
+`1.0.0.2` (kompakt yerleşim). Sonraki pakette revizyon **artırılmaya devam
+etmelidir**; aynı kimlik + aynı sürüm ClickOnce tarafından "zaten kurulu"
+sayılır ve kurulum çalışmaz.
+
+> ⚠ `ApplicationRevision` **yalnızca** `ApplicationVersion` `.*` ile bittiğinde
+> uygulanır (bkz. §12c'deki tuzak). Profil bu yüzden
+> `$(FileVersion)`'ın ilk üç parçasını alıp sonuna `.*` ekler. **Her
+> publish'ten sonra `*.application` içindeki `assemblyIdentity` `version`
+> değeri elle kontrol edilmelidir.**
+
+### Üretme komutu
+
+```
+"%ProgramFiles%\Microsoft Visual Studio\<sürüm>\<edition>\MSBuild\Current\Bin\MSBuild.exe" ^
+  src\Lens.Desktop\Lens.Desktop.csproj /t:Restore,Publish ^
+  /p:PublishProfile=ClickOnceCompactLayout /p:Configuration=Release /p:DebugType=none
+```
+
+### Bu paketin doğrulanmış içeriği (2026-09-11)
+
+| | Değer |
+|---|---|
+| Manifest kimliği | `Lens.Desktop.MultiModel.application` |
+| Manifest sürümü | **`1.0.0.2`** (manifestten okundu) |
+| Görünen ad | `Lens (Çok Modelli Pilot)` |
+| `Application Files` klasörü | `Lens.Desktop.MultiModel_1_0_0_2` |
+| Dosya sayısı / boyut | 479 dosya / ~834 MB |
+| Masaüstü kısayolu | `createDesktopShortcut="true"` ✅ |
+| Modeller | `dinov2-base.onnx.deploy`, `clip-vision-b16-openai.onnx.deploy` ✅ |
+| Desen kodu ayarları | `appsettings.json.deploy` içinde `Endpoint`/`MethodName`/`ParameterName` **dolu** ✅ |
+| `.pdb` | **yok** ✅ |
+
+**Paket kurulmadı ve çalıştırılmadı** — kurulum penceresi ve canlı arayüz
+kullanıcının izni olmadan açılmadı.
+
+### Geri dönme
+
+Kompakt yerleşim öncesine dönmek için
+`publish\ClickOnce-multi-model-desen-code\setup.exe` yeniden çalıştırılır.
+**Not:** ClickOnce daha düşük sürüme (`1.0.0.1`) kendiliğinden dönmez; önce
+Denetim Masası'ndan kaldırmak gerekebilir. İndeks açısından risk yoktur —
+yerleşim değişikliği indeksleri ve desen kodu metadata'sını etkilemez.
+
 ## 13. Açık Kararlar (özet)
 
 Bkz. `docs/DECISIONS.md` "Not Yet Decided": yayıncı/şirket adı, gerçek

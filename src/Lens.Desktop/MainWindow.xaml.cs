@@ -300,19 +300,65 @@ public partial class MainWindow : Window
             return;
         }
 
+        // ───────────────────────────────────────────────────────────────────
+        // [Kompakt yerlesim] Orta bolum: iki gorsel + merkez (butonlar + iki
+        // sutunlu ayar paneli). Onceki surumde panel TEK sutunlu 17 satirlik
+        // dikey bir formdu; model/goruntu/desen kontrolleri eklenince orta
+        // sutun (~417 DIP) gorsel sutunundan (en fazla ~306 DIP) UZUN hale
+        // geldi ve ana Grid'in Auto satirini asagi iterek sonuc listesini
+        // ezdi. minResultsReserve YALNIZCA gorsel yuksekligini sinirladigi
+        // icin bunu engelleyemiyordu.
+        //
+        // Bu surumde:
+        //   • panel IKI SUTUNLU (yatay) - dogal yuksekligi yariya iner,
+        //   • merkezin TOPLAM yuksekligi kod ile gorsel yuksekligine
+        //     BAGLANIR (SettingsPanelBorder.MaxHeight), yani orta satir artik
+        //     panel tarafindan SURUKLENEMEZ,
+        //   • sigmayan icerik panelin KENDI ScrollViewer'inda kayar.
+        // ───────────────────────────────────────────────────────────────────
+
         const double narrowWindowWidth = 860; // Window.MinWidth
-        const double narrowImage = 240, wideImage = 320;
-        const double narrowMiddleColumn = 280, wideMiddleColumn = 320;
-        const double narrowGap = 24, wideGapOuter = 50;
+
+        // Gorseller: dar 240 -> genis 350 (taslak hedefi 340-360, 4:3 korunur).
+        const double narrowImage = 240, wideImage = 350;
+
+        // Merkez: iki sutunlu panel eskisinden GENIS olmak zorunda.
+        // Dar 360 -> genis 600 (taslak hedefi 580-640).
+        const double narrowMiddleColumn = 360, wideMiddleColumn = 600;
+
+        // Gorsel ile merkez arasi bosluk: dar 24 -> genis 36 (hedef 32-40).
+        const double narrowGap = 24, wideGapOuter = 36;
+
         const double narrowFolderPath = 180, wideFolderPath = 530;
         const double narrowProductInfoMax = 160, wideProductInfoMax = 600;
 
         const double wideTotalContent = wideImage + wideGapOuter + wideMiddleColumn + wideGapOuter + wideImage;
         const double wideWindowWidth = wideTotalContent + 24 /*RootGrid Margin*/ + 20 /*pencere cercevesi payi*/;
 
-        var t = Math.Clamp((RootGrid.ActualWidth - narrowWindowWidth) / (wideWindowWidth - narrowWindowWidth), 0, 1);
+        // [Olcum kaynagi] RootGrid.ActualWidth/ActualHeight, WPF'te Margin'i
+        // ZATEN DISLAYAN render boyutudur. Onceki surumde yukseklik
+        // butcesinden ayrica 24 DIP "RootGrid Margin" dusuluyordu - AYNI
+        // bosluk IKI KEZ dusulmus oluyordu ve butce gercekte olandan 24 DIP
+        // dar hesaplaniyordu. Bu duzeltildi.
+        var availableWidth = RootGrid.ActualWidth;
+
+        var t = Math.Clamp((availableWidth - narrowWindowWidth) / (wideWindowWidth - narrowWindowWidth), 0, 1);
 
         static double Lerp(double a, double b, double t) => a + (b - a) * t;
+
+        // [Kompakt gorunum esigi] Genis taslak olculeri bu genisligin altinda
+        // aynen sigmaz. Kompakt gorunum, varsayilan 1060x840'i genis gorunume
+        // ZORLAMAZ - gercek genislige gore belirlenir.
+        const double compactWidthThreshold = 1180;
+        var isCompact = availableWidth < compactWidthThreshold;
+
+        // Kompaktta panel ic boslugu ve sutun aralari kontrollu kucultulur -
+        // font KUCULTULMEZ, sonuc alani EZILMEZ.
+        var panelPadding = isCompact ? 12.0 : 14.0;
+        var settingsColumnGap = isCompact ? 14.0 : 22.0;
+        SettingsPanelBorder.Padding = new Thickness(panelPadding);
+        SettingsColumnGapColumn.Width = new GridLength(settingsColumnGap);
+        SettingsColumnGapColumn2.Width = new GridLength(settingsColumnGap);
 
         var middleColumnWidth = Lerp(narrowMiddleColumn, wideMiddleColumn, t);
         var gapOuter = Lerp(narrowGap, wideGapOuter, t);
@@ -321,53 +367,45 @@ public partial class MainWindow : Window
         var productInfoMaxWidth = Lerp(narrowProductInfoMax, wideProductInfoMax, t);
         ProductInfoPanel.MaxWidth = productInfoMaxWidth;
 
-        // [Yukseklik butcesi] TopAreaGrid/FooterGrid GERCEK olculmus yukseklikler; digerleri
-        // (queryChromeHeight/resultsHeaderHeight/minResultsReserve) XAML yapisindan STATIK
-        // tahmin - canli DPI olcumu DEGIL (bkz. son rapor).
+        // [Yukseklik butcesi] TopAreaGrid/FooterGrid GERCEK olculmus
+        // yukseklikler; queryChromeHeight/resultsHeaderHeight XAML yapisindan
+        // STATIK tahmindir (canli DPI olcumu DEGIL).
         const double queryChromeHeight = 66; // gorsel basligi + dosya-adi + kalici ipucu satiri
         const double resultsHeaderHeight = 26; // "EN BENZER SONUÇLAR (N)" basligi
-        // [Cok modelli arama - guncellenmis gercek] Bu rezerv YALNIZCA gorsel
-        // yuksekligini sinirlar. Arama Ayarlari paneline model/goruntu/desen
-        // odakli kontrolleri eklendikten sonra ORTA SUTUN (panel), gorsel
-        // sutunundan DAHA UZUN olabilmektedir - XAML olculerinden hesap:
-        // panel 336 DIP, orta sutun ~417 DIP; gorsel sutunu en fazla 306 DIP.
-        // Orta satirin yuksekligi bu durumda PANEL tarafindan belirlenir ve
-        // gorseli kucultmek sonuc alanina yer KAZANDIRMAZ.
-        //
-        // Sonuc: 860x680 minimum pencerede sonuc alanina kalan yer ~184 DIP'ten
-        // ~28 DIP'e duser (varsayilan 1060x840 penceresinde ~188 DIP ile
-        // sorunsuz kalir). Bu bir tasma/cakisma DEGILDIR - sonuc listesi
-        // kaydirilabilir kalir - ama minimum pencerede dar gorunur.
-        // Cozum (panelin kaydirilmasi, MinHeight artirimi vb.) bir TASARIM
-        // karari oldugu icin bu yerlesim duzeltmesinin kapsamina alinmadi.
-        const double minResultsReserve = 120; // sonuc alani icin asgari rezerv (yalnizca gorsel yuksekligini sinirlar)
+
+        // [Rezerv - artik TUM orta satira uygulanir] Onceki surumde bu rezerv
+        // yalnizca gorsel yuksekligini sinirliyordu; panel bagimsizca
+        // uzayabildigi icin garanti vermiyordu. Artik merkez sutununun
+        // yuksekligi de gorsel yuksekligine baglandigindan, rezerv orta
+        // satirin TAMAMI icin gecerlidir.
+        const double minResultsReserve = 120;
         const double comparisonRowVerticalMargin = 32; // ComparisonRowGrid Margin (0,20,0,12)
-        const double rootMargins = 24; // RootGrid Margin=12 (ust+alt)
 
         var availableForMiddleRow = RootGrid.ActualHeight
             - TopAreaGrid.ActualHeight
             - FooterGrid.ActualHeight
-            - rootMargins
             - comparisonRowVerticalMargin
             - resultsHeaderHeight
             - minResultsReserve;
         var maxImageHeightFromSpace = availableForMiddleRow - queryChromeHeight;
         var maxImageWidthFromSpace = maxImageHeightFromSpace / 0.75;
 
-        // [Polish - taşma düzeltmesi] Eskiden alt sinir narrowImage(240) idi, yukseklik butcesi
-        // bunun altini istese bile gorsel kucultulemiyordu ("120 DIP rezerv garantisi" yanlisti).
-        // Mutlak guvenli taban artik 200 - normal responsive taban (240) yalnizca bir HEDEF.
+        // Mutlak guvenli taban 200 - normal responsive taban (240) yalnizca bir HEDEF.
         const double absoluteFloorImage = 200;
         var widthDrivenImage = Math.Clamp(Lerp(narrowImage, wideImage, t), narrowImage, wideImage);
         var imageWidth = Math.Clamp(Math.Min(widthDrivenImage, maxImageWidthFromSpace), absoluteFloorImage, wideImage);
-        var imageHeight = imageWidth * 0.75; // 4:3, tek formul (dar/genis ayri tablo yok)
+        var imageHeight = imageWidth * 0.75; // 4:3, tek formul
 
         // [Yatay tasma guvenligi] Gercek kullanilabilir genislikle karsilastir; asarsa sirayla
         // (1) dis bosluk (2) orta sutun (3) gorsel (4:3 korunarak) kucultulur.
+        // Merkez sutunun tabani, iki sutunlu panelin okunabilir kaldigi en dar
+        // olcudur - bunun altina INILMEZ, aksi halde panel yeniden dikey
+        // forma dogru sikisirdi.
+        const double absoluteFloorMiddle = 340;
         var totalMiddleWidth = (imageWidth * 2) + (gapOuter * 2) + middleColumnWidth;
-        if (totalMiddleWidth > RootGrid.ActualWidth)
+        if (totalMiddleWidth > availableWidth)
         {
-            var overflow = totalMiddleWidth - RootGrid.ActualWidth;
+            var overflow = totalMiddleWidth - availableWidth;
 
             const double gapFloor = 16;
             var gapReduction = Math.Min(overflow, Math.Max(0, (gapOuter - gapFloor) * 2));
@@ -376,7 +414,7 @@ public partial class MainWindow : Window
 
             if (overflow > 0)
             {
-                var middleReduction = Math.Min(overflow, Math.Max(0, middleColumnWidth - narrowMiddleColumn));
+                var middleReduction = Math.Min(overflow, Math.Max(0, middleColumnWidth - absoluteFloorMiddle));
                 middleColumnWidth -= middleReduction;
                 overflow -= middleReduction;
             }
@@ -409,11 +447,65 @@ public partial class MainWindow : Window
         ComparisonGapRightColumn.Width = new GridLength(gapOuter);
         SettingsButtonsGrid.Width = middleColumnWidth;
 
-        // [Ust satir hizalama] Varsayilan buton grubunun (sutun 4-5) sol baslangicini
-        // karsilastirma satirindaki SAG gorselin sol kenari civarinda tutar - bkz. XAML yorumu.
-        var comparisonTotalWidth = (imageWidth * 2) + (gapOuter * 2) + middleColumnWidth;
-        var comparisonLeftEdgeX = Math.Max(0, (RootGrid.ActualWidth - comparisonTotalWidth) / 2);
-        var rightImageStartX = comparisonLeftEdgeX + imageWidth + gapOuter + middleColumnWidth + gapOuter;
+        // ── Merkezin dikey hizalamasi ──────────────────────────────────────
+        // UST: Ara/Yeni Arama'nin ust kenari, gorsel cercevelerinin ust
+        // kenariyla hizalanmali. Gorsel sutunu bir StackPanel: once baslik
+        // ("Sorgulanan Görsel"), sonra cerceve. Dolayisiyla merkezin ust
+        // bosluguna, basligin GERCEK kapladigi yer verilir. Sabit 28 DIP
+        // tahmini font/DPI degisince kayiyordu.
+        var titleHeight = QueryImageTitleText.ActualHeight + QueryImageTitleText.Margin.Bottom;
+        if (titleHeight <= 0)
+        {
+            titleHeight = 24; // ilk olcum turu - makul varsayilan
+        }
+
+        var buttonsMargin = SettingsButtonsGrid.Margin;
+        if (Math.Abs(buttonsMargin.Top - titleHeight) > 0.5)
+        {
+            // Sadece GERCEKTEN degistiginde yaz - her turda ayni degeri
+            // atamak gereksiz bir layout turu tetikler (titreme riski).
+            SettingsButtonsGrid.Margin = new Thickness(buttonsMargin.Left, titleHeight, buttonsMargin.Right, buttonsMargin.Bottom);
+        }
+
+        // ALT: panelin alt kenari gorsel cercevelerinin alt kenariyla
+        // hizalanmali. Merkez = buton satiri + aralik + panel oldugundan,
+        // panele kalan yukseklik gorsel yuksekliginden bu ikisi dusulerek
+        // bulunur. Icerik sigmazsa panel KENDI icinde kayar - ana Auto satiri
+        // BUYUMEZ, sonuc listesi korunur.
+        const double searchButtonRowHeight = 42; // SearchButton/NewSearchButton Height
+        var buttonsToPanelGap = SettingsButtonsSpacerRow.Height.IsAbsolute ? SettingsButtonsSpacerRow.Height.Value : 11;
+
+        // Kompakt pencerede gorsel cok kuculdugunde panel okunamaz hale
+        // gelmemeli - bu yuzden bir taban var. Taban devreye girdiginde merkez
+        // gorselden bir miktar UZUN olur, ama yukseklik yine SINIRLIDIR
+        // (taban + buton satiri kadar), yani orta satir kontrolsuz buyuyemez.
+        const double panelMinHeight = 140;
+        var panelMaxHeight = Math.Max(panelMinHeight, imageHeight - searchButtonRowHeight - buttonsToPanelGap);
+        SettingsPanelBorder.MaxHeight = panelMaxHeight;
+
+        // [Ust satir hizalama - orta bolumden AYRILDI]
+        // Varsayilan buton grubunun sol baslangici, tarihsel olarak
+        // karsilastirma satirindaki SAG gorselin sol kenarina hizalaniyordu.
+        // Kompakt yerlesimde merkez sutunu 320 -> 600 DIP'e genisledigi icin o
+        // hesap, "Bu Klasörü Varsayılan Yap" grubunu ~280 DIP saga suruklerdi -
+        // ust satirin gorunumu ISTEMEDEN degisirdi.
+        //
+        // Bu yuzden capa artik ORTA BOLUMUN GERCEK olculerinden DEGIL, ust
+        // satira ozel, KENDI icinde tutarli bir geometriden hesaplanir: eski
+        // yerlesimin gorsel/bosluk/orta sutun degerleri. Boylece ust satirin
+        // davranisi AYNEN korunur ve orta bolumu ilerde yeniden olceklemek
+        // ust satiri bir daha etkilemez.
+        const double topAnchorNarrowImage = 240, topAnchorWideImage = 320;
+        const double topAnchorNarrowMiddle = 280, topAnchorWideMiddle = 320;
+        const double topAnchorNarrowGap = 24, topAnchorWideGap = 50;
+
+        var topAnchorImage = Lerp(topAnchorNarrowImage, topAnchorWideImage, t);
+        var topAnchorMiddle = Lerp(topAnchorNarrowMiddle, topAnchorWideMiddle, t);
+        var topAnchorGap = Lerp(topAnchorNarrowGap, topAnchorWideGap, t);
+
+        var comparisonTotalWidth = (topAnchorImage * 2) + (topAnchorGap * 2) + topAnchorMiddle;
+        var comparisonLeftEdgeX = Math.Max(0, (availableWidth - comparisonTotalWidth) / 2);
+        var rightImageStartX = comparisonLeftEdgeX + topAnchorImage + topAnchorGap + topAnchorMiddle + topAnchorGap;
 
         // [Sinir-durumu duzeltmesi] FolderPathColumn.ActualWidth BURADA KULLANILMAZ - ActualWidth
         // bu satirin birkac satir YUKARISINDA ayarlanan Width'i henuz YANSITMAZ (WPF, Width
@@ -435,7 +527,7 @@ public partial class MainWindow : Window
         var menuNaturalWidth = MenuColumn.ActualWidth;
 
         var targetSpacer = Math.Max(0, rightImageStartX - leftContentWidth);
-        var maxAvailableSpacer = Math.Max(0, RootGrid.ActualWidth - leftContentWidth - defaultGroupNaturalWidth - menuNaturalWidth);
+        var maxAvailableSpacer = Math.Max(0, availableWidth - leftContentWidth - defaultGroupNaturalWidth - menuNaturalWidth);
         DefaultGroupSpacerColumn.Width = new GridLength(Math.Min(targetSpacer, maxAvailableSpacer));
     }
 

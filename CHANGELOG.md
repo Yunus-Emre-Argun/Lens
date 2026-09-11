@@ -8,6 +8,98 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Arama Ayarları İki Sütunlu Kompakt Düzene Geçirildi] — 2026-09-11
+
+> **Durum: deney dalı (`feature/compact-search-layout`), ayrı worktree.**
+> `feature/desen-code-integration`'dan açıldı, `main`'e **birleştirilmedi**.
+> Bu bir **yerleşim düzenlemesidir** — arama mantığı ve model hesapları
+> değişmedi. Görsel kabul kullanıcıyı bekliyor.
+
+### Kök neden
+- `ComparisonRowGrid`, ana Grid'in **`Auto`** yükseklikli orta satırındaydı; bu
+  satırın doğal yüksekliği sonuç listesinin nereden başlayacağını belirliyordu.
+- Ayar paneli **tek sütunlu, 17 satırlık dikey bir formdu**. Model, görüntü
+  değerlendirme ve desen odaklı karşılaştırma kontrolleri mevcut ayarların
+  **altına** eklenince orta sütun (~417 DIP) görsel sütunundan (en fazla
+  ~306 DIP) **uzun** hâle geldi ve sonuç listesini aşağı itti.
+- `UpdateResponsiveLayout()` içindeki `minResultsReserve = 120` **yalnızca
+  görsel yüksekliğini** sınırlıyordu; paneli sınırlamıyordu, bu yüzden garanti
+  vermiyordu (kod yorumları da bunu kabul ediyordu).
+- Ayrıca yükseklik bütçesinden `RootGrid` Margin'i (24 DIP) **ikinci kez**
+  düşülüyordu — `RootGrid.ActualHeight` WPF'te Margin'i zaten dışlar.
+
+### Değiştirildi — yerleşim
+- Ayar paneli **iki bağımsız sütunlu** bir yapıya geçirildi; aralarında ince,
+  tema uyumlu dikey ayırıcı var. Doğal panel yüksekliği ~336 → ~195 DIP.
+  - **Sol sütun:** Minimum benzerlik (%) · En fazla sonuç · Arama öncesi
+    indeksi otomatik kontrol et ve güncelle.
+  - **Sağ sütun:** Model · Görüntü değerlendirme · Desen odaklı karşılaştırma.
+  - Model ve görüntü değerlendirme artık sol sütunun **altında değil,
+    sağında**.
+- "ARAMA AYARLARI" başlığı panel içinde üstte; iki sütun bu başlığın altında
+  hizalı başlıyor.
+- Her kontrol **kendi alt Grid'inin kendi satırında**; önceki "tanımsız
+  `Grid.Row` / boşluk satırına kontrol" hatası bu yapıda oluşamaz (statik
+  denetimle doğrulandı: 7/7/3 satırlık gridlerde kullanılan satırlar 0–6).
+
+### Değiştirildi — responsive hesap
+- **Üst hizalama:** `SettingsButtonsGrid.Margin.Top` artık sabit 28 DIP değil,
+  görsel başlığının (`QueryImageTitleText`) **gerçek ölçülen** yüksekliği.
+  Böylece Ara/Yeni Arama'nın üst kenarı görsel çerçevelerinin üst kenarıyla
+  hizalanır; font/DPI değişince kaymaz.
+- **Alt hizalama ve asıl düzeltme:** `SettingsPanelBorder.MaxHeight` kod ile
+  `görselYüksekliği − butonSatırı(42) − aralık(11)` olarak veriliyor. Panelin
+  alt kenarı görsel çerçevelerinin alt kenarıyla hizalanıyor **ve orta satır
+  artık panel tarafından sürüklenemiyor**. Sığmayan içerik panelin kendi
+  `ScrollViewer`'ında kayıyor.
+- Ölçüler: görsel 240→**350** DIP (4:3), merkez 280/320→**360/600** DIP, dış
+  boşluk 24→**36** DIP.
+- **Kompakt görünüm** gerçek genişliğe göre belirleniyor (`RootGrid.ActualWidth
+  < 1180`): panel padding 14→12, sütun araları 22→14. **Font küçültülmüyor**,
+  sonuç alanı ezilmiyor, geniş görünümde iki sütun aynen korunuyor.
+- Yükseklik bütçesindeki **çift Margin düşümü** giderildi (24 DIP geri kazanıldı).
+- Merkez sütunun tabanı `absoluteFloorMiddle = 340` — panel bir daha dikey
+  forma doğru sıkışamaz.
+
+### Değiştirildi — üst satır bağlantısı
+- `rightImageStartX` artık orta bölümün **gerçek** ölçülerinden değil, üst
+  satıra özel, kendi içinde tutarlı bir geometriden (eski görsel/boşluk/orta
+  sütun değerleri) hesaplanıyor. Merkez 320→600 DIP genişlediği hâlde
+  **"Bu Klasörü Varsayılan Yap" grubu yerinden oynamıyor**; ⋮ menüsü sağ
+  kenarda kalıyor. Orta bölümü ileride yeniden ölçeklemek üst satırı bir daha
+  etkilemeyecek.
+
+### Ölçüm (formül kontrolü — canlı ekran ölçümü değil)
+| Ölçü | Görsel | Merkez | Orta satır | Sonuç viewport | Liste başlangıcı |
+|---|---|---|---|---|---|
+| 1920×1080 @100% | 350×262 | 600 | 328 | **478 DIP** | %50,3 |
+| 1920×1080 @125% | 350×262 | 600 | 328 | **262 DIP** | %63,9 |
+| 1920×1080 @150% | 315×236 | 524 | 302 | **144 DIP** | %73,9 |
+| 1366×768 | 332×249 | 561 | 315 | **179 DIP** | %70,7 |
+| 1060×840 (varsayılan) | 272×204 | 429 | 270 | **296 DIP** | %58,3 |
+| 860×680 (minimum) | 224×168 | 340 | 234 | **172 DIP** | %67,6 |
+
+Altı ölçünün hiçbirinde yatay taşma yok; sonuç viewport'u her ölçüde
+**≥120 DIP**. Önceki sürümde 860×680'de bu değer ~28 DIP'e düşüyordu.
+
+### Korundu
+- DINOv2/CLIP ve renkli/gri seçenekleri, profil indeksleri, desen odaklı
+  karşılaştırma, kayıtlı tercihler, eşik ve sonuç limiti doğrulaması, sayı
+  kutularının ▲/▼ okları, tüm `x:Name`/olay bağları/ComboBox `Tag` değerleri.
+- Sürükle-bırak, tıklayarak seçme, çift tıkla büyütme, `Stretch=Uniform`,
+  görsel içi boş durum yazıları, görsel altındaki kalıcı ipucu, dosya adı ve
+  desen kodu gösterimi, arama kilidi, ilerleme paneli, kaydırma sıfırlama.
+- Tema sistemi; lime temada panel beyaz kalıyor (panel renkleri zaten
+  `GetSettingsPanelColors`'tan sabit geliyor, ana zeminden türetilmiyor).
+
+### Canlı doğrulanmadı
+- Uygulama **açılmadı** (kullanıcı bilgisayarı kullanıyor). Yukarıdaki tablo
+  formül kontrolüdür; `TopAreaGrid`/`FooterGrid` yükseklikleri ve panelin
+  doğal içerik yüksekliği **tahmindir**, WPF ölçümü değildir.
+- 1366×768 ve %150 DPI'da panel `MaxHeight`'i doğal içeriğe **çok yakın**
+  (196 vs 195 / 183 vs 195) — gerçek font metriklerine göre ince bir kaydırma
+  çubuğu görünebilir. Taşma/kırpılma değildir.
+
 ## [Desen Kodu Servisi Çok Modelli Aramaya Entegre Edildi] — 2026-09-11
 
 > **Durum: deney dalı (`feature/desen-code-integration`), ayrı worktree.**

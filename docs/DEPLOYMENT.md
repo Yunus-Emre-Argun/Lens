@@ -86,6 +86,23 @@ dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 --self
 > **VPN'siz kullanıcılar da kodları görür**. Dosya git'e ve kurulum paketine
 > gerçek verilerle **dahil edilmez**. Ayrıntı: `docs/DESEN_CODE_SERVICE.md`.
 
+> **[Kompakt arama yerleşimi — `feature/compact-search-layout`]** Aynı iki
+> modeli ve desen kodu servisini içerir; yalnızca orta arama bölümünün
+> yerleşimi değişmiştir:
+>
+> ```
+> dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 \
+>   --self-contained true -p:DebugType=none -p:DebugSymbols=false \
+>   -o publish/Lens.Desktop-win-x64-compact-search-layout
+> ```
+>
+> ClickOnce için `ClickOnceCompactLayout.pubxml` →
+> `publish/ClickOnce-compact-search-layout/`. Kimlik yine
+> `Lens.Desktop.MultiModel.application`; paket, kurulu **"Lens (Çok Modelli
+> Pilot)"** kurulumunun **güncellemesidir**. ClickOnce sürümü
+> `1.0.0.1` → **`1.0.0.2`** (`ApplicationRevision` 2). Servis adresi publish
+> anında `appsettings.json` içinde olmalıdır. Ayrıntı: `docs/CLICKONCE.md` §12d.
+
 - **Hedef mimari: x64.** `win-x86`/`win-arm64` için ayrıca test edilmemiştir.
 - Self-contained olduğu için hedef makinede .NET runtime kurulu olması
   gerekmez; WPF runtime ve ONNX Runtime native binary'leri publish çıktısına
