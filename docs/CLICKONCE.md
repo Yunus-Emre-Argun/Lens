@@ -571,6 +571,23 @@ türer, yalnızca revizyon numarası artar.
 Sonraki paketlerde revizyon **artırılmaya devam etmelidir** (1 → 2 → …),
 aksi halde aynı sorun tekrarlar.
 
+> ⚠ **Tuzak (üretim sırasında yaşandı ve doğrulandı):**
+> `ApplicationRevision` **yalnızca** `ApplicationVersion` `.*` ile bittiğinde
+> uygulanır. Düz `$(FileVersion)` (= `1.0.0.0`) yazıldığında revizyon
+> **sessizce yok sayılır** ve paket yine `1.0.0.0` olarak üretilir — hata
+> vermez, manifest kontrol edilmezse fark edilmez. İlk üretimde tam olarak bu
+> oldu; profil `$(FileVersion)`'ın ilk üç parçasını alıp sonuna `.*`
+> ekleyecek şekilde düzeltildi:
+>
+> ```xml
+> <ApplicationVersion>$(FileVersion.Substring(0, $(FileVersion.LastIndexOf(".")))).*</ApplicationVersion>
+> <ApplicationRevision>1</ApplicationRevision>
+> ```
+>
+> Sürüm numarası hâlâ tek kaynaktan (`FileVersion`) türer, elle yazılmaz.
+> **Her publish'ten sonra `*.application` dosyasındaki `assemblyIdentity`
+> `version` değeri elle kontrol edilmelidir.**
+
 ### ⚠ Servis adresi ve manifest bütünlüğü
 
 ClickOnce, dağıtılan **her dosyanın** hash'ini manifeste yazar. Paket
@@ -593,6 +610,26 @@ Kimlik bilgisi (VPN kullanıcı adı/şifre) hiçbir dosyaya yazılmaz.
 
 `dotnet publish` ClickOnce manifestini **desteklemez** (MSB4803) — tam .NET
 Framework MSBuild gerekir.
+
+### Bu paketin doğrulanmış içeriği (2026-09-11)
+
+| | Değer |
+|---|---|
+| Manifest kimliği | `Lens.Desktop.MultiModel.application` |
+| Manifest sürümü | **`1.0.0.1`** (elle kontrol edildi) |
+| Görünen ad | `Lens (Çok Modelli Pilot)` |
+| `Application Files` klasörü | `Lens.Desktop.MultiModel_1_0_0_1` |
+| Dosya sayısı / boyut | 479 dosya / ~834 MB |
+| Masaüstü kısayolu | `createDesktopShortcut="true"` ✅ |
+| Modeller | `dinov2-base.onnx.deploy`, `clip-vision-b16-openai.onnx.deploy` ✅ |
+| `appsettings.json.deploy` | var, `Endpoint` **dolu** (gerçek uç) ✅ |
+| `.pdb` | **yok** ✅ |
+| Kullanıcı ayarı / log / index / ürün görseli | **yok** ✅ |
+| Yerel geliştirici yolu (`Lens.Core.dll`, `Lens.Desktop.dll`) | **yok** ✅ |
+
+**Paket kurulmadı ve çalıştırılmadı** — kurulum penceresi ve canlı arayüz
+kullanıcının izni olmadan açılmadı. "Üzerine kurulma" davranışının gerçek
+doğrulaması kullanıcıyı beklemektedir.
 
 ### Geri dönme
 
