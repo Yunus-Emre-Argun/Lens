@@ -1,28 +1,35 @@
 namespace Lens.Core.DesenCodes;
 
 /// <summary>
-/// Desen kodu servisinin cagri sozlesmesi. BILEREK yapilandirilabilir:
-/// gorev sirasinda verilen metot adi (<c>GetDesenKodu</c>) hedef uctaki
-/// WSDL'de BULUNAMADI (bkz. docs/DESEN_CODE_SERVICE.md "Doğrulama"), bu
-/// yuzden metot/parametre adlari koda GOMULMEZ - dogru ad ogrenildiginde
-/// yeniden derleme degil, tek satirlik bir ayar degisikligi yeterlidir.
+/// Desen kodu servisinin cagri sozlesmesi.
 ///
-/// Degerler exe yanindaki <c>appsettings.json</c> dosyasindan okunur
-/// (IT/sistem yoneticisi duzenler - bkz. docs/DECISIONS.md #41). Repo'daki
-/// ornek dosya BOS gelir; gercek adres hardcode EDILMEZ.
+/// <c>GetDesenKodu</c> / <c>DosyaAdi</c> / <c>http://tempuri.org/</c>
+/// 2026-09-11'de hedef ucun WSDL'inde CANLI dogrulandi, bu yuzden repo'daki
+/// ornek dosyada ARTIK DOLU gelir. Yine de koda GOMULMEZ: servis tarafi bir
+/// gun metot/parametre adini degistirirse yeniden derleme degil, tek satirlik
+/// bir ayar degisikligi yeterli olmalidir.
+///
+/// <see cref="Endpoint"/> ise repo'da BOS kalir - gercek ortam adresi bir
+/// altyapi bilgisidir ve kaynak koda/ornek ayara YAZILMAZ; kurulum/dagitim
+/// ayarina IT tarafindan girilir (bkz. docs/DECISIONS.md #41).
 ///
 /// Kimlik bilgisi alani BILEREK YOKTUR: uc, kimliksiz cagriya HTTP 200
 /// donmektedir ve VPN girisi ile servis kimlik dogrulamasi AYNI SEY DEGILDIR.
 /// </summary>
 public sealed class DesenCodeServiceOptions
 {
-    /// <summary>Tam .asmx adresi. Bos ise servis yapilandirilmamis sayilir ve kod guncelleme islemi calismaz.</summary>
+    /// <summary>
+    /// Tam .asmx adresi. Repo'daki ornek ayarda BILEREK BOSTUR - kuruluma/
+    /// dagitim ayarina IT girer. Bos ise servis yapilandirilmamis sayilir:
+    /// kod guncelleme islemi calismaz, ama uygulama acilisi, arama,
+    /// indeksleme ve kayitli kodlarin gosterimi normal devam eder.
+    /// </summary>
     public string? Endpoint { get; set; }
 
-    /// <summary>SOAP metot adi. Bos ise servis yapilandirilmamis sayilir.</summary>
+    /// <summary>SOAP metot adi. WSDL'de dogrulanan deger: <c>GetDesenKodu</c>.</summary>
     public string? MethodName { get; set; }
 
-    /// <summary>Metodun tek string parametresinin adi.</summary>
+    /// <summary>Metodun tek string parametresinin adi. WSDL'de dogrulanan deger: <c>DosyaAdi</c>.</summary>
     public string? ParameterName { get; set; }
 
     /// <summary>
@@ -63,9 +70,32 @@ public sealed class DesenCodeServiceOptions
         && !string.IsNullOrWhiteSpace(MethodName)
         && !string.IsNullOrWhiteSpace(ParameterName);
 
-    /// <summary>Yapilandirma eksikse kullaniciya gosterilecek, ne yapilacagini soyleyen mesaj.</summary>
-    public string DescribeMissingConfiguration() =>
-        "Desen kodu servisi yapılandırılmamış. Uygulama klasöründeki appsettings.json "
-        + "dosyasında DesenCodeService bölümünün Endpoint, MethodName ve ParameterName "
-        + "alanları doldurulmalıdır.";
+    /// <summary>
+    /// Yapilandirma eksikse kullaniciya gosterilecek TEK mesaj. Hangi alanin
+    /// GERCEKTEN eksik oldugunu sayar - uc alanin tamamini saymak, yalnizca
+    /// adresi girmesi gereken kullaniciyi yaniltirdi.
+    /// </summary>
+    public string DescribeMissingConfiguration()
+    {
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(Endpoint))
+        {
+            missing.Add("Endpoint (servis adresi)");
+        }
+
+        if (string.IsNullOrWhiteSpace(MethodName))
+        {
+            missing.Add("MethodName");
+        }
+
+        if (string.IsNullOrWhiteSpace(ParameterName))
+        {
+            missing.Add("ParameterName");
+        }
+
+        return "Desen kodu servisi yapılandırılmamış. Uygulama klasöründeki appsettings.json "
+            + "dosyasında DesenCodeService bölümünde şu alan(lar) doldurulmalıdır: "
+            + (missing.Count > 0 ? string.Join(", ", missing) : "Endpoint, MethodName, ParameterName")
+            + ".";
+    }
 }

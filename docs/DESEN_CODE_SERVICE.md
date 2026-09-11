@@ -5,13 +5,14 @@ Sonuç kartlarında dosya adının yanında desen kodunun gösterilmesi
 yer tutucu (`desen.jpg` **(—)**) gösterilmesi için kurulan iki akışlı çözümü
 anlatır.
 
-> **Durum: deney dalı `feature/desen-code-placeholder`.**
-> Dal, çok modelli sürümden (`feature/multi-model-search`) açılmıştır.
-> `main` ve diğer pilot dalları değiştirilmemiştir.
+> **Durum: deney dalı `feature/desen-code-integration`.**
+> Dal, `feature/desen-code-placeholder` üzerinden (o da çok modelli sürümden)
+> açılmıştır. `main` ve diğer pilot dalları değiştirilmemiştir.
 >
-> **Gerçek servis metodu hâlâ bulunamamıştır** (bkz. §2). Bu dalda da canlı
-> servis doğrulaması **yapılmamıştır**; tüm doğrulama sahte servisle
-> otomatik testler üzerindendir.
+> **2026-09-11: `GetDesenKodu` servis tarafında yayımlandı ve sözleşme canlı
+> olarak doğrulandı** (bkz. §2). İstemci gerçek uca bağlanıyor, `HTTP 200`
+> alıyor ve cevabı doğru ayrıştırıyor. **Ancak gerçek bir ürün için doğru
+> kodun döndüğü hâlâ doğrulanmadı** — bkz. §2.4.
 
 ## 1. Neden iki ayrı akış?
 
@@ -28,57 +29,113 @@ arama ve indeksleme normal çalışır**. Arama sırasında servise **hiçbir is
 gönderilmez** ve servis cevabı **beklenmez**; yalnızca kod güncelleme işlemi
 kullanılamaz.
 
-## 2. Servis sözleşmesi — DOĞRULANAN ve DOĞRULANAMAYAN
+## 2. Servis sözleşmesi — DOĞRULAMA DURUMU
 
-### ✅ Önceki turda canlı doğrulandı (`feature/desen-code-service`)
+### 2.1 ✅ 2026-09-11 — `GetDesenKodu` YAYIMLANDI ve WSDL'de doğrulandı
 
-Uç `http://192.194.196.101:801/ozx.asmx` erişilebilir ve WSDL'i incelendi:
+`http://192.194.196.101:801/ozx.asmx?WSDL` yeniden okundu (HTTP 200, 193.946
+bayt). Servis artık **93 metot** yayınlıyor (önceki turda 92 idi) ve yeni
+metot `GetDesenKodu`. WSDL'den birebir okunan sözleşme:
 
-| | Değer |
+| | WSDL'deki değer |
 |---|---|
+| Endpoint | `http://192.194.196.101:801/ozx.asmx` |
+| Metot | `GetDesenKodu` |
+| Parametre | `DosyaAdi`, `s:string`, `minOccurs=0 maxOccurs=1` |
 | Namespace | `http://tempuri.org/` |
-| SOAPAction | `http://tempuri.org/<MetotAdı>` |
-| Binding | SOAP 1.1 (`Service1Soap`) ve SOAP 1.2 (`Service1Soap12`) |
-| İstek | `<MetotAdı><parametre>değer</parametre></MetotAdı>` |
-| Cevap | `<MetotAdıResponse><MetotAdıResult>metin</...></...>` |
-| Kimlik doğrulama | **İstemiyor** — kimliksiz çağrı HTTP 200 döndü |
+| SOAPAction | `http://tempuri.org/GetDesenKodu` (hem `Service1Soap` hem `Service1Soap12` binding'inde) |
+| Dönüş alanı | `GetDesenKoduResult`, `s:string` |
+| Stil | `document` |
 
-Bu desen, uygulamadaki istemcinin ürettiği zarfla gerçek servise karşı
-çalıştırılarak doğrulanmıştı: `HelloWorld` metodu HTTP 200 ve
-`<HelloWorldResult>Hello World</HelloWorldResult>` döndü.
+Bu, görevde bildirilen sözleşmenin **tamamını** doğruluyor.
 
-### ❌ Doğrulanamadı — `GetDesenKodu` bu uçta YOK
+### 2.2 ✅ Canlı çağrı — uygulamanın KENDİ istemcisiyle
 
-`ozx.asmx` **92 metot** yayınlıyor; `GetDesenKodu` bunlardan biri **değil**.
-"desen / pattern / design / motif / dosya / file / image" geçen hiçbir metot
-yok.
+`Lens.AiProof desencodelive <katalog> <n>` modu eklendi. Bu mod:
 
-Canlı kanıt (önceki tur):
+- uç/metot/parametre adlarını **koddan değil**, exe yanındaki
+  `appsettings.json`'dan okur (üretimle **aynı** yapılandırma yolu),
+- dosya listesini indekslemenin kullandığı **aynı tarama sözleşmesinden**
+  (`CatalogScanner`) alır,
+- **yalnızca dosya adı** gönderir — görsel içeriği, tam yerel yol, UNC yolu
+  gönderilmez,
+- varsayılan **5**, en fazla **25** dosya sorar (kod düzeyinde sınır) —
+  "önce az sayıda dene" kuralı bu moda **bağlanmıştır**, buradan tüm kataloğa
+  binlerce istek gönderilemez.
 
+**Sonuç (2026-09-11, gerçek katalogdan 5 dosya adı):**
+`0 kod bulundu, 5 "kod yok", 0 servis hatası`.
+
+Yani: SOAPAction **kabul edildi**, HTTP **200** döndü, SOAP fault **yok**,
+`GetDesenKoduResult` alanı **bulundu ve ayrıştırıldı**. Önceki turdaki
+`HTTP 500 / "Server did not recognize the value of HTTP Header SOAPAction"`
+hatası **artık oluşmuyor**.
+
+Bilinmeyen bir dosya için servisin döndürdüğü gerçek gövde:
+
+```xml
+<GetDesenKoduResponse xmlns="http://tempuri.org/"><GetDesenKoduResult /></GetDesenKoduResponse>
 ```
-POST /ozx.asmx   SOAPAction: "http://tempuri.org/GetDesenKodu"
-→ HTTP 500
-  <faultstring>Server did not recognize the value of HTTP Header
-   SOAPAction: http://tempuri.org/GetDesenKodu.</faultstring>
-```
 
-**Bu turda uca yeni bir çağrı yapılmamıştır.** Parametrenin gerçek adı, dönüş
-alanının adı ve dosya adının uzantılı mı uzantısız mı gönderileceği hâlâ
-**doğrulanmamıştır**.
+Boş (kendi kendine kapanan) sonuç alanı istemcide **`NotFound`** olarak
+yorumlanır — hata **değil**, "bu dosya için kod yok". Bu gerçek gövde
+otomatik teste sabitlendi (P70).
 
-### Bu yüzden sözleşme yapılandırmadadır
+### 2.3 ❌ Tarihsel kayıt — önceki turda `GetDesenKodu` serviste YOKTU
 
-Metot/parametre adları koda **gömülmemiştir**. Doğru ad öğrenildiğinde
-yeniden derleme değil, exe yanındaki `appsettings.json`'da tek satır
-değişikliği yeterlidir:
+> Aşağıdaki bilgi **artık geçerli değildir**, tarihsel olarak saklanmaktadır.
+>
+> `feature/desen-code-service` turunda (2026-09-10) uç 92 metot yayınlıyordu
+> ve `GetDesenKodu` bunlardan biri **değildi**:
+>
+> ```
+> POST /ozx.asmx   SOAPAction: "http://tempuri.org/GetDesenKodu"
+> → HTTP 500
+>   <faultstring>Server did not recognize the value of HTTP Header
+>    SOAPAction: http://tempuri.org/GetDesenKodu.</faultstring>
+> ```
+>
+> O turda istemcinin taşıma katmanı, aynı servisteki gerçek `HelloWorld`
+> metoduyla dolaylı olarak doğrulanmıştı. **2026-09-11 itibarıyla bu dolaylı
+> doğrulamaya gerek kalmamıştır**: asıl metot yayımlandı ve doğrudan
+> çağrıldı.
+
+### 2.4 ⚠ HÂLÂ DOĞRULANMADI — dönen kodun DOĞRU kod olduğu
+
+`HTTP 200` veya boş cevap, **tek başına doğru eşleşme kanıtı değildir.**
+
+Bu makinede **gerçek üretim desen dosya adı yok**. Denemede kullanılan
+katalog (`C:\Users\win11\Desktop\data`) internetten indirilmiş stok görsel
+adlarından oluşuyor (`1,146,735 Baroque Pattern ... Shutterstock (1).jpg`);
+ERP'nin bu adları tanımaması **beklenen** sonuçtur. Servis yalnızca
+`GetDesenKodu` sunuyor — kod **listeleyen** bir metot yok, dolayısıyla
+doğrulama çifti servisten de türetilemiyor.
+
+**Bu yüzden aşağıdakiler AÇIK kalmıştır:**
+
+- Gerçek bir desen dosyası için servisin **kod döndürdüğü** görülmedi
+  (`Found` yolu canlı çalıştırılmadı).
+- Dönen kodun **doğru** kod olduğu doğrulanamadı.
+- Dosya adının **uzantılı mı uzantısız mı** eşleştiği canlı olarak
+  görülmedi (fallback kuralı §3'te; kod tarafı hazır).
+
+**Kapatmak için gereken:** bilinen tek bir çift — *"şu dosya adı → şu desen
+kodu"*. Bununla tek bir `desencodelive` çalıştırması doğrulamayı tamamlar.
+
+### 2.5 Sözleşme neden hâlâ yapılandırmada?
+
+Metot/parametre adları **koda gömülmedi**. Doğrulandıkları için repo'daki
+örnek ayarda artık **dolu** geliyorlar, ama servis tarafı bir gün adı
+değiştirirse yeniden derleme değil, tek satırlık ayar değişikliği yeterli
+olmalı.
 
 ```json
 {
   "AdminDefaultProductDirectory": "",
   "DesenCodeService": {
     "Endpoint": "",
-    "MethodName": "",
-    "ParameterName": "",
+    "MethodName": "GetDesenKodu",
+    "ParameterName": "DosyaAdi",
     "Namespace": "http://tempuri.org/",
     "TimeoutSeconds": 15,
     "AbortAfterConsecutiveFailures": 5,
@@ -88,12 +145,18 @@ değişikliği yeterlidir:
 }
 ```
 
-Alanlar boşsa servis **yapılandırılmamış** sayılır: güncelleme işlemi tek bir
-mesajla durur, **hiçbir servis isteği denenmez** (her ürün için tekrarlayan
-başarısız çağrı oluşmaz), kayıtlı kodların gösterimi ve arama etkilenmez.
+**`Endpoint` repo'da BİLEREK boştur.** Gerçek ortam adresi bir altyapı
+bilgisidir; kaynak koda ve repo'daki örnek ayara **yazılmaz**, kurulum/dağıtım
+ayarına girilir (bkz. §8).
+
+`Endpoint` boşken servis **yapılandırılmamış** sayılır: güncelleme işlemi tek
+bir mesajla durur ve **hiçbir servis isteği denenmez**; uygulama açılışı,
+arama, indeksleme ve kayıtlı kodların gösterimi etkilenmez. Eksik alan mesajı
+**yalnızca gerçekten eksik olan alanı** sayar (P68).
 
 > Bu dosyaya **kimlik bilgisi yazılmaz**. Servis kimliksiz çağrıya yanıt
 > vermektedir; VPN girişi ile servis kimlik doğrulaması **aynı şey değildir**.
+> VPN kullanıcı adı/şifresi hiçbir dosyaya, loga veya commit'e yazılmamıştır.
 
 ## 3. Dosya adı eşleştirme
 
@@ -117,13 +180,21 @@ belirsizlik artık teorik değil **gerçektir**:
 - **Kayıt anahtarı** katalog köküne göre `/` ayraçlı **göreli yoldur**.
   `a/desen.jpg` ile `b/desen.jpg` metadata'da **ayrı kayıtlardır** ve
   birbirinin kodunu **ezmez** (test P53, P55).
-- **Ama servis yalnızca dosya adını kabul eder.** Bu yüzden aynı adlı iki
-  dosya için **tek sorgu** yapılır ve ikisi de **aynı kodu** alır (test P54).
-  İçerikleri farklıysa kodun hangisine ait olduğu **kesinleştirilemez**.
+- **Ama servis yalnızca dosya adını kabul eder.** Bu, 2026-09-11 WSDL
+  okumasıyla **doğrulanmıştır**: `GetDesenKodu` elemanının şemasında tek bir
+  alan vardır — `DosyaAdi`, `s:string`. Klasör, göreli yol veya başka bir
+  ayırt edici parametre **yoktur**. Bu yüzden aynı adlı iki dosya için **tek
+  sorgu** yapılır ve ikisi de **aynı kodu** alır (test P54). İçerikleri
+  farklıysa kodun hangisine ait olduğu **kesinleştirilemez**.
 
 Bu **çözülmüş değildir ve çözülmüş gibi sunulmamaktadır**. Gerçek çözüm,
 servisin göreli yol veya başka bir tekil anahtar kabul etmesini gerektirir;
-bu, servis tarafında bir değişikliktir ve bu dalın kapsamı dışındadır.
+bu, **servis tarafında bir değişikliktir** ve uygulama tarafından
+kapatılamaz. Servis desteği gelene kadar bu durum açık bir sınırlamadır.
+
+Pratik etkisi: katalogda alt klasörlerde **aynı adlı** dosyalar varsa, o
+dosyaların kod gösterimi yanıltıcı olabilir. Kayıtlar birbirini ezmez, ama
+ikisi de aynı kodu gösterir.
 
 ## 4. Metadata dosyası
 
@@ -275,20 +346,62 @@ Metadata dosyası **görsellerle aynı klasörde** (`.lens\metadata\`) durur.
   (`.gitignore` → `.lens/`).
 - Merkezî bir erişim mekanizması **yoktur** ve varsayılmamıştır.
 
+### Servis adresinin pakete girmesi
+
+`Endpoint` repo'da boştur, ama **kurulum paketinde dolu olmak zorundadır**:
+
+- **ClickOnce**, dağıtılan her dosyanın hash'ini manifeste yazar. Paket
+  üretildikten **sonra** `appsettings.json`'ı elle düzenlemek kurulumu
+  **bozar** (doğrulama hatası). Bu yüzden gerçek adres **publish anında**
+  dosyada olmalıdır.
+- **Taşınabilir paket** için de aynı yol izlenir; orada dosyayı sonradan
+  düzenlemek teknik olarak mümkündür ama iki farklı yöntem tutmamak için
+  publish anında yazılır.
+
+Sonuç: iç ağ adresi **paketin içinde** dağıtılır. Bu bir kimlik bilgisi
+değildir (kullanıcı adı/şifre hiçbir yere yazılmaz), ancak bir **iç altyapı
+bilgisidir** — paketler kurum dışına verilmemelidir.
+
+Adres değişirse: yeni bir publish üretilmelidir; kurulu pakette dosyayı elle
+değiştirmek ClickOnce doğrulamasını bozar.
+
 ## 9. Doğrulanan / doğrulanamayan
+
+### Canlı servis (gerçek uca çağrı yapıldı)
 
 | | Durum |
 |---|---|
-| Servis erişimi, WSDL, namespace, SOAPAction, SOAP 1.1/1.2 | ✅ önceki turda canlı doğrulandı |
-| İstemcinin zarfı + cevap ayrıştırması (gerçek `HelloWorld` metoduyla) | ✅ önceki turda canlı doğrulandı |
-| **`GetDesenKodu` metodunun varlığı** | ❌ **serviste YOK** |
-| Parametre adı, dönüş alanı, uzantılı/uzantısız biçim | ❌ doğrulanamadı |
-| Gerçek kodlarla uçtan uca akış | ❌ doğrulanamadı |
-| **Bu turda canlı servis çağrısı** | ❌ **yapılmadı** |
-| Aynı adlı dosyaların ayırt edilmesi | ⚠ metadata ayırır, **servis ayıramaz** (§3) |
-| Metadata yazma/okuma, hata koruması, iptal, tekilleştirme, erken duruş | ✅ otomatik testlerle (sahte servis) |
-| `(—)` yer tutucusu, göreli yol anahtarı, yer tutucunun diske yazılmaması | ✅ otomatik testlerle (Grup P) |
-| Canlı arayüz görünümü | ❌ uygulama açılmadı |
+| Uç erişimi, WSDL, namespace, SOAPAction, SOAP 1.1/1.2 | ✅ canlı doğrulandı (2026-09-11) |
+| **`GetDesenKodu` metodunun varlığı** | ✅ **yayımlanmış, WSDL'de var** (93 metot) |
+| Parametre adı/tipi (`DosyaAdi`, string) ve dönüş alanı (`GetDesenKoduResult`, string) | ✅ WSDL'den birebir doğrulandı |
+| İstemcinin zarfı + SOAPAction + cevap ayrıştırması, **asıl metot üzerinden** | ✅ canlı doğrulandı (5 dosya, HTTP 200, fault yok) |
+| Kimlik doğrulama gerekmediği | ✅ canlı doğrulandı |
+| "Kod yok" cevabının gerçek gövdesi (`<GetDesenKoduResult />`) | ✅ canlı yakalandı, teste sabitlendi (P70) |
+| **Gerçek bir ürün için kod DÖNDÜĞÜ** | ❌ **görülmedi** — makinede gerçek desen dosya adı yok (§2.4) |
+| **Dönen kodun DOĞRU kod olduğu** | ❌ **doğrulanamadı** — bilinen doğrulama çifti yok |
+| Uzantılı/uzantısız eşleşme biçimi | ❌ canlı görülmedi (kod tarafı hazır, §3) |
+
+### Sahte servis (ağ kullanmayan otomatik testler — Grup P)
+
+| | Durum |
+|---|---|
+| Metadata yazma/okuma, bozuk/bilinmeyen şema, atomik kayıt | ✅ |
+| Servis hatası/timeout/geçersiz cevapta eski kodun korunması | ✅ |
+| Boş cevabın gerçek kod gibi kaydedilmemesi | ✅ |
+| Tekilleştirme, iptal, erken duruş, hata ayrıntısının raporlanması | ✅ |
+| `(—)` yer tutucusu, göreli yol anahtarı, yer tutucunun diske yazılmaması | ✅ |
+| Baştaki sıfırların korunması | ✅ |
+| Kod güncellemesinin embedding index'ini değiştirmemesi | ✅ |
+| WSDL'de doğrulanan sözleşmenin istemcide aynen uygulanması | ✅ (P69) |
+
+> Sahte servis testleri canlı doğrulamanın **yerine geçmez**; canlı doğrulama
+> da sahte servis testlerinin yerine geçmez. İkisi ayrı raporlanır.
+
+### Arayüz
+
+| | Durum |
+|---|---|
+| Canlı arayüz görünümü | ❌ uygulama açılmadı (kullanıcının izni olmadan çalıştırılmaz) |
 
 ## İlgili Dokümanlar
 

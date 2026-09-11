@@ -522,6 +522,86 @@ canlı arayüz kullanıcının izni olmadan açılmadı. Kurulum davranışını
 (özellikle "üzerine kurulma" ve kısayol adı) gerçek doğrulaması
 kullanıcıyı beklemektedir.
 
+## 12c. Çok modelli + desen kodu paketi — `feature/desen-code-integration`
+
+> Bu bölüm yalnızca `feature/desen-code-integration` dalını anlatır. `main`
+> dalındaki CLIP ClickOnce profili/paketi, DINOv2 pilot paketi ve çok modelli
+> pilot paketi **değiştirilmemiştir**.
+
+| | Çok modelli pilot (mevcut) | Çok modelli + desen kodu (yeni) |
+|---|---|---|
+| Profil | `ClickOnceMultiModel.pubxml` | `ClickOnceMultiModelDesenCode.pubxml` |
+| Çıktı klasörü | `publish/ClickOnce-multi-model/` | `publish/ClickOnce-multi-model-desen-code/` |
+| `AssemblyName` | `Lens.Desktop.MultiModel` | `Lens.Desktop.MultiModel` (**aynı — bilerek**) |
+| Manifest kimliği | `Lens.Desktop.MultiModel.application` | `Lens.Desktop.MultiModel.application` (**aynı**) |
+| Görünen ad | `Lens (Çok Modelli Pilot)` | `Lens (Çok Modelli Pilot)` (**aynı**) |
+| ClickOnce sürümü | `1.0.0.0` | **`1.0.0.1`** (`ApplicationRevision` 0 → 1) |
+| Paketlenen model | DINOv2 + CLIP | DINOv2 + CLIP (değişmedi) |
+| Desen kodu servisi | yok | var |
+
+### ⚠ Bu paket hangi kurulumun güncellemesidir?
+
+Kurulu **"Lens (Çok Modelli Pilot)"** kurulumunun güncellemesidir ve onun
+**üzerine** kurulur. ClickOnce'ın kurulum kimliği görünen addan değil
+deployment manifestindeki `assemblyIdentity name` değerinden türer; bu da
+`AssemblyName`'e bağlıdır. `AssemblyName` **bilerek değiştirilmedi**, çünkü:
+
+- Aynı özellik setinin ikinci bir kopyası, ikinci bir ayar/log klasörü ve
+  kullanıcıda "hangisi güncel?" belirsizliği yaratırdı.
+- Desen kodu entegrasyonu çok modelli sürümün **devamıdır**, alternatifi
+  değil.
+
+Diğer paketler (`Lens`, `Lens (DINOv2 Pilot)`) **etkilenmez** — onların
+kimlikleri farklıdır.
+
+### ⚠ Neden `ApplicationRevision` artırıldı?
+
+Mevcut `publish/ClickOnce-multi-model/` paketi `1.0.0.0` ile üretildi. **Aynı
+kimlik + aynı sürüm** ile ikinci bir paket ClickOnce tarafından "zaten kurulu"
+sayılır ve kurulum/güncelleme **çalışmaz** — DINOv2 pilotunda yaşanan durumun
+aynısı (§12b, karar #97). Bu yüzden yalnızca ClickOnce'a özel
+`ApplicationRevision` `0` → `1` yapıldı; paket sürümü `1.0.0.1` olur.
+
+Bu bir **ürün sürüm artışı değildir**: `Lens.Desktop.csproj`'daki
+`AssemblyVersion` / `FileVersion` / `InformationalVersion` **değiştirilmedi**
+(uygulamada görünen sürüm hâlâ `08.09.26 — v1.0`) ve karar #80'in "tek sürüm
+kaynağı" kuralı korundu — `ApplicationVersion` hâlâ `$(FileVersion)`'dan
+türer, yalnızca revizyon numarası artar.
+
+Sonraki paketlerde revizyon **artırılmaya devam etmelidir** (1 → 2 → …),
+aksi halde aynı sorun tekrarlar.
+
+### ⚠ Servis adresi ve manifest bütünlüğü
+
+ClickOnce, dağıtılan **her dosyanın** hash'ini manifeste yazar. Paket
+üretildikten **sonra** `appsettings.json`'ı (veya başka bir dosyayı) elle
+düzenlemek, kurulumda **doğrulama hatasına** yol açar.
+
+Bu yüzden gerçek uç adresi **publish anında** `appsettings.json` içinde
+olmalıdır. Repo'daki örnek dosyada `Endpoint` **boştur ve boş kalır**; adres
+kaynak koda gömülmez. Adres değişirse **yeni bir publish üretilir**.
+
+Kimlik bilgisi (VPN kullanıcı adı/şifre) hiçbir dosyaya yazılmaz.
+
+### Üretme komutu
+
+```
+"%ProgramFiles%\Microsoft Visual Studio\<sürüm>\<edition>\MSBuild\Current\Bin\MSBuild.exe" ^
+  src\Lens.Desktop\Lens.Desktop.csproj /t:Restore,Publish ^
+  /p:PublishProfile=ClickOnceMultiModelDesenCode /p:Configuration=Release /p:DebugType=none
+```
+
+`dotnet publish` ClickOnce manifestini **desteklemez** (MSB4803) — tam .NET
+Framework MSBuild gerekir.
+
+### Geri dönme
+
+Çok modelli sürümün desen kodsuz hâline dönmek için
+`publish\ClickOnce-multi-model\setup.exe` yeniden çalıştırılır. **İndeks
+açısından risk yoktur** — desen kodu metadata'sı
+(`.lens\metadata\desen-codes-v1.json`) embedding indekslerinden ayrıdır,
+yeniden indeksleme gerekmez.
+
 ## 13. Açık Kararlar (özet)
 
 Bkz. `docs/DECISIONS.md` "Not Yet Decided": yayıncı/şirket adı, gerçek

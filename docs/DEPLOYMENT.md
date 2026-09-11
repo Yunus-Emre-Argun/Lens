@@ -50,6 +50,33 @@ dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 --self
 > DEĞİŞTİRİLMEMİŞTİR (478'er dosya bayt bayt aynı). Ayrıntı:
 > `docs/MULTI_MODEL_SEARCH.md`.
 
+> **[Çok modelli + desen kodu — `feature/desen-code-integration`]** Aynı iki
+> modeli paketler, ek olarak desen kodu servisi entegrasyonunu içerir:
+>
+> ```
+> dotnet publish src/Lens.Desktop/Lens.Desktop.csproj -c Release -r win-x64 \
+>   --self-contained true -p:DebugType=none -p:DebugSymbols=false \
+>   -o publish/Lens.Desktop-win-x64-multi-model-desen-code
+> ```
+>
+> ClickOnce için `ClickOnceMultiModelDesenCode.pubxml` →
+> `publish/ClickOnce-multi-model-desen-code/`.
+>
+> ⚠ **Bu paket yeni bir uygulama DEĞİL, kurulu "Lens (Çok Modelli Pilot)"
+> kurulumunun GÜNCELLEMESİDİR.** `AssemblyName` bilerek
+> `Lens.Desktop.MultiModel` bırakıldı (manifest kimliği
+> `Lens.Desktop.MultiModel.application`), yan yana kurulum yoktur. Mevcut
+> paket `1.0.0.0` ile üretildiği için aynı kimlik + aynı sürüm "zaten kurulu"
+> sayılıp kurulum çalışmazdı; bu yüzden **yalnızca ClickOnce'a özel**
+> `ApplicationRevision` 0 → 1 yapıldı → paket sürümü **`1.0.0.1`**.
+> `AssemblyVersion`/`FileVersion` **değişmedi** (bkz. karar #80, #99).
+>
+> ⚠ **Servis adresi publish ANINDA `appsettings.json` içinde olmalıdır.**
+> ClickOnce, dağıtılan her dosyanın hash'ini manifeste yazar; paket
+> üretildikten **sonra** bu dosyayı elle düzenlemek kurulumu **bozar**.
+> Repo'daki örnek dosyada `Endpoint` boştur ve boş kalır. Ayrıntı:
+> `docs/DESEN_CODE_SERVICE.md` §2.5, §8.
+
 > **[Desen kodu metadata'sı — katalogla birlikte taşınır]** Desen kodları
 > görsellerin yanındaki `<ÜrünDizini>\.lens\metadata\desen-codes-v1.json`
 > dosyasında tutulur. **Yerel katalog kopyası alınırken bu klasörün de

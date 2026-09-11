@@ -8,6 +8,85 @@ numarası yerine faz adı ve tarih kullanılmıştır. Buradan sonrası
 `docs/RELEASE_PROCESS.md`'de önerilen tag tabanlı release sürecine göre
 güncellenmelidir.
 
+## [Desen Kodu Servisi Çok Modelli Aramaya Entegre Edildi] — 2026-09-11
+
+> **Durum: deney dalı (`feature/desen-code-integration`), ayrı worktree.**
+> `feature/desen-code-placeholder`'dan açıldı, `main`'e **birleştirilmedi**.
+> Uygulama açılmadı. Detay: `docs/DESEN_CODE_SERVICE.md`.
+
+### Doğrulandı (canlı servis)
+- **`GetDesenKodu` servis tarafında yayımlandı.** `ozx.asmx?WSDL` yeniden
+  okundu: uç artık **93 metot** yayınlıyor (önceki turda 92) ve sözleşme
+  birebir doğrulandı — parametre `DosyaAdi` (`s:string`), dönüş alanı
+  `GetDesenKoduResult` (`s:string`), namespace `http://tempuri.org/`,
+  SOAPAction `http://tempuri.org/GetDesenKodu`.
+- **Uygulamanın kendi istemcisiyle canlı çağrı yapıldı:** 5 gerçek dosya adı,
+  **HTTP 200, SOAP fault yok**, sonuç alanı bulundu ve ayrıştırıldı. Önceki
+  turun `HTTP 500 / SOAPAction tanınmadı` hatası **artık oluşmuyor**.
+- Servisin "kod yok" cevabının gerçek gövdesi (`<GetDesenKoduResult />`)
+  canlı yakalandı ve otomatik teste sabitlendi.
+
+### Hâlâ açık
+- **Gerçek bir ürün için kod döndüğü görülmedi.** 5 sorgunun tamamı "kod yok"
+  döndü; bu makinedeki katalog internetten indirilmiş stok görsel adlarından
+  oluşuyor, gerçek üretim desen dosya adı yok. Servis kod *listeleyen* bir
+  metot sunmuyor, doğrulama çifti servisten de türetilemiyor.
+- **Dönen kodun doğru kod olduğu doğrulanmadı.** Kapatmak için bilinen tek bir
+  çift ("şu dosya adı → şu desen kodu") yeterli.
+- Uzantılı/uzantısız eşleşme biçimi canlı görülmedi (kod tarafı hazır).
+
+### Eklendi
+- `Lens.AiProof desencodelive <katalog> [n]` — canlı deneme modu. Uç/metot/
+  parametre adlarını **koddan değil** `appsettings.json`'dan okur (üretimle
+  aynı yol), dosya listesini `CatalogScanner`'dan alır, **yalnızca dosya adı**
+  gönderir, varsayılan 5 / en fazla 25 dosya sorar — "önce az sayıda dene"
+  kuralı koda bağlandı.
+- Yeni ClickOnce profili `ClickOnceMultiModelDesenCode.pubxml` →
+  `publish/ClickOnce-multi-model-desen-code/`.
+- Grup P'ye 6 yeni kontrol (P67–P72): canlı doğrulanan sözleşmenin istemcide
+  aynen uygulanması, canlı yakalanan boş cevabın NotFound'a çevrilmesi, repo
+  örnek ayarının yapılandırılmamış sayılması.
+
+### Değiştirildi
+- Repo'daki örnek `appsettings.json`'da `MethodName`/`ParameterName`/
+  `Namespace` artık **dolu** (WSDL'de doğrulandılar); **`Endpoint` bilerek
+  boş** — gerçek adres kaynak koda ve repo'ya yazılmaz.
+- `DescribeMissingConfiguration()` artık üç alanın tamamını değil **yalnızca
+  gerçekten eksik olanı** sayıyor.
+
+### Paketleme
+- Yeni paketler ayrı klasörlerde üretildi; eski paketlere **dokunulmadı**.
+- **Yeni ClickOnce paketi, kurulu "Lens (Çok Modelli Pilot)" kurulumunun
+  GÜNCELLEMESİDİR** — `AssemblyName` (`Lens.Desktop.MultiModel`) bilerek
+  değiştirilmedi, yan yana kurulum yok. Aynı kimlik + aynı sürüm "zaten
+  kurulu" sayılıp kurulum çalışmayacağı için **yalnızca ClickOnce'a özel**
+  `ApplicationRevision` 0 → 1 yapıldı (paket sürümü **1.0.0.1**).
+  `AssemblyVersion`/`FileVersion` **değişmedi**; karar #80'in tek sürüm
+  kaynağı kuralı korundu.
+- **Servis adresi pakete girer.** ClickOnce manifesti her dosyanın hash'ini
+  tuttuğu için paket üretildikten sonra `appsettings.json` elle
+  değiştirilemez; adres publish anında dosyaya yazılır. İç ağ adresi paketin
+  içinde dağıtılır — kimlik bilgisi değil ama iç altyapı bilgisi.
+
+### Değişmedi
+- DINOv2 Base / CLIP Standart seçimi, renkli/gri değerlendirme, desen odaklı
+  karşılaştırma, dört ayrı indeks profili, alt klasör taraması, eşikler,
+  sonuç limiti, arama kilidi, ilerleme göstergeleri.
+- Kod güncellemesi embedding indekslerine dokunmuyor, yeniden görsel
+  indeksleme gerektirmiyor. Eski arayüz/tek modelli kod geri getirilmedi.
+
+### Bilinen sınırlama (servis tarafı)
+- WSDL ile doğrulandı ki `GetDesenKodu` şemasında **tek alan** var (`DosyaAdi`);
+  klasör/göreli yol parametresi **yok**. Bu yüzden alt klasörlerdeki aynı adlı
+  dosyalar **aynı kodu** alır. Kayıtlar birbirini ezmiyor ama ayrıştırılamıyor —
+  **servis tarafında destek gelmeden çözülmüş sayılmıyor**.
+
+### Test
+- `dotnet build Lens.sln` Debug/Release **0 warning / 0 error**.
+- `Lens.AiProof hardeningtest` **421 PASS / 0 FAIL** (placeholder dalındaki
+  415 test değiştirilmeden geçti + 6 yeni kontrol). Sahte servisle.
+- Canlı servis testi ayrı raporlandı: 5 sorgu, 0 kod, 5 "kod yok", 0 hata.
+
 ## [Eksik Desen Kodları İçin Kısa Gösterim] — 2026-09-11
 
 > **Durum: deney dalı (`feature/desen-code-placeholder`), ayrı worktree.**

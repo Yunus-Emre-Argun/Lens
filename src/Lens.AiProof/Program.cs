@@ -28,6 +28,16 @@ if (args.Length > 0 && args[0] == "hardeningtest")
     return;
 }
 
+// [CANLI DENEME] Desen kodu servisine, uygulamanin KENDI istemcisiyle az
+// sayida gercek dosya adi sorar. Uc/metot/parametre adlari koda GOMULU
+// DEGILDIR - exe yanindaki appsettings.json'dan okunur. Sahte servisle kosan
+// Grup P testlerinin YERINE GECMEZ, onlari tamamlar.
+if (args.Length > 0 && args[0] == "desencodelive")
+{
+    Lens.AiProof.DesenCodeLiveProbe.Run(args.Skip(1).ToArray());
+    return;
+}
+
 // [PILOT] DINOv2-Base entegrasyon smoke testi (bkz. Lens.AiProof.DinoSmokeTest).
 // Ikinci argument (opsiyonel), kullanicinin bildirdigi dogrulama ciftinin
 // bulundugu klasordur - verilmezse o adim ATLANIR. O klasordeki hicbir dosya
@@ -1779,6 +1789,70 @@ static void RunHardeningTest()
             Throws<InvalidOperationException>(() => new SoapDesenCodeService(unconfigured)));
         Check("P66 kismi yapilandirma (yalnizca Endpoint) da yapilandirilmis SAYILMAZ",
             !new DesenCodeServiceOptions { Endpoint = "http://x/y.asmx" }.IsConfigured);
+
+        // =================================================================
+        // P67+ : 2026-09-11'de WSDL'de CANLI DOGRULANAN sozlesme
+        // Bu kontroller ag KULLANMAZ - canli uc uzerinde dogrulanan
+        // sozlesmenin istemcide AYNEN uygulandigini sabitler (regresyon).
+        // =================================================================
+
+        // Repo'daki ornek ayar bicimi: metot/parametre DOLU, adres BOS.
+        var shipped = new DesenCodeServiceOptions
+        {
+            Endpoint = string.Empty,
+            MethodName = "GetDesenKodu",
+            ParameterName = "DosyaAdi",
+            Namespace = "http://tempuri.org/",
+        };
+
+        Check("P67 repo ornek ayari (adres BOS) yapilandirilmis SAYILMAZ - adres koda gomulu degil",
+            !shipped.IsConfigured);
+        Check("P68 eksik alan mesaji YALNIZCA gercekten eksik olani sayar (Endpoint)",
+            shipped.DescribeMissingConfiguration().Contains("Endpoint")
+            && !shipped.DescribeMissingConfiguration().Contains("MethodName"),
+            shipped.DescribeMissingConfiguration());
+
+        var verified = new DesenCodeServiceOptions
+        {
+            Endpoint = "http://ornek.local/ozx.asmx",
+            MethodName = "GetDesenKodu",
+            ParameterName = "DosyaAdi",
+            Namespace = "http://tempuri.org/",
+        };
+        using var verifiedClient = new SoapDesenCodeService(verified, new System.Net.Http.HttpClient());
+
+        var wsdlEnvelope = verifiedClient.BuildEnvelope("desen.jpg");
+        Check("P69 istek zarfi WSDL'de dogrulanan sozlesmeyi AYNEN uygular (GetDesenKodu/DosyaAdi/tempuri)",
+            wsdlEnvelope.Contains("<GetDesenKodu xmlns=\"http://tempuri.org/\">")
+            && wsdlEnvelope.Contains("<DosyaAdi>desen.jpg</DosyaAdi>"),
+            wsdlEnvelope.Replace("\n", " "));
+
+        // Servisin BILINMEYEN dosya icin dondurdugu GERCEK govde (2026-09-11,
+        // canli olarak yakalandi): sonuc ogesi KENDI KENDINE KAPANIR.
+        const string liveEmptyBody =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+            + "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+            + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+            + "xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">"
+            + "<soap:Body><GetDesenKoduResponse xmlns=\"http://tempuri.org/\">"
+            + "<GetDesenKoduResult /></GetDesenKoduResponse></soap:Body></soap:Envelope>";
+
+        Check("P70 CANLI yakalanan 'kod yok' govdesi ('<GetDesenKoduResult />') NotFound'a cevrilir, hata DEGIL",
+            verifiedClient.ParseResponse(liveEmptyBody, "desen.jpg").Status == DesenCodeLookupStatus.NotFound);
+
+        const string liveFoundBody =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+            + "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">"
+            + "<soap:Body><GetDesenKoduResponse xmlns=\"http://tempuri.org/\">"
+            + "<GetDesenKoduResult>00123</GetDesenKoduResult></GetDesenKoduResponse></soap:Body></soap:Envelope>";
+
+        Check("P71 canli bicimdeki dolu cevapta bastaki sifirlar KORUNUR",
+            verifiedClient.ParseResponse(liveFoundBody, "desen.jpg") is { Status: DesenCodeLookupStatus.Found, Code: "00123" });
+        Check("P72 'kod yok' cevabi, kaydi OLAN bir dosyanin kodunu SILMEZ - NotFound olarak kaydedilir",
+            DesenCodeRefresh.Apply("d.jpg",
+                new DesenCodeEntry { RelativePath = "d.jpg", Code = "00123", State = DesenCodeEntryState.Found, UpdatedUtc = now },
+                verifiedClient.ParseResponse(liveEmptyBody, "d.jpg"), now)
+                is { State: DesenCodeEntryState.NotFound, Code: null });
     }
 
     // ---- Grup Q: Cok modelli arama - profil, gri mod, merkezleme, alt klasor ----
