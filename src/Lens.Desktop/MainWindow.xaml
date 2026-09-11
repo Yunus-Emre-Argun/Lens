@@ -464,9 +464,12 @@
                                 <Grid Grid.Column="0" VerticalAlignment="Top">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
-                                        <!-- [NumberBox] Toplam kontrol (yazi+ok) 76 DIP - iki
-                                             sayi kutusu AYNI genislikte. -->
-                                        <ColumnDefinition Width="76" />
+                                        <!-- [NumberBox] Toplam kontrol (yazi+ok) genis pencerede
+                                             76 DIP, kompaktta 64 DIP (kod ile - bkz.
+                                             UpdateResponsiveLayout). Iki sayi kutusu HER ZAMAN
+                                             ayni genislikte; dar pencerede etiketin kelime
+                                             ortasindan bolunmemesi icin kutu kucultulur. -->
+                                        <ColumnDefinition x:Name="NumberBoxColumn" Width="76" />
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
                                         <!-- 0: Minimum benzerlik · 1: dogrulama

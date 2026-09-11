@@ -92,13 +92,35 @@ Altı ölçünün hiçbirinde yatay taşma yok; sonuç viewport'u her ölçüde
 - Tema sistemi; lime temada panel beyaz kalıyor (panel renkleri zaten
   `GetSettingsPanelColors`'tan sabit geliyor, ana zeminden türetilmiyor).
 
-### Canlı doğrulanmadı
-- Uygulama **açılmadı** (kullanıcı bilgisayarı kullanıyor). Yukarıdaki tablo
-  formül kontrolüdür; `TopAreaGrid`/`FooterGrid` yükseklikleri ve panelin
-  doğal içerik yüksekliği **tahmindir**, WPF ölçümü değildir.
-- 1366×768 ve %150 DPI'da panel `MaxHeight`'i doğal içeriğe **çok yakın**
-  (196 vs 195 / 183 vs 195) — gerçek font metriklerine göre ince bir kaydırma
-  çubuğu görünebilir. Taşma/kırpılma değildir.
+### Canlı doğrulama (kullanıcı isteğiyle uygulama çalıştırıldı)
+Uygulama 1600×950, 1366×768, 1060×840 ve 860×680 ölçülerinde çalıştırılıp
+pencerenin **kendi görsel ağacı** render edildi (ekran yakalama değil; kullanıcının
+ekranındaki başka pencereler görüntülenmedi). Yerleşim taslakla örtüştü —
+ölçülen görsel 350×262, merkez 606 DIP, üst hizalama tam.
+
+**Canlı bakışta üç kusur bulundu ve düzeltildi:**
+
+1. **Panelin altı hizalanmıyordu (~15 DIP yukarıda).** `MaxHeight` verildiğinde
+   `Border` içeriği kadar küçülüyordu. `MinHeight` = görsel hizası eklendi;
+   içerik kısa olduğunda panel esneyip alt kenarı çerçeveyle **birebir**
+   hizalanıyor.
+2. **1060×840 varsayılan pencerede panel kayıyordu** — otomatik indeks ve
+   desen odaklı karşılaştırma kaydırma altında kalıyordu. Yalnızca sabit
+   yükseklik vermek yanlıştı: artık `MinHeight` (görsel hizası) +
+   `MaxHeight` (bütçe tavanı) çifti kullanılıyor; panel ikisinin arasında
+   **doğal boyunu** alıyor, kaydırma yalnızca bütçe tavanı da yetmediğinde
+   devreye giriyor. Varsayılan ve minimum pencerede artık **altı ayarın
+   tamamı kaydırmasız görünüyor**.
+3. **860×680'de "Minimum benzerlik (%)" etiketi kelime ortasından
+   bölünüyordu** ("benzerli / k"). Sayı kutusu kompaktta 76→64 DIP'e çekildi
+   ve yatay taşma azaltma sırası değiştirildi: artık önce **görsel**
+   (200 DIP tabanına kadar), sonra merkez (360 DIP tabanına kadar) küçülüyor.
+   İki sütunlu panelde doğru öncelik budur — panel daralınca etiketler
+   bölünüyor, görsel ise yalnızca küçük görünüyor.
+
+**Hâlâ canlı doğrulanmadı:** %125/%150 DPI'da gerçek ekran davranışı (yukarıdaki
+ölçümler %100 ölçekte alındı), sayı doğrulama mesajları açıkken panel yüksekliği,
+ve gerçek kataloglu bir aramada sonuç kartlarının yerleşimi.
 
 ## [Desen Kodu Servisi Çok Modelli Aramaya Entegre Edildi] — 2026-09-11
 

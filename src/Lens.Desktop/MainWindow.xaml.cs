@@ -360,6 +360,12 @@ public partial class MainWindow : Window
         SettingsColumnGapColumn.Width = new GridLength(settingsColumnGap);
         SettingsColumnGapColumn2.Width = new GridLength(settingsColumnGap);
 
+        // [Dar pencere - etiket kirilmasi] 860x680'de sayi kutusu 76 DIP iken
+        // sol sutunun etiketine ~67 DIP kaliyordu ve "Minimum benzerlik (%)"
+        // KELIME ORTASINDAN boluniyordu ("benzerli / k"). Canli render ile
+        // goruldu. Kompaktta kutu 64 DIP'e cekilir - iki kutu yine ESIT.
+        NumberBoxColumn.Width = new GridLength(isCompact ? 64 : 76);
+
         var middleColumnWidth = Lerp(narrowMiddleColumn, wideMiddleColumn, t);
         var gapOuter = Lerp(narrowGap, wideGapOuter, t);
         var folderPathWidth = Lerp(narrowFolderPath, wideFolderPath, t);
@@ -401,7 +407,7 @@ public partial class MainWindow : Window
         // Merkez sutunun tabani, iki sutunlu panelin okunabilir kaldigi en dar
         // olcudur - bunun altina INILMEZ, aksi halde panel yeniden dikey
         // forma dogru sikisirdi.
-        const double absoluteFloorMiddle = 340;
+        const double absoluteFloorMiddle = 360;
         var totalMiddleWidth = (imageWidth * 2) + (gapOuter * 2) + middleColumnWidth;
         if (totalMiddleWidth > availableWidth)
         {
@@ -412,18 +418,23 @@ public partial class MainWindow : Window
             gapOuter -= gapReduction / 2;
             overflow -= gapReduction;
 
-            if (overflow > 0)
-            {
-                var middleReduction = Math.Min(overflow, Math.Max(0, middleColumnWidth - absoluteFloorMiddle));
-                middleColumnWidth -= middleReduction;
-                overflow -= middleReduction;
-            }
-
+            // [Sira degisti] Onceki surumde once ORTA sutun kuculurdu; iki
+            // sutunlu panelde bu yanlis onceliktir - panel daralinca etiketler
+            // kelime ortasindan bolunuyor, gorsel ise yalnizca kucuk goruniyor.
+            // Bu yuzden once GORSEL (200 DIP tabanina kadar), sonra merkez
+            // (360 DIP tabanina kadar) kucultulur.
             if (overflow > 0)
             {
                 var imageReduction = Math.Min(overflow, Math.Max(0, (imageWidth - absoluteFloorImage) * 2));
                 imageWidth -= imageReduction / 2;
                 imageHeight = imageWidth * 0.75;
+                overflow -= imageReduction;
+            }
+
+            if (overflow > 0)
+            {
+                var middleReduction = Math.Min(overflow, Math.Max(0, middleColumnWidth - absoluteFloorMiddle));
+                middleColumnWidth -= middleReduction;
             }
         }
 
@@ -480,8 +491,31 @@ public partial class MainWindow : Window
         // gorselden bir miktar UZUN olur, ama yukseklik yine SINIRLIDIR
         // (taban + buton satiri kadar), yani orta satir kontrolsuz buyuyemez.
         const double panelMinHeight = 140;
-        var panelMaxHeight = Math.Max(panelMinHeight, imageHeight - searchButtonRowHeight - buttonsToPanelGap);
-        SettingsPanelBorder.MaxHeight = panelMaxHeight;
+        // [Panel yuksekligi - MinHeight + MaxHeight ciftiyle] Tek bir Height
+        // vermek IKI ayri sorun uretiyordu ve ikisi de canli render ile
+        // GORULDU:
+        //   • Yalnizca MaxHeight: Border icerigi kadar kuculuyor, panelin ALTI
+        //     gorsel cercevesinin ~15 DIP USTUNDE kaliyordu (hizalama bozuk).
+        //   • Yalnizca Height (= gorsel hizasi): 1060x840 VARSAYILAN pencerede
+        //     panel 151 DIP'e sikisiyor, icerik ~191 DIP oldugu icin otomatik
+        //     indeks ve desen odakli kontrolleri KAYDIRMA ALTINDA kaliyordu -
+        //     varsayilan pencerede kabul edilemez.
+        //
+        // Cozum: iki sinir birden.
+        //   MinHeight = gorsel hizasi  -> icerik kisa oldugunda panel esner ve
+        //                                 ALT KENAR cerceveyle BIREBIR hizalanir.
+        //   MaxHeight = butce tavani   -> icerik uzun oldugunda panel dogal
+        //                                 boyuna kadar buyuyebilir, ama sonuc
+        //                                 listesine ayrilan 120 DIP'i ASLA yemez.
+        // Ikisinin arasinda Border dogal boyunu alir: kaydirma YALNIZCA butce
+        // tavani da yetmediginde devreye girer.
+        var alignedHeight = Math.Max(panelMinHeight, imageHeight - searchButtonRowHeight - buttonsToPanelGap);
+        var budgetCeiling = Math.Max(
+            alignedHeight,
+            availableForMiddleRow - titleHeight - searchButtonRowHeight - buttonsToPanelGap);
+
+        SettingsPanelBorder.MinHeight = alignedHeight;
+        SettingsPanelBorder.MaxHeight = budgetCeiling;
 
         // [Ust satir hizalama - orta bolumden AYRILDI]
         // Varsayilan buton grubunun sol baslangici, tarihsel olarak
